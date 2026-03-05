@@ -67,8 +67,78 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _ensure_cloud_account(repo, session, tenant_id, provider_type, name):
+    """Get or create a CloudAccount for the given provider."""
+    accounts = repo.list_cloud_accounts_by_tenant(tenant_id)
+    account = next(
+        (a for a in accounts if a.provider_type == provider_type and a.name == name),
+        None,
+    )
+    if not account:
+        account = repo.create_cloud_account(
+            tenant_id=tenant_id, provider_type=provider_type, name=name,
+        )
+        session.commit()
+    return account
+
+
+def _ingest_to_db(config) -> None:
+    """Populate database with data from configured providers."""
+    from infraverse.db.engine import create_engine, create_session_factory, init_db
+    from infraverse.db.repository import Repository
+    from infraverse.sync.ingest import DataIngestor
+    from infraverse.providers.yandex import YandexCloudClient
+
+    engine = create_engine(config.database_url)
+    init_db(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_factory() as session:
+        repo = Repository(session)
+
+        tenant = repo.get_tenant_by_name("Default")
+        if not tenant:
+            tenant = repo.create_tenant(name="Default")
+            session.commit()
+
+        ingestor = DataIngestor(session)
+        providers = {}
+
+        yc_account = _ensure_cloud_account(
+            repo, session, tenant.id, "yandex_cloud", "Yandex Cloud",
+        )
+        yc_client = YandexCloudClient(config.yc_token)
+        providers[yc_account.id] = yc_client
+
+        if config.vcd_configured:
+            from infraverse.providers.vcloud import VCloudDirectorClient
+
+            vcd_account = _ensure_cloud_account(
+                repo, session, tenant.id, "vcloud", "vCloud Director",
+            )
+            vcd_client = VCloudDirectorClient(
+                url=config.vcd_url,
+                username=config.vcd_user,
+                password=config.vcd_password,
+                org=config.vcd_org or "System",
+            )
+            providers[vcd_account.id] = vcd_client
+
+        zabbix_client = None
+        if config.zabbix_configured:
+            from infraverse.providers.zabbix import ZabbixClient
+
+            zabbix_client = ZabbixClient(
+                url=config.zabbix_url,
+                username=config.zabbix_user,
+                password=config.zabbix_password,
+            )
+
+        ingestor.ingest_all(providers, zabbix_client)
+
+
 def cmd_sync(args: argparse.Namespace) -> None:
-    """Execute sync command: fetch from providers, sync to NetBox."""
+    """Execute sync command: fetch from providers, store in DB, sync to NetBox."""
     from infraverse.config import Config
 
     try:
@@ -78,6 +148,14 @@ def cmd_sync(args: argparse.Namespace) -> None:
         sys.exit(1)
     config.setup_logging()
 
+    # Populate database with provider data
+    try:
+        _ingest_to_db(config)
+        logger.info("Database ingestion complete")
+    except Exception:
+        logger.warning("Database ingestion had errors, continuing with NetBox sync")
+
+    # Sync to NetBox
     from infraverse.sync.engine import SyncEngine
 
     try:
