@@ -241,12 +241,12 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 6: Port provider clients (base, yandex, vcloud, netbox)
-- [ ] Copy `src/netbox_sync/clients/base.py` -> `src/infraverse/providers/base.py`
-- [ ] Copy `src/netbox_sync/clients/yandex.py` -> `src/infraverse/providers/yandex.py`, update imports
-- [ ] Copy `src/netbox_sync/clients/vcloud.py` -> `src/infraverse/providers/vcloud.py`, update imports
-- [ ] Copy `src/netbox_sync/clients/netbox.py` -> `src/infraverse/providers/netbox.py`, update imports
-- [ ] Port all client tests, update imports to `infraverse.providers.*`
-- [ ] Run tests - must pass before next task
+- [x] Copy `src/netbox_sync/clients/base.py` -> `src/infraverse/providers/base.py`
+- [x] Copy `src/netbox_sync/clients/yandex.py` -> `src/infraverse/providers/yandex.py`, update imports
+- [x] Copy `src/netbox_sync/clients/vcloud.py` -> `src/infraverse/providers/vcloud.py`, update imports
+- [x] Copy `src/netbox_sync/clients/netbox.py` -> `src/infraverse/providers/netbox.py`, update imports
+- [x] Port all client tests, update imports to `infraverse.providers.*`
+- [x] Run tests - must pass before next task
 
 ### Task 7: Fix Zabbix client and port
 - [ ] Copy `src/netbox_sync/clients/zabbix.py` -> `src/infraverse/providers/zabbix.py`, update imports
