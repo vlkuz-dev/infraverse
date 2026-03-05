@@ -279,15 +279,32 @@ class TestFetchHosts:
         assert len(hosts) == 1001
         assert mock_client.client.post.call_count == 2
 
-    def test_not_authenticated(self):
-        """Fetching without authentication raises RuntimeError."""
+    def test_not_authenticated_auto_authenticates(self):
+        """Fetching without authentication triggers auto-authenticate."""
         with patch.object(ZabbixClient, "__init__", lambda self, *a, **kw: None):
             client = ZabbixClient.__new__(ZabbixClient)
             client.auth_token = None
+            client.api_url = "http://zabbix.test/api_jsonrpc.php"
             client.client = MagicMock(spec=httpx.Client)
 
-            with pytest.raises(RuntimeError, match="Not authenticated"):
-                client.fetch_hosts()
+            with patch.object(client, "authenticate") as mock_auth:
+                def set_token():
+                    client.auth_token = "test-token"
+                mock_auth.side_effect = set_token
+
+                resp = MagicMock()
+                resp.raise_for_status.return_value = None
+                resp.json.return_value = {
+                    "jsonrpc": "2.0",
+                    "result": [],
+                    "id": 1,
+                }
+                client._request_id = 0
+                client.client.post.return_value = resp
+
+                result = client.fetch_hosts()
+                mock_auth.assert_called_once()
+                assert result == []
 
 
 # --- Error handling tests ---

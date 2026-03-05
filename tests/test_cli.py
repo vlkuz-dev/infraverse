@@ -74,7 +74,7 @@ class TestParseArgs:
     def test_serve_defaults(self):
         args = parse_args(["serve"])
         assert args.command == "serve"
-        assert args.host == "0.0.0.0"
+        assert args.host == "127.0.0.1"
         assert args.port == 8000
 
     def test_serve_custom_host_port(self):
@@ -90,7 +90,7 @@ class TestParseArgs:
 
     def test_serve_custom_port(self):
         args = parse_args(["serve", "--port", "3000"])
-        assert args.host == "0.0.0.0"
+        assert args.host == "127.0.0.1"
         assert args.port == 3000
 
 
@@ -192,7 +192,7 @@ class TestMainServe:
         mock_run_serve.assert_called_once()
         args = mock_run_serve.call_args[0][0]
         assert args.command == "serve"
-        assert args.host == "0.0.0.0"
+        assert args.host == "127.0.0.1"
         assert args.port == 8000
 
     @patch("netbox_sync.cli._run_serve")
@@ -204,14 +204,12 @@ class TestMainServe:
         assert args.host == "127.0.0.1"
         assert args.port == 9000
 
-    @patch("netbox_sync.cli.uvicorn", create=True)
-    @patch("netbox_sync.cli.Config")
-    @patch("netbox_sync.cli.load_dotenv")
-    def test_run_serve_starts_uvicorn(self, mock_dotenv, mock_config_cls, mock_uvicorn):
+    def test_run_serve_starts_uvicorn(self):
         from netbox_sync.cli import _run_serve
 
         mock_config = MagicMock()
-        mock_config_cls.from_env.return_value = mock_config
+        mock_config.zabbix_configured = False
+        mock_config.vcd_configured = False
 
         args = parse_args(["serve", "--host", "localhost", "--port", "3000"])
 
@@ -219,7 +217,8 @@ class TestMainServe:
         mock_app = MagicMock()
 
         with patch("netbox_sync.cli.Config") as cfg_cls, \
-             patch("netbox_sync.cli.load_dotenv"):
+             patch("netbox_sync.clients.yandex.YandexCloudClient"), \
+             patch("netbox_sync.clients.netbox.NetBoxClient"):
             cfg_cls.from_env.return_value = mock_config
 
             with patch.dict("sys.modules", {"uvicorn": mock_uvicorn_mod}), \

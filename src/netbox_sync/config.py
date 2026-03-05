@@ -109,5 +109,7 @@ class Config:
             f"Config(netbox_url={self.netbox_url!r}, "
             f"yc_token={_mask(self.yc_token)!r}, "
             f"netbox_token={_mask(self.netbox_token)!r}, "
+            f"vcd_password={'***' if self.vcd_password else None}, "
+            f"zabbix_password={'***' if self.zabbix_password else None}, "
             f"dry_run={self.dry_run})"
         )

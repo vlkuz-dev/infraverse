@@ -183,5 +183,7 @@ class VCloudDirectorClient:
 
     def fetch_vms(self) -> List[VMInfo]:
         """Fetch all VMs and return them as normalized VMInfo objects."""
+        if not self.auth_token:
+            self.authenticate()
         records = self.fetch_all_vm_records()
         return [self._record_to_vminfo(r) for r in records]

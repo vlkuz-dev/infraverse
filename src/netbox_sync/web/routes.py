@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory=str(_templates_dir))
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+def dashboard(request: Request):
     """Render the main dashboard page with provider status and summary."""
     config: Config | None = request.app.state.config
 
@@ -46,7 +46,7 @@ async def dashboard(request: Request):
 
 
 @router.get("/comparison", response_class=HTMLResponse)
-async def comparison(
+def comparison(
     request: Request,
     provider: str = Query(default="", description="Filter by cloud provider"),
     status: str = Query(default="all", description="Filter: all or discrepancies"),

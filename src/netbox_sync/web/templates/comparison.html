@@ -24,10 +24,6 @@
     <button hx-get="/comparison?provider={{ filters.provider }}&status={{ filters.status }}&search={{ filters.search }}" hx-target="#comparison-results" class="refresh-btn">Refresh</button>
 </section>
 
-<section class="comparison-summary">
-    <p>Total: {{ summary.total }} | In sync: {{ summary.in_sync }} | With discrepancies: {{ summary.with_discrepancies }}</p>
-</section>
-
 <div id="comparison-results">
     {% include "comparison_table.html" %}
 </div>

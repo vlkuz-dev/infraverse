@@ -53,8 +53,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     serve_parser = subparsers.add_parser("serve", help="Start web UI server")
     serve_parser.add_argument(
         "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+        default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)",
     )
     serve_parser.add_argument(
         "--port",
@@ -105,8 +105,8 @@ def _run_serve(args: argparse.Namespace) -> None:
     import uvicorn
 
     from netbox_sync.web.app import create_app
-
-    load_dotenv()
+    from netbox_sync.clients.yandex import YandexCloudClient
+    from netbox_sync.clients.netbox import NetBoxClient
 
     try:
         config = Config.from_env()
@@ -116,7 +116,38 @@ def _run_serve(args: argparse.Namespace) -> None:
 
     config.setup_logging()
 
-    app = create_app(config=config)
+    yc_client = YandexCloudClient(config.yc_token)
+    nb_client = NetBoxClient(config.netbox_url, config.netbox_token)
+
+    def cloud_fetcher():
+        vms = yc_client.fetch_vms()
+        if config.vcd_configured:
+            from netbox_sync.clients.vcloud import VCloudDirectorClient
+
+            vcd = VCloudDirectorClient(
+                config.vcd_url, config.vcd_user, config.vcd_password,
+                config.vcd_org or "System",
+            )
+            vcd.authenticate()
+            vms.extend(vcd.fetch_vms())
+        return vms
+
+    zabbix_fetcher_fn = None
+    if config.zabbix_configured:
+        from netbox_sync.clients.zabbix import ZabbixClient
+
+        zabbix_client = ZabbixClient(
+            config.zabbix_url, config.zabbix_user, config.zabbix_password,
+        )
+        zabbix_client.authenticate()
+        zabbix_fetcher_fn = zabbix_client.fetch_hosts
+
+    app = create_app(
+        config=config,
+        cloud_fetcher=cloud_fetcher,
+        netbox_fetcher=nb_client.fetch_all_vms,
+        zabbix_fetcher=zabbix_fetcher_fn,
+    )
     uvicorn.run(app, host=args.host, port=args.port)
 
 

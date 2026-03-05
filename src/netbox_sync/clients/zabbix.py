@@ -157,7 +157,7 @@ class ZabbixClient:
             RuntimeError: If not authenticated or API error.
         """
         if not self.auth_token:
-            raise RuntimeError("Not authenticated. Call authenticate() first.")
+            self.authenticate()
 
         all_hosts: List[Dict[str, Any]] = []
         limit = 1000
