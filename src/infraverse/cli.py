@@ -153,7 +153,7 @@ def cmd_sync(args: argparse.Namespace) -> None:
         _ingest_to_db(config)
         logger.info("Database ingestion complete")
     except Exception:
-        logger.warning("Database ingestion had errors, continuing with NetBox sync")
+        logger.exception("Database ingestion had errors, continuing with NetBox sync")
 
     # Sync to NetBox
     from infraverse.sync.engine import SyncEngine
