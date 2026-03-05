@@ -165,13 +165,13 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 11: Verify acceptance criteria
-- [ ] verify vCloud Director client can list VMs (with mocked API)
-- [ ] verify Zabbix client can list hosts (with mocked API)
-- [ ] verify comparison engine correctly identifies discrepancies across all three sources
-- [ ] verify web dashboard renders and shows comparison data
-- [ ] verify existing CLI sync mode still works unchanged
-- [ ] run full test suite (unit tests)
-- [ ] run linter (`ruff check src/ tests/`) — all issues must be fixed
+- [x] verify vCloud Director client can list VMs (with mocked API)
+- [x] verify Zabbix client can list hosts (with mocked API)
+- [x] verify comparison engine correctly identifies discrepancies across all three sources
+- [x] verify web dashboard renders and shows comparison data
+- [x] verify existing CLI sync mode still works unchanged
+- [x] run full test suite (unit tests)
+- [x] run linter (`ruff check src/ tests/`) — all issues must be fixed
 
 ### Task 12: [Final] Update documentation
 - [ ] update README.md with new features: vCloud Director, Zabbix, web UI
