@@ -132,6 +132,22 @@ class TestMissingFromOneSystem:
         assert state.in_netbox is False
         assert state.in_monitoring is True
         assert "in monitoring but not in cloud" in state.discrepancies
+        assert "in monitoring but not in NetBox" in state.discrepancies
+
+    def test_in_monitoring_not_in_netbox(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("cloud-mon")]
+        netbox = []
+        zabbix = [_zhost("cloud-mon")]
+
+        result = engine.compare(cloud, netbox, zabbix)
+
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is False
+        assert state.in_monitoring is True
+        assert "in cloud but not in NetBox" in state.discrepancies
+        assert "in monitoring but not in NetBox" in state.discrepancies
 
     def test_in_cloud_only(self):
         engine = ComparisonEngine()

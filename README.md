@@ -154,7 +154,7 @@ docker run --rm --env-file .env netbox-sync
 docker run --rm --env-file .env netbox-sync --dry-run
 
 # Web UI mode
-docker run --rm -p 8000:8000 --env-file .env netbox-sync serve
+docker run --rm -p 8000:8000 --env-file .env netbox-sync serve --host 0.0.0.0
 docker run --rm -p 9000:9000 --env-file .env netbox-sync serve --host 0.0.0.0 --port 9000
 ```
 

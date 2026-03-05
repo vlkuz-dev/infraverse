@@ -141,7 +141,6 @@ def _run_serve(args: argparse.Namespace) -> None:
         zabbix_client = ZabbixClient(
             config.zabbix_url, config.zabbix_user, config.zabbix_password,
         )
-        zabbix_client.authenticate()
         zabbix_fetcher_fn = zabbix_client.fetch_hosts
 
     app = create_app(

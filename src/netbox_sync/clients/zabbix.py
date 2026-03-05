@@ -186,7 +186,7 @@ class ZabbixClient:
 
         try:
             all_hosts = self._fetch_hosts_paginated()
-        except RuntimeError:
+        except (RuntimeError, httpx.HTTPStatusError):
             # Token may have expired; re-authenticate and retry once
             logger.info("Zabbix request failed, re-authenticating")
             self.authenticate()

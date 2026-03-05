@@ -21,7 +21,7 @@
         </label>
         <button type="submit">Filter</button>
     </form>
-    <button hx-get="/comparison?provider={{ filters.provider }}&status={{ filters.status }}&search={{ filters.search }}" hx-target="#comparison-results" class="refresh-btn">Refresh</button>
+    <button hx-get="/comparison?provider={{ filters.provider | urlencode }}&status={{ filters.status | urlencode }}&search={{ filters.search | urlencode }}" hx-target="#comparison-results" class="refresh-btn">Refresh</button>
 </section>
 
 <div id="comparison-results">

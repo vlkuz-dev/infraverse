@@ -188,6 +188,8 @@ class ComparisonEngine:
             discs.append("in monitoring but not in cloud")
         if state.in_netbox and not state.in_monitoring:
             discs.append("in NetBox but not in monitoring")
+        if state.in_monitoring and not state.in_netbox:
+            discs.append("in monitoring but not in NetBox")
         return discs
 
     def _build_summary(self, states: list[VMState]) -> dict[str, int]:
