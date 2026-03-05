@@ -224,15 +224,15 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 4: Database repository layer
-- [ ] Create `src/infraverse/db/repository.py` with Repository class
-- [ ] Implement tenant CRUD: `create_tenant()`, `get_tenant()`, `list_tenants()`, `delete_tenant()`
-- [ ] Implement cloud account CRUD: `create_cloud_account()`, `get_cloud_account()`, `list_cloud_accounts()`, `list_cloud_accounts_by_tenant()`
-- [ ] Implement VM operations: `upsert_vm()`, `get_vms_by_account()`, `get_all_vms()`, `mark_vms_stale()` (VMs not seen in last sync)
-- [ ] Implement monitoring host operations: `upsert_monitoring_host()`, `get_all_monitoring_hosts()`
-- [ ] Implement sync run operations: `create_sync_run()`, `update_sync_run()`, `get_latest_sync_runs()`
-- [ ] Write tests for all CRUD operations (success cases)
-- [ ] Write tests for edge cases (duplicate names, missing FKs, upsert behavior)
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/db/repository.py` with Repository class
+- [x] Implement tenant CRUD: `create_tenant()`, `get_tenant()`, `list_tenants()`, `delete_tenant()`
+- [x] Implement cloud account CRUD: `create_cloud_account()`, `get_cloud_account()`, `list_cloud_accounts()`, `list_cloud_accounts_by_tenant()`
+- [x] Implement VM operations: `upsert_vm()`, `get_vms_by_account()`, `get_all_vms()`, `mark_vms_stale()` (VMs not seen in last sync)
+- [x] Implement monitoring host operations: `upsert_monitoring_host()`, `get_all_monitoring_hosts()`
+- [x] Implement sync run operations: `create_sync_run()`, `update_sync_run()`, `get_latest_sync_runs()`
+- [x] Write tests for all CRUD operations (success cases)
+- [x] Write tests for edge cases (duplicate names, missing FKs, upsert behavior)
+- [x] Run tests - must pass before next task
 
 ### Task 5: Port IP utilities
 - [ ] Copy `src/netbox_sync/ip/classifier.py` -> `src/infraverse/ip/classifier.py`
