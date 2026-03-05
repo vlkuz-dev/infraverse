@@ -325,9 +325,9 @@ SyncRun
 - [x] Verify test count is comparable to original (~490+ tests)
 
 ### Task 16: [Final] Update documentation
-- [ ] Update README.md: new project name, installation, usage, architecture diagram
-- [ ] Update `.env.example`: add DATABASE_URL, document tenant/cloud account setup
-- [ ] Update project knowledge docs if new patterns discovered
+- [x] Update README.md: new project name, installation, usage, architecture diagram
+- [x] Update `.env.example`: add DATABASE_URL, document tenant/cloud account setup
+- [x] Update project knowledge docs if new patterns discovered
 
 ## Technical Details
 
