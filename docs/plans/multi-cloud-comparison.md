@@ -90,16 +90,16 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 3: Add VCloudDirectorClient
-- [ ] create `src/netbox_sync/clients/vcloud.py` with `VCloudDirectorClient` class implementing `CloudProvider`
-- [ ] implement authentication: vCD API session login (`POST /api/sessions` or `/cloudapi/1.0.0/sessions/provider`)
-- [ ] implement `fetch_vms()`: list all VMs across all vDCs/orgs via vCD API (`/api/query?type=vm` or `/cloudapi/1.0.0/vms`)
-- [ ] convert vCD VM data to `VMInfo`: name, id (href/urn), status mapping (POWERED_ON→active, etc.), IPs, resources
-- [ ] implement `get_provider_name() -> str` returning `"vcloud-director"`
-- [ ] handle pagination for large vCD deployments
-- [ ] write tests with mocked HTTP responses for auth flow
-- [ ] write tests with mocked HTTP responses for VM listing (single page, paginated, empty)
-- [ ] write tests for vCD status → VMInfo status mapping
-- [ ] run tests — must pass before next task
+- [x] create `src/netbox_sync/clients/vcloud.py` with `VCloudDirectorClient` class implementing `CloudProvider`
+- [x] implement authentication: vCD API session login (`POST /api/sessions` or `/cloudapi/1.0.0/sessions/provider`)
+- [x] implement `fetch_vms()`: list all VMs across all vDCs/orgs via vCD API (`/api/query?type=vm` or `/cloudapi/1.0.0/vms`)
+- [x] convert vCD VM data to `VMInfo`: name, id (href/urn), status mapping (POWERED_ON→active, etc.), IPs, resources
+- [x] implement `get_provider_name() -> str` returning `"vcloud-director"`
+- [x] handle pagination for large vCD deployments
+- [x] write tests with mocked HTTP responses for auth flow
+- [x] write tests with mocked HTTP responses for VM listing (single page, paginated, empty)
+- [x] write tests for vCD status → VMInfo status mapping
+- [x] run tests — must pass before next task
 
 ### Task 4: Add ZabbixClient
 - [ ] create `src/netbox_sync/clients/zabbix.py` with `ZabbixClient` class
