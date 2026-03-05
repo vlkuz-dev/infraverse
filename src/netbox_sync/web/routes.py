@@ -79,8 +79,14 @@ def comparison(
         zabbix_hosts = []
         errors.append("Failed to fetch Zabbix hosts")
 
+    config: Config | None = request.app.state.config
+    monitoring_configured = config.zabbix_configured if config else False
+
     engine = ComparisonEngine()
-    result = engine.compare(cloud_vms, netbox_vms, zabbix_hosts)
+    result = engine.compare(
+        cloud_vms, netbox_vms, zabbix_hosts,
+        monitoring_configured=monitoring_configured,
+    )
 
     vms = result.all_vms
 

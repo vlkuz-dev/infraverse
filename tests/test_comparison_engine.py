@@ -321,11 +321,12 @@ class TestEmptyData:
         assert result.all_vms[0].in_monitoring is True
         assert result.all_vms[0].in_cloud is False
 
-    def test_cloud_and_netbox_no_zabbix(self):
+    def test_cloud_and_netbox_no_zabbix_configured(self):
+        """When monitoring is configured but returns no hosts, report discrepancies."""
         engine = ComparisonEngine()
         cloud = [_vm("vm-1")]
         netbox = [_vm("vm-1")]
-        result = engine.compare(cloud, netbox, [])
+        result = engine.compare(cloud, netbox, [], monitoring_configured=True)
 
         state = result.all_vms[0]
         assert state.in_cloud is True
@@ -333,6 +334,20 @@ class TestEmptyData:
         assert state.in_monitoring is False
         assert "in cloud but not in monitoring" in state.discrepancies
         assert "in NetBox but not in monitoring" in state.discrepancies
+
+    def test_cloud_and_netbox_no_zabbix_not_configured(self):
+        """When monitoring is not configured, skip monitoring discrepancies."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        netbox = [_vm("vm-1")]
+        result = engine.compare(cloud, netbox, [], monitoring_configured=False)
+
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is True
+        assert state.in_monitoring is False
+        assert state.discrepancies == []
+        assert result.summary["in_sync"] == 1
 
 
 class TestCloudProvider:

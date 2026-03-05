@@ -17,6 +17,7 @@ class ComparisonEngine:
         cloud_vms: list[VMInfo],
         netbox_vms: list[VMInfo],
         zabbix_hosts: list[ZabbixHost],
+        monitoring_configured: bool = True,
     ) -> ComparisonResult:
         """Compare VMs across all three systems.
 
@@ -28,6 +29,8 @@ class ComparisonEngine:
             cloud_vms: VMs from all cloud providers.
             netbox_vms: VMs from NetBox.
             zabbix_hosts: Hosts from Zabbix.
+            monitoring_configured: Whether monitoring (Zabbix) is configured.
+                When False, monitoring-related discrepancies are not reported.
 
         Returns:
             ComparisonResult with per-VM state and summary.
@@ -35,25 +38,25 @@ class ComparisonEngine:
         # Build lookup structures (name lowercased -> source data)
         # Cloud uses list values to handle same-named VMs from different providers
         cloud_by_name: dict[str, list[VMInfo]] = {}
-        cloud_by_ip: dict[str, VMInfo] = {}
+        cloud_by_ip: dict[str, list[VMInfo]] = {}
         for vm in cloud_vms:
             cloud_by_name.setdefault(vm.name.lower(), []).append(vm)
             for ip in vm.ip_addresses:
-                cloud_by_ip[ip] = vm
+                cloud_by_ip.setdefault(ip, []).append(vm)
 
         netbox_by_name: dict[str, VMInfo] = {}
-        netbox_by_ip: dict[str, VMInfo] = {}
+        netbox_by_ip: dict[str, list[VMInfo]] = {}
         for vm in netbox_vms:
             netbox_by_name[vm.name.lower()] = vm
             for ip in vm.ip_addresses:
-                netbox_by_ip[ip] = vm
+                netbox_by_ip.setdefault(ip, []).append(vm)
 
         zabbix_by_name: dict[str, ZabbixHost] = {}
-        zabbix_by_ip: dict[str, ZabbixHost] = {}
+        zabbix_by_ip: dict[str, list[ZabbixHost]] = {}
         for host in zabbix_hosts:
             zabbix_by_name[host.name.lower()] = host
             for ip in host.ip_addresses:
-                zabbix_by_ip[ip] = host
+                zabbix_by_ip.setdefault(ip, []).append(host)
 
         # Collect all unique VM names (case-insensitive)
         all_names: set[str] = set()
@@ -129,36 +132,45 @@ class ComparisonEngine:
 
             # Try to find NetBox match by IP
             if not state.in_netbox:
+                matched = False
                 for ip in state_ips:
-                    if ip in netbox_by_ip:
-                        nb_vm = netbox_by_ip[ip]
+                    if matched:
+                        break
+                    for nb_vm in netbox_by_ip.get(ip, []):
                         nb_key = nb_vm.name.lower()
                         if nb_key != name_key and nb_key not in ip_merged_names:
                             state.in_netbox = True
                             ip_merged_names.add(nb_key)
+                            matched = True
                             break
 
             # Try to find Zabbix match by IP
             if not state.in_monitoring:
+                matched = False
                 for ip in state_ips:
-                    if ip in zabbix_by_ip:
-                        zb_host = zabbix_by_ip[ip]
+                    if matched:
+                        break
+                    for zb_host in zabbix_by_ip.get(ip, []):
                         zb_key = zb_host.name.lower()
                         if zb_key != name_key and zb_key not in ip_merged_names:
                             state.in_monitoring = True
                             ip_merged_names.add(zb_key)
+                            matched = True
                             break
 
             # Try to find Cloud match by IP
             if not state.in_cloud:
+                matched = False
                 for ip in state_ips:
-                    if ip in cloud_by_ip:
-                        c_vm = cloud_by_ip[ip]
+                    if matched:
+                        break
+                    for c_vm in cloud_by_ip.get(ip, []):
                         c_key = c_vm.name.lower()
                         if c_key != name_key and c_key not in ip_merged_names:
                             state.in_cloud = True
                             state.cloud_provider = c_vm.provider
                             ip_merged_names.add(c_key)
+                            matched = True
                             break
 
         # Remove entries that were merged into other entries via IP matching
@@ -168,28 +180,35 @@ class ComparisonEngine:
 
         # Phase 3: Compute discrepancies
         for state in states:
-            state.discrepancies = self._compute_discrepancies(state)
+            state.discrepancies = self._compute_discrepancies(
+                state, monitoring_configured=monitoring_configured,
+            )
 
         # Build summary
         summary = self._build_summary(states)
 
         return ComparisonResult(all_vms=states, summary=summary)
 
-    def _compute_discrepancies(self, state: VMState) -> list[str]:
+    def _compute_discrepancies(
+        self,
+        state: VMState,
+        monitoring_configured: bool = True,
+    ) -> list[str]:
         """Determine discrepancy labels for a VM state."""
         discs: list[str] = []
         if state.in_cloud and not state.in_netbox:
             discs.append("in cloud but not in NetBox")
         if state.in_netbox and not state.in_cloud:
             discs.append("in NetBox but not in cloud")
-        if state.in_cloud and not state.in_monitoring:
-            discs.append("in cloud but not in monitoring")
-        if state.in_monitoring and not state.in_cloud:
-            discs.append("in monitoring but not in cloud")
-        if state.in_netbox and not state.in_monitoring:
-            discs.append("in NetBox but not in monitoring")
-        if state.in_monitoring and not state.in_netbox:
-            discs.append("in monitoring but not in NetBox")
+        if monitoring_configured:
+            if state.in_cloud and not state.in_monitoring:
+                discs.append("in cloud but not in monitoring")
+            if state.in_monitoring and not state.in_cloud:
+                discs.append("in monitoring but not in cloud")
+            if state.in_netbox and not state.in_monitoring:
+                discs.append("in NetBox but not in monitoring")
+            if state.in_monitoring and not state.in_netbox:
+                discs.append("in monitoring but not in NetBox")
         return discs
 
     def _build_summary(self, states: list[VMState]) -> dict[str, int]:
