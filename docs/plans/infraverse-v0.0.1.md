@@ -211,10 +211,10 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 2: Port configuration module
-- [ ] Create `src/infraverse/config.py` - copy from netbox_sync, add `database_url` field (default: `sqlite:///infraverse.db`)
-- [ ] Add `DATABASE_URL` env var support in `Config.from_env()`
-- [ ] Write tests for Config (existing tests adapted + new DATABASE_URL test)
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/config.py` - copy from netbox_sync, add `database_url` field (default: `sqlite:///infraverse.db`)
+- [x] Add `DATABASE_URL` env var support in `Config.from_env()`
+- [x] Write tests for Config (existing tests adapted + new DATABASE_URL test)
+- [x] Run tests - must pass before next task
 
 ### Task 3: Database layer - engine and models
 - [ ] Create `src/infraverse/db/engine.py` with `create_engine()`, `SessionLocal`, `init_db()` (creates all tables)
