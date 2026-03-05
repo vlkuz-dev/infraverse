@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Infraverse{% endblock %}
+{% block pretitle %}Overview{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+    <!-- Summary cards -->
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Total VMs</div>
+                </div>
+                <div class="h1 mb-0">{{ total_vms }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Active VMs</div>
+                </div>
+                <div class="h1 mb-0 text-success">{{ active_vms }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Offline VMs</div>
+                </div>
+                <div class="h1 mb-0 text-danger">{{ offline_vms }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="subheader">Tenants</div>
+                </div>
+                <div class="h1 mb-0">{{ tenants | length }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Provider summary -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Providers</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Accounts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ptype, info in provider_summary.items() %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-azure-lt">{{ ptype }}</span>
+                            </td>
+                            <td>{{ info.count }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not provider_summary %}
+                        <tr>
+                            <td colspan="2" class="text-secondary">No providers configured</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tenant overview -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Tenants</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tenant in tenants %}
+                        <tr>
+                            <td>{{ tenant.name }}</td>
+                            <td class="text-secondary">{{ tenant.description or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not tenants %}
+                        <tr>
+                            <td colspan="2" class="text-secondary">No tenants configured</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent sync runs -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Recent Sync Runs</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Finished</th>
+                            <th>Found</th>
+                            <th>Created</th>
+                            <th>Updated</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for run in sync_runs %}
+                        <tr>
+                            <td>{{ run.source }}</td>
+                            <td>
+                                {% if run.status == 'success' %}
+                                <span class="badge bg-success-lt">{{ run.status }}</span>
+                                {% elif run.status == 'failed' %}
+                                <span class="badge bg-danger-lt">{{ run.status }}</span>
+                                {% else %}
+                                <span class="badge bg-warning-lt">{{ run.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '-' }}</td>
+                            <td>{{ run.finished_at.strftime('%Y-%m-%d %H:%M') if run.finished_at else '-' }}</td>
+                            <td>{{ run.items_found }}</td>
+                            <td>{{ run.items_created }}</td>
+                            <td>{{ run.items_updated }}</td>
+                            <td class="text-secondary">{{ run.error_message or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not sync_runs %}
+                        <tr>
+                            <td colspan="8" class="text-secondary">No sync runs yet</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

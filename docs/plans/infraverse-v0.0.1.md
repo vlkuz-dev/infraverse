@@ -278,12 +278,12 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 11: Web app factory and dashboard route
-- [ ] Create `src/infraverse/web/app.py` - FastAPI app factory, mount static files, include routers, inject DB session dependency
-- [ ] Create `src/infraverse/web/routes/__init__.py` with combined router
-- [ ] Create `src/infraverse/web/routes/dashboard.py` - dashboard route reading provider status from DB (CloudAccounts, latest SyncRuns)
-- [ ] Create `src/infraverse/web/templates/dashboard.html` - Tabler cards for provider status, tenant overview, last sync timestamps, summary stats
-- [ ] Write tests for dashboard route (mock DB)
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/web/app.py` - FastAPI app factory, mount static files, include routers, inject DB session dependency
+- [x] Create `src/infraverse/web/routes/__init__.py` with combined router
+- [x] Create `src/infraverse/web/routes/dashboard.py` - dashboard route reading provider status from DB (CloudAccounts, latest SyncRuns)
+- [x] Create `src/infraverse/web/templates/dashboard.html` - Tabler cards for provider status, tenant overview, last sync timestamps, summary stats
+- [x] Write tests for dashboard route (mock DB)
+- [x] Run tests - must pass before next task
 
 ### Task 12: Comparison route with DB-backed data
 - [ ] Create `src/infraverse/web/routes/comparison.py` - comparison route reading VMs and monitoring hosts from DB instead of live API calls
