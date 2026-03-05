@@ -295,13 +295,13 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 13: CLI entry point
-- [ ] Create `src/infraverse/cli.py` with subcommands: `sync`, `serve`, `db init` (create tables), `db seed` (create default tenant)
-- [ ] `sync` command: fetch from providers, store in DB, then sync to NetBox
-- [ ] `serve` command: start web UI reading from DB
-- [ ] `db init` command: initialize database tables
-- [ ] Wire `load_dotenv()` before config loading
-- [ ] Write tests for CLI argument parsing
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/cli.py` with subcommands: `sync`, `serve`, `db init` (create tables), `db seed` (create default tenant)
+- [x] `sync` command: fetch from providers, store in DB, then sync to NetBox
+- [x] `serve` command: start web UI reading from DB
+- [x] `db init` command: initialize database tables
+- [x] Wire `load_dotenv()` before config loading
+- [x] Write tests for CLI argument parsing
+- [x] Run tests - must pass before next task
 
 ### Task 14: Data ingestion - providers to DB
 - [ ] Create `src/infraverse/sync/ingest.py` - DataIngestor class that fetches from all configured providers and stores results in DB
