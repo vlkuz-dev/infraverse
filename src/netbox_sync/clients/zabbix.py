@@ -147,18 +147,8 @@ class ZabbixClient:
             ip_addresses=self._extract_ips(host),
         )
 
-    def fetch_hosts(self) -> List[ZabbixHost]:
-        """Fetch all monitored hosts from Zabbix.
-
-        Returns:
-            List of ZabbixHost objects.
-
-        Raises:
-            RuntimeError: If not authenticated or API error.
-        """
-        if not self.auth_token:
-            self.authenticate()
-
+    def _fetch_hosts_paginated(self) -> List[Dict[str, Any]]:
+        """Fetch all raw host dicts from Zabbix with pagination."""
         all_hosts: List[Dict[str, Any]] = []
         limit = 1000
         offset = 0
@@ -179,6 +169,28 @@ class ZabbixClient:
             if len(result) < limit:
                 break
             offset += limit
+
+        return all_hosts
+
+    def fetch_hosts(self) -> List[ZabbixHost]:
+        """Fetch all monitored hosts from Zabbix.
+
+        Returns:
+            List of ZabbixHost objects.
+
+        Raises:
+            RuntimeError: If not authenticated or API error.
+        """
+        if not self.auth_token:
+            self.authenticate()
+
+        try:
+            all_hosts = self._fetch_hosts_paginated()
+        except RuntimeError:
+            # Token may have expired; re-authenticate and retry once
+            logger.info("Zabbix request failed, re-authenticating")
+            self.authenticate()
+            all_hosts = self._fetch_hosts_paginated()
 
         logger.info("Fetched %d hosts from Zabbix", len(all_hosts))
         return [self._host_to_zabbix_host(h) for h in all_hosts]

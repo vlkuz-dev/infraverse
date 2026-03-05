@@ -98,6 +98,18 @@ def comparison(
         search_lower = search.lower()
         vms = [vm for vm in vms if search_lower in vm.vm_name.lower()]
 
+    filtered = provider or status == "discrepancies" or search
+    if filtered:
+        total = len(vms)
+        in_sync = sum(1 for v in vms if not v.discrepancies)
+        summary = {
+            "total": total,
+            "in_sync": in_sync,
+            "with_discrepancies": total - in_sync,
+        }
+    else:
+        summary = result.summary
+
     htmx_request = request.headers.get("HX-Request") == "true"
     template_name = "comparison_table.html" if htmx_request else "comparison.html"
 
@@ -106,7 +118,7 @@ def comparison(
         name=template_name,
         context={
             "vms": vms,
-            "summary": result.summary,
+            "summary": summary,
             "errors": errors,
             "filters": {
                 "provider": provider,

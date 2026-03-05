@@ -585,12 +585,11 @@ class TestFetchAllVms:
         assert len(result) == 3
         assert [v.name for v in result] == ["vm-a", "vm-b", "vm-c"]
 
-    def test_error_returns_empty_list(self, nb_client):
+    def test_error_propagates_exception(self, nb_client):
         nb_client.nb.virtualization.virtual_machines.all.side_effect = Exception("API error")
 
-        result = nb_client.fetch_all_vms()
-
-        assert result == []
+        with pytest.raises(Exception, match="API error"):
+            nb_client.fetch_all_vms()
 
     def test_empty_netbox_returns_empty_list(self, nb_client):
         nb_client.nb.virtualization.virtual_machines.all.return_value = []

@@ -891,7 +891,7 @@ class NetBoxClient:
         Raises:
             Exception: If the NetBox API call fails.
         """
-        records = self.fetch_vms()
+        records = list(self.nb.virtualization.virtual_machines.all())
         result = []
         for vm in records:
             ip_addresses = []
