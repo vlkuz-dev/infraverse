@@ -235,10 +235,10 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 5: Port IP utilities
-- [ ] Copy `src/netbox_sync/ip/classifier.py` -> `src/infraverse/ip/classifier.py`
-- [ ] Copy `src/netbox_sync/ip/utils.py` -> `src/infraverse/ip/utils.py`
-- [ ] Port existing IP tests, update imports
-- [ ] Run tests - must pass before next task
+- [x] Copy `src/netbox_sync/ip/classifier.py` -> `src/infraverse/ip/classifier.py`
+- [x] Copy `src/netbox_sync/ip/utils.py` -> `src/infraverse/ip/utils.py`
+- [x] Port existing IP tests, update imports
+- [x] Run tests - must pass before next task
 
 ### Task 6: Port provider clients (base, yandex, vcloud, netbox)
 - [ ] Copy `src/netbox_sync/clients/base.py` -> `src/infraverse/providers/base.py`
