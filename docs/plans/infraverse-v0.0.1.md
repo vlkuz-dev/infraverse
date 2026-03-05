@@ -249,11 +249,11 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 7: Fix Zabbix client and port
-- [ ] Copy `src/netbox_sync/clients/zabbix.py` -> `src/infraverse/providers/zabbix.py`, update imports
-- [ ] Diagnose Zabbix connection error: check .env credentials, test with `LOG_LEVEL=DEBUG`
-- [ ] Fix likely issues: Zabbix 5.4+ uses `username` instead of `user` param in `user.login` - support both, SSL verification for self-signed certs (add `verify_ssl` config option), URL normalization
-- [ ] Port Zabbix tests, add tests for the fix (both old and new API parameter names)
-- [ ] Run tests - must pass before next task
+- [x] Copy `src/netbox_sync/clients/zabbix.py` -> `src/infraverse/providers/zabbix.py`, update imports
+- [x] Diagnose Zabbix connection error: check .env credentials, test with `LOG_LEVEL=DEBUG`
+- [x] Fix likely issues: Zabbix 5.4+ uses `username` instead of `user` param in `user.login` - support both, SSL verification for self-signed certs (add `verify_ssl` config option), URL normalization
+- [x] Port Zabbix tests, add tests for the fix (both old and new API parameter names)
+- [x] Run tests - must pass before next task
 
 ### Task 8: Port sync modules
 - [ ] Copy `src/netbox_sync/sync/engine.py` -> `src/infraverse/sync/engine.py`, update imports
