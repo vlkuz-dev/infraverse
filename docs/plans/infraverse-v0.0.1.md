@@ -256,13 +256,13 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 8: Port sync modules
-- [ ] Copy `src/netbox_sync/sync/engine.py` -> `src/infraverse/sync/engine.py`, update imports
-- [ ] Copy `src/netbox_sync/sync/infrastructure.py` -> `src/infraverse/sync/infrastructure.py`, update imports
-- [ ] Copy `src/netbox_sync/sync/vms.py` -> `src/infraverse/sync/vms.py`, update imports
-- [ ] Copy `src/netbox_sync/sync/batch.py` -> `src/infraverse/sync/batch.py`, update imports
-- [ ] Copy `src/netbox_sync/sync/cleanup.py` -> `src/infraverse/sync/cleanup.py`, update imports
-- [ ] Port all sync tests, update imports
-- [ ] Run tests - must pass before next task
+- [x] Copy `src/netbox_sync/sync/engine.py` -> `src/infraverse/sync/engine.py`, update imports
+- [x] Copy `src/netbox_sync/sync/infrastructure.py` -> `src/infraverse/sync/infrastructure.py`, update imports
+- [x] Copy `src/netbox_sync/sync/vms.py` -> `src/infraverse/sync/vms.py`, update imports
+- [x] Copy `src/netbox_sync/sync/batch.py` -> `src/infraverse/sync/batch.py`, update imports
+- [x] Copy `src/netbox_sync/sync/cleanup.py` -> `src/infraverse/sync/cleanup.py`, update imports
+- [x] Port all sync tests, update imports
+- [x] Run tests - must pass before next task
 
 ### Task 9: Port comparison engine
 - [ ] Copy `src/netbox_sync/comparison/engine.py` -> `src/infraverse/comparison/engine.py`, update imports
