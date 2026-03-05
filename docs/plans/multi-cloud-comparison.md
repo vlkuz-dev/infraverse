@@ -102,15 +102,15 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 4: Add ZabbixClient
-- [ ] create `src/netbox_sync/clients/zabbix.py` with `ZabbixClient` class
-- [ ] implement Zabbix JSON-RPC authentication (`user.login`)
-- [ ] implement `fetch_hosts() -> list[ZabbixHost]` via `host.get` with relevant properties (name, status, interfaces/IPs, hostid)
-- [ ] define `ZabbixHost` dataclass: `name`, `hostid`, `status` (enabled/disabled), `ip_addresses: list[str]`
-- [ ] handle Zabbix API pagination and error responses
-- [ ] write tests with mocked JSON-RPC responses for auth
-- [ ] write tests for host listing (active, disabled, no hosts)
-- [ ] write tests for error handling (auth failure, API error)
-- [ ] run tests — must pass before next task
+- [x] create `src/netbox_sync/clients/zabbix.py` with `ZabbixClient` class
+- [x] implement Zabbix JSON-RPC authentication (`user.login`)
+- [x] implement `fetch_hosts() -> list[ZabbixHost]` via `host.get` with relevant properties (name, status, interfaces/IPs, hostid)
+- [x] define `ZabbixHost` dataclass: `name`, `hostid`, `status` (enabled/disabled), `ip_addresses: list[str]`
+- [x] handle Zabbix API pagination and error responses
+- [x] write tests with mocked JSON-RPC responses for auth
+- [x] write tests for host listing (active, disabled, no hosts)
+- [x] write tests for error handling (auth failure, API error)
+- [x] run tests — must pass before next task
 
 ### Task 5: Extend configuration for vCloud Director and Zabbix
 - [ ] add new env vars to `config.py`: `VCD_URL`, `VCD_USER`, `VCD_PASSWORD`, `VCD_ORG` (all optional)
