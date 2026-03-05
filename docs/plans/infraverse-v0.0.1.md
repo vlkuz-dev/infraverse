@@ -286,13 +286,13 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 12: Comparison route with DB-backed data
-- [ ] Create `src/infraverse/web/routes/comparison.py` - comparison route reading VMs and monitoring hosts from DB instead of live API calls
-- [ ] Create `src/infraverse/web/templates/comparison.html` - Tabler table with filters (provider dropdown, status select, name search), HTMX refresh
-- [ ] Create `src/infraverse/web/templates/comparison_table.html` - HTMX partial for table content
-- [ ] Wire ComparisonEngine to use DB-sourced data
-- [ ] Write tests for comparison route (mock DB data)
-- [ ] Write tests for filter combinations
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/web/routes/comparison.py` - comparison route reading VMs and monitoring hosts from DB instead of live API calls
+- [x] Create `src/infraverse/web/templates/comparison.html` - Tabler table with filters (provider dropdown, status select, name search), HTMX refresh
+- [x] Create `src/infraverse/web/templates/comparison_table.html` - HTMX partial for table content
+- [x] Wire ComparisonEngine to use DB-sourced data
+- [x] Write tests for comparison route (mock DB data)
+- [x] Write tests for filter combinations
+- [x] Run tests - must pass before next task
 
 ### Task 13: CLI entry point
 - [ ] Create `src/infraverse/cli.py` with subcommands: `sync`, `serve`, `db init` (create tables), `db seed` (create default tenant)
