@@ -129,9 +129,16 @@ def _run_serve(args: argparse.Namespace) -> None:
         )
 
     def cloud_fetcher():
-        vms = yc_client.fetch_vms()
+        vms = []
+        try:
+            vms.extend(yc_client.fetch_vms())
+        except Exception:
+            logger.exception("Failed to fetch VMs from Yandex Cloud")
         if vcd_client:
-            vms.extend(vcd_client.fetch_vms())
+            try:
+                vms.extend(vcd_client.fetch_vms())
+            except Exception:
+                logger.exception("Failed to fetch VMs from vCloud Director")
         return vms
 
     zabbix_fetcher_fn = None

@@ -919,7 +919,7 @@ class NetBoxClient:
                 id=str(vm.id),
                 status=status,
                 ip_addresses=ip_addresses,
-                vcpus=vm.vcpus or 0,
+                vcpus=int(vm.vcpus or 0),
                 memory_mb=vm.memory or 0,
                 provider="netbox",
                 cloud_name="",

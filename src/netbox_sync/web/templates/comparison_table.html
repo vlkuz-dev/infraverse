@@ -31,8 +31,8 @@
             <td class="{% if vm.in_netbox %}status-ok{% else %}status-missing{% endif %}">
                 {% if vm.in_netbox %}Yes{% else %}No{% endif %}
             </td>
-            <td class="{% if vm.in_monitoring %}status-ok{% else %}status-missing{% endif %}">
-                {% if vm.in_monitoring %}Yes{% else %}No{% endif %}
+            <td class="{% if not monitoring_configured %}status-na{% elif vm.in_monitoring %}status-ok{% else %}status-missing{% endif %}">
+                {% if not monitoring_configured %}N/A{% elif vm.in_monitoring %}Yes{% else %}No{% endif %}
             </td>
             <td>{{ vm.cloud_provider or "—" }}</td>
             <td class="{% if vm.discrepancies %}status-warning{% endif %}">

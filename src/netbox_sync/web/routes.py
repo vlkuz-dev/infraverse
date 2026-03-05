@@ -94,7 +94,8 @@ def comparison(
         provider_lower = provider.lower()
         vms = [
             vm for vm in vms
-            if vm.cloud_provider and vm.cloud_provider.lower() == provider_lower
+            if (vm.cloud_provider and vm.cloud_provider.lower() == provider_lower)
+            or (not vm.cloud_provider and vm.discrepancies)
         ]
 
     if status == "discrepancies":
@@ -126,6 +127,7 @@ def comparison(
             "vms": vms,
             "summary": summary,
             "errors": errors,
+            "monitoring_configured": monitoring_configured,
             "filters": {
                 "provider": provider,
                 "status": status,

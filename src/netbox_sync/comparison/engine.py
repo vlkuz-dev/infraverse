@@ -44,17 +44,17 @@ class ComparisonEngine:
             for ip in vm.ip_addresses:
                 cloud_by_ip.setdefault(ip, []).append(vm)
 
-        netbox_by_name: dict[str, VMInfo] = {}
+        netbox_by_name: dict[str, list[VMInfo]] = {}
         netbox_by_ip: dict[str, list[VMInfo]] = {}
         for vm in netbox_vms:
-            netbox_by_name[vm.name.lower()] = vm
+            netbox_by_name.setdefault(vm.name.lower(), []).append(vm)
             for ip in vm.ip_addresses:
                 netbox_by_ip.setdefault(ip, []).append(vm)
 
-        zabbix_by_name: dict[str, ZabbixHost] = {}
+        zabbix_by_name: dict[str, list[ZabbixHost]] = {}
         zabbix_by_ip: dict[str, list[ZabbixHost]] = {}
         for host in zabbix_hosts:
-            zabbix_by_name[host.name.lower()] = host
+            zabbix_by_name.setdefault(host.name.lower(), []).append(host)
             for ip in host.ip_addresses:
                 zabbix_by_ip.setdefault(ip, []).append(host)
 
@@ -73,8 +73,11 @@ class ComparisonEngine:
         # Phase 1: Name-based matching
         for name in sorted(all_names):
             cloud_vms_for_name = cloud_by_name.get(name, [])
-            netbox_vm = netbox_by_name.get(name)
-            zabbix_host = zabbix_by_name.get(name)
+            netbox_vms_for_name = netbox_by_name.get(name, [])
+            zabbix_hosts_for_name = zabbix_by_name.get(name, [])
+
+            has_netbox = len(netbox_vms_for_name) > 0
+            has_zabbix = len(zabbix_hosts_for_name) > 0
 
             if len(cloud_vms_for_name) <= 1:
                 # Normal case: zero or one cloud VM with this name
@@ -83,16 +86,16 @@ class ComparisonEngine:
                 display_name = name
                 if cloud_vm:
                     display_name = cloud_vm.name
-                elif netbox_vm:
-                    display_name = netbox_vm.name
-                elif zabbix_host:
-                    display_name = zabbix_host.name
+                elif netbox_vms_for_name:
+                    display_name = netbox_vms_for_name[0].name
+                elif zabbix_hosts_for_name:
+                    display_name = zabbix_hosts_for_name[0].name
 
                 state = VMState(
                     vm_name=display_name,
                     in_cloud=cloud_vm is not None,
-                    in_netbox=netbox_vm is not None,
-                    in_monitoring=zabbix_host is not None,
+                    in_netbox=has_netbox,
+                    in_monitoring=has_zabbix,
                     cloud_provider=cloud_vm.provider if cloud_vm else None,
                 )
                 states.append(state)
@@ -102,8 +105,8 @@ class ComparisonEngine:
                     state = VMState(
                         vm_name=cloud_vm.name,
                         in_cloud=True,
-                        in_netbox=netbox_vm is not None,
-                        in_monitoring=zabbix_host is not None,
+                        in_netbox=has_netbox,
+                        in_monitoring=has_zabbix,
                         cloud_provider=cloud_vm.provider,
                     )
                     states.append(state)
@@ -122,10 +125,10 @@ class ComparisonEngine:
             state_ips: set[str] = set()
             for cvm in cloud_by_name.get(name_key, []):
                 state_ips.update(cvm.ip_addresses)
-            if name_key in netbox_by_name:
-                state_ips.update(netbox_by_name[name_key].ip_addresses)
-            if name_key in zabbix_by_name:
-                state_ips.update(zabbix_by_name[name_key].ip_addresses)
+            for nb_vm in netbox_by_name.get(name_key, []):
+                state_ips.update(nb_vm.ip_addresses)
+            for zb_host in zabbix_by_name.get(name_key, []):
+                state_ips.update(zb_host.ip_addresses)
 
             if not state_ips:
                 continue
