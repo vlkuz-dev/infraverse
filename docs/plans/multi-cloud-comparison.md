@@ -82,12 +82,12 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 2: Refactor YandexCloudClient to implement CloudProvider
-- [ ] add `fetch_vms() -> list[VMInfo]` method to `YandexCloudClient` that wraps existing `fetch_all_data()` and converts YC VM dicts to `VMInfo` objects
-- [ ] add `get_provider_name() -> str` returning `"yandex-cloud"`
-- [ ] ensure existing sync logic (`engine.py`, `batch.py`) continues to use `fetch_all_data()` — no breaking changes
-- [ ] write tests for `fetch_vms()` conversion: verify VMInfo fields from mock YC data
-- [ ] verify all existing ~300 tests still pass
-- [ ] run tests — must pass before next task
+- [x] add `fetch_vms() -> list[VMInfo]` method to `YandexCloudClient` that wraps existing `fetch_all_data()` and converts YC VM dicts to `VMInfo` objects
+- [x] add `get_provider_name() -> str` returning `"yandex-cloud"`
+- [x] ensure existing sync logic (`engine.py`, `batch.py`) continues to use `fetch_all_data()` — no breaking changes
+- [x] write tests for `fetch_vms()` conversion: verify VMInfo fields from mock YC data
+- [x] verify all existing ~300 tests still pass
+- [x] run tests — must pass before next task
 
 ### Task 3: Add VCloudDirectorClient
 - [ ] create `src/netbox_sync/clients/vcloud.py` with `VCloudDirectorClient` class implementing `CloudProvider`

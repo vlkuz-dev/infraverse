@@ -7,7 +7,22 @@ from typing import Any, Dict, List
 
 import httpx
 
+from netbox_sync.clients.base import VMInfo
+
 logger = logging.getLogger(__name__)
+
+# YC status → VMInfo status mapping
+_YC_STATUS_MAP: Dict[str, str] = {
+    "RUNNING": "active",
+    "STOPPED": "offline",
+    "CRASHED": "offline",
+    "ERROR": "offline",
+    "PROVISIONING": "unknown",
+    "STARTING": "unknown",
+    "STOPPING": "unknown",
+    "UPDATING": "unknown",
+    "DELETING": "unknown",
+}
 
 
 class YandexCloudClient:
@@ -394,3 +409,39 @@ class YandexCloudClient:
         )
 
         return result
+
+    # -- CloudProvider interface --
+
+    def get_provider_name(self) -> str:
+        """Return provider identifier."""
+        return "yandex-cloud"
+
+    def fetch_vms(self) -> List[VMInfo]:
+        """Fetch all VMs and return them as normalized VMInfo objects."""
+        data = self.fetch_all_data()
+        vms: List[VMInfo] = []
+        for vm in data["vms"]:
+            ip_addresses: List[str] = []
+            for iface in vm.get("network_interfaces", []):
+                if iface.get("primary_v4_address"):
+                    ip_addresses.append(iface["primary_v4_address"])
+                if iface.get("primary_v4_address_one_to_one_nat"):
+                    ip_addresses.append(iface["primary_v4_address_one_to_one_nat"])
+
+            resources = vm.get("resources", {})
+            memory_bytes = resources.get("memory", 0)
+            # YC returns memory as int (bytes) or string
+            memory_mb = int(memory_bytes) // (1024 * 1024)
+
+            vms.append(VMInfo(
+                name=vm["name"],
+                id=vm["id"],
+                status=_YC_STATUS_MAP.get(vm.get("status", ""), "unknown"),
+                ip_addresses=ip_addresses,
+                vcpus=int(resources.get("cores", 0)),
+                memory_mb=memory_mb,
+                provider=self.get_provider_name(),
+                cloud_name=vm.get("cloud_name", ""),
+                folder_name=vm.get("folder_name", ""),
+            ))
+        return vms

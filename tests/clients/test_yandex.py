@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 import httpx
 
+from netbox_sync.clients.base import CloudProvider, VMInfo
 from netbox_sync.clients.yandex import YandexCloudClient
 
 
@@ -526,3 +527,160 @@ class TestImports:
     def test_import_from_module(self):
         from netbox_sync.clients.yandex import YandexCloudClient as YC
         assert YC is YandexCloudClient
+
+
+def _make_fetch_all_data_mock(vms, clouds=None, folders=None):
+    """Helper: create a mock_get function for fetch_all_data with given VMs."""
+    clouds = clouds or [{"id": "c1", "name": "my-cloud"}]
+    folders = folders or [{"id": "f1", "name": "prod"}]
+
+    def mock_get(url, **kwargs):
+        if "zones" in url:
+            return _mock_response({"zones": []})
+        elif "clouds" in url:
+            return _mock_response({"clouds": clouds})
+        elif "folders" in url:
+            return _mock_response({"folders": folders})
+        elif "networks" in url:
+            return _mock_response({"networks": []})
+        elif "subnets" in url:
+            return _mock_response({"subnets": []})
+        elif "instances" in url:
+            return _mock_response({"instances": vms})
+        return _mock_response({})
+    return mock_get
+
+
+class TestGetProviderName:
+    def test_returns_yandex_cloud(self, mock_client):
+        assert mock_client.get_provider_name() == "yandex-cloud"
+
+
+class TestFetchVms:
+    """Tests for fetch_vms() CloudProvider method."""
+
+    def test_converts_vm_to_vminfo(self, mock_client):
+        """Verify VMInfo fields are correctly populated from YC VM data."""
+        yc_vms = [{
+            "id": "vm1",
+            "name": "web-server",
+            "status": "RUNNING",
+            "zoneId": "ru-central1-a",
+            "resources": {"memory": 4294967296, "cores": 2},
+            "networkInterfaces": [{
+                "networkId": "vpc1",
+                "subnetId": "subnet1",
+                "primaryV4Address": {
+                    "address": "10.0.0.5",
+                    "oneToOneNat": {"address": "84.201.1.1"},
+                },
+            }],
+            "platformId": "standard-v3",
+        }]
+        mock_client.client.get.side_effect = _make_fetch_all_data_mock(yc_vms)
+
+        result = mock_client.fetch_vms()
+
+        assert len(result) == 1
+        vm = result[0]
+        assert isinstance(vm, VMInfo)
+        assert vm.name == "web-server"
+        assert vm.id == "vm1"
+        assert vm.status == "active"
+        assert vm.ip_addresses == ["10.0.0.5", "84.201.1.1"]
+        assert vm.vcpus == 2
+        assert vm.memory_mb == 4096
+        assert vm.provider == "yandex-cloud"
+        assert vm.cloud_name == "my-cloud"
+        assert vm.folder_name == "prod"
+
+    def test_status_mapping(self, mock_client):
+        """Verify various YC statuses map correctly."""
+        statuses = {
+            "RUNNING": "active",
+            "STOPPED": "offline",
+            "CRASHED": "offline",
+            "ERROR": "offline",
+            "PROVISIONING": "unknown",
+            "STARTING": "unknown",
+            "STOPPING": "unknown",
+        }
+        for yc_status, expected in statuses.items():
+            yc_vms = [{
+                "id": "vm1",
+                "name": "test-vm",
+                "status": yc_status,
+                "resources": {},
+                "networkInterfaces": [],
+                "platformId": "standard-v3",
+            }]
+            mock_client.client.get.side_effect = _make_fetch_all_data_mock(yc_vms)
+            result = mock_client.fetch_vms()
+            assert result[0].status == expected, f"YC status {yc_status} should map to {expected}"
+
+    def test_unknown_status_maps_to_unknown(self, mock_client):
+        """An unrecognised YC status should map to 'unknown'."""
+        yc_vms = [{
+            "id": "vm1",
+            "name": "test-vm",
+            "status": "SOME_FUTURE_STATUS",
+            "resources": {},
+            "networkInterfaces": [],
+            "platformId": "standard-v3",
+        }]
+        mock_client.client.get.side_effect = _make_fetch_all_data_mock(yc_vms)
+        result = mock_client.fetch_vms()
+        assert result[0].status == "unknown"
+
+    def test_multiple_vms(self, mock_client):
+        """Multiple VMs across the same folder."""
+        yc_vms = [
+            {
+                "id": "vm1", "name": "web-1", "status": "RUNNING",
+                "resources": {"memory": 2147483648, "cores": 1},
+                "networkInterfaces": [{"networkId": "v1", "subnetId": "s1",
+                    "primaryV4Address": {"address": "10.0.0.1"}}],
+                "platformId": "standard-v3",
+            },
+            {
+                "id": "vm2", "name": "web-2", "status": "STOPPED",
+                "resources": {"memory": 8589934592, "cores": 4},
+                "networkInterfaces": [],
+                "platformId": "standard-v3",
+            },
+        ]
+        mock_client.client.get.side_effect = _make_fetch_all_data_mock(yc_vms)
+
+        result = mock_client.fetch_vms()
+
+        assert len(result) == 2
+        assert result[0].name == "web-1"
+        assert result[0].status == "active"
+        assert result[0].memory_mb == 2048
+        assert result[1].name == "web-2"
+        assert result[1].status == "offline"
+        assert result[1].vcpus == 4
+        assert result[1].memory_mb == 8192
+
+    def test_empty_cloud(self, mock_client):
+        """No VMs returns empty list."""
+        mock_client.client.get.side_effect = _make_fetch_all_data_mock([])
+        result = mock_client.fetch_vms()
+        assert result == []
+
+    def test_vm_without_network_interfaces(self, mock_client):
+        """VM with no network interfaces has empty ip_addresses."""
+        yc_vms = [{
+            "id": "vm1", "name": "isolated-vm", "status": "RUNNING",
+            "resources": {"cores": 1, "memory": 1073741824},
+            "networkInterfaces": [],
+            "platformId": "standard-v3",
+        }]
+        mock_client.client.get.side_effect = _make_fetch_all_data_mock(yc_vms)
+        result = mock_client.fetch_vms()
+        assert result[0].ip_addresses == []
+        assert result[0].memory_mb == 1024
+
+    def test_implements_cloud_provider_protocol(self, mock_client):
+        """YandexCloudClient should satisfy CloudProvider protocol."""
+        assert isinstance(mock_client, CloudProvider)
