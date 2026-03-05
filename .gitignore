@@ -56,3 +56,6 @@ examples/
 # OS files
 .DS_Store
 Thumbs.db
+
+# ralphex progress logs
+.ralphex/progress/

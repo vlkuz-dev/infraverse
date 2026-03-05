@@ -147,13 +147,18 @@ class ZabbixClient:
             ip_addresses=self._extract_ips(host),
         )
 
-    def _fetch_hosts_paginated(self) -> List[Dict[str, Any]]:
-        """Fetch all raw host dicts from Zabbix with pagination."""
+    def _fetch_hosts_paginated(self, max_pages: int = 100) -> List[Dict[str, Any]]:
+        """Fetch all raw host dicts from Zabbix with pagination.
+
+        Args:
+            max_pages: Safety limit to prevent infinite loops if the server
+                ignores the offset parameter.
+        """
         all_hosts: List[Dict[str, Any]] = []
         limit = 1000
         offset = 0
 
-        while True:
+        for _ in range(max_pages):
             result = self._jsonrpc_request(
                 "host.get",
                 {
@@ -169,6 +174,12 @@ class ZabbixClient:
             if len(result) < limit:
                 break
             offset += limit
+        else:
+            logger.warning(
+                "Zabbix pagination hit max_pages=%d limit (%d hosts fetched); "
+                "results may be incomplete",
+                max_pages, len(all_hosts),
+            )
 
         return all_hosts
 

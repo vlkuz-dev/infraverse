@@ -349,3 +349,57 @@ class TestComparisonErrorHandling:
         assert response.status_code == 200
         assert "web-01" in response.text
         assert "Failed to fetch Zabbix hosts" in response.text
+
+    def test_zabbix_failure_suppresses_monitoring_discrepancies(self):
+        """When Zabbix fetch fails, monitoring discrepancies should not appear."""
+        def failing_zabbix():
+            raise RuntimeError("zabbix down")
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=_make_cloud_vms,
+            netbox_fetcher=_make_netbox_vms,
+            zabbix_fetcher=failing_zabbix,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "not in monitoring" not in response.text
+
+    def test_cloud_fetcher_returns_tuple_with_errors(self):
+        """cloud_fetcher returning (vms, errors) surfaces errors in the UI."""
+        def cloud_with_errors():
+            return (
+                _make_cloud_vms()[:1],
+                ["Failed to fetch VMs from vCloud Director"],
+            )
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=cloud_with_errors,
+            netbox_fetcher=_make_netbox_vms,
+            zabbix_fetcher=_make_zabbix_hosts,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "web-01" in response.text
+        assert "Failed to fetch VMs from vCloud Director" in response.text
+
+    def test_cloud_fetcher_returns_plain_tuple_of_vms(self):
+        """cloud_fetcher returning tuple(vms) should not be misinterpreted as (vms, errors)."""
+        def cloud_as_tuple():
+            return tuple(_make_cloud_vms())
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=cloud_as_tuple,
+            netbox_fetcher=_make_netbox_vms,
+            zabbix_fetcher=_make_zabbix_hosts,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "web-01" in response.text
+        assert "db-01" in response.text
+        assert "app-01" in response.text

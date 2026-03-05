@@ -14,7 +14,7 @@ from netbox_sync.web.routes import router
 
 def create_app(
     config: Config | None = None,
-    cloud_fetcher: Callable[[], list[VMInfo]] | None = None,
+    cloud_fetcher: Callable[[], list[VMInfo] | tuple[list[VMInfo], list[str]]] | None = None,
     netbox_fetcher: Callable[[], list[VMInfo]] | None = None,
     zabbix_fetcher: Callable[[], list[ZabbixHost]] | None = None,
 ) -> FastAPI:
@@ -24,6 +24,8 @@ def create_app(
         config: Application configuration. If None, provider status
                 will show as unconfigured on the dashboard.
         cloud_fetcher: Callable returning cloud VMs for comparison.
+            May return ``list[VMInfo]`` or ``(list[VMInfo], list[str])``
+            where the second element contains per-provider error messages.
         netbox_fetcher: Callable returning NetBox VMs for comparison.
         zabbix_fetcher: Callable returning Zabbix hosts for comparison.
 

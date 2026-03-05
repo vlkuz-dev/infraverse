@@ -59,7 +59,16 @@ def comparison(
     errors: list[str] = []
 
     try:
-        cloud_vms = request.app.state.cloud_fetcher()
+        cloud_result = request.app.state.cloud_fetcher()
+        if (
+            isinstance(cloud_result, tuple)
+            and len(cloud_result) == 2
+            and isinstance(cloud_result[1], list)
+        ):
+            cloud_vms, cloud_errors = cloud_result
+            errors.extend(cloud_errors)
+        else:
+            cloud_vms = list(cloud_result)
     except Exception:
         logger.exception("Failed to fetch cloud VMs")
         cloud_vms = []
@@ -72,15 +81,19 @@ def comparison(
         netbox_vms = []
         errors.append("Failed to fetch NetBox VMs")
 
+    zabbix_fetch_ok = True
     try:
         zabbix_hosts = request.app.state.zabbix_fetcher()
     except Exception:
         logger.exception("Failed to fetch Zabbix hosts")
         zabbix_hosts = []
+        zabbix_fetch_ok = False
         errors.append("Failed to fetch Zabbix hosts")
 
     config: Config | None = request.app.state.config
-    monitoring_configured = config.zabbix_configured if config else False
+    monitoring_configured = (
+        config.zabbix_configured if config else False
+    ) and zabbix_fetch_ok
 
     engine = ComparisonEngine()
     result = engine.compare(
