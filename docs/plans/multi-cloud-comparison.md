@@ -157,12 +157,12 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 10: Add CLI `serve` command
-- [ ] extend `cli.py` argparse with `serve` subcommand: `netbox-sync serve --host 0.0.0.0 --port 8000`
-- [ ] keep existing default behavior (sync) when no subcommand given — backward compatible
-- [ ] `serve` starts uvicorn with the FastAPI app
-- [ ] write tests for CLI argument parsing with `serve` subcommand
-- [ ] write tests for backward compatibility (no subcommand = sync mode)
-- [ ] run tests — must pass before next task
+- [x] extend `cli.py` argparse with `serve` subcommand: `netbox-sync serve --host 0.0.0.0 --port 8000`
+- [x] keep existing default behavior (sync) when no subcommand given — backward compatible
+- [x] `serve` starts uvicorn with the FastAPI app
+- [x] write tests for CLI argument parsing with `serve` subcommand
+- [x] write tests for backward compatibility (no subcommand = sync mode)
+- [x] run tests — must pass before next task
 
 ### Task 11: Verify acceptance criteria
 - [ ] verify vCloud Director client can list VMs (with mocked API)
