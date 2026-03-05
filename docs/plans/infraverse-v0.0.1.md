@@ -304,13 +304,13 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 14: Data ingestion - providers to DB
-- [ ] Create `src/infraverse/sync/ingest.py` - DataIngestor class that fetches from all configured providers and stores results in DB
-- [ ] Implement `ingest_cloud_vms(cloud_account)`: fetch VMs from provider, upsert into DB, create SyncRun record
-- [ ] Implement `ingest_monitoring_hosts()`: fetch from Zabbix, upsert into DB
-- [ ] Implement `ingest_all()`: iterate over all CloudAccounts, ingest each
-- [ ] Write tests for ingestion flow (mock providers, real SQLite DB)
-- [ ] Write tests for error handling (provider failure doesn't stop other providers)
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/sync/ingest.py` - DataIngestor class that fetches from all configured providers and stores results in DB
+- [x] Implement `ingest_cloud_vms(cloud_account)`: fetch VMs from provider, upsert into DB, create SyncRun record
+- [x] Implement `ingest_monitoring_hosts()`: fetch from Zabbix, upsert into DB
+- [x] Implement `ingest_all()`: iterate over all CloudAccounts, ingest each
+- [x] Write tests for ingestion flow (mock providers, real SQLite DB)
+- [x] Write tests for error handling (provider failure doesn't stop other providers)
+- [x] Run tests - must pass before next task
 
 ### Task 15: Verify acceptance criteria
 - [ ] Verify project imports as `infraverse` and CLI runs as `infraverse`
