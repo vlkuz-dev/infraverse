@@ -113,12 +113,12 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 5: Extend configuration for vCloud Director and Zabbix
-- [ ] add new env vars to `config.py`: `VCD_URL`, `VCD_USER`, `VCD_PASSWORD`, `VCD_ORG` (all optional)
-- [ ] add new env vars: `ZABBIX_URL`, `ZABBIX_USER`, `ZABBIX_PASSWORD` (all optional)
-- [ ] make these optional — service starts even if only YC is configured (backward compatible)
-- [ ] update `.env.example` with new variables and comments
-- [ ] write tests for config with all providers, with only YC, with partial configs
-- [ ] run tests — must pass before next task
+- [x] add new env vars to `config.py`: `VCD_URL`, `VCD_USER`, `VCD_PASSWORD`, `VCD_ORG` (all optional)
+- [x] add new env vars: `ZABBIX_URL`, `ZABBIX_USER`, `ZABBIX_PASSWORD` (all optional)
+- [x] make these optional — service starts even if only YC is configured (backward compatible)
+- [x] update `.env.example` with new variables and comments
+- [x] write tests for config with all providers, with only YC, with partial configs
+- [x] run tests — must pass before next task
 
 ### Task 6: Build ComparisonEngine
 - [ ] create `src/netbox_sync/comparison/models.py` with dataclasses: `VMState` (vm_name, in_cloud: bool, in_netbox: bool, in_monitoring: bool, cloud_provider: str|None, discrepancies: list), `ComparisonResult` (all_vms: list[VMState], summary: dict)

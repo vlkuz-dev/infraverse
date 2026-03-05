@@ -151,3 +151,175 @@ class TestRepr:
             dry_run=True,
         )
         assert "dry_run=True" in repr(cfg)
+
+
+class TestVcdConfig:
+    def _base_cfg(self, **kwargs):
+        defaults = dict(yc_token="a", netbox_url="b", netbox_token="c")
+        defaults.update(kwargs)
+        return Config(**defaults)
+
+    def test_vcd_defaults_none(self):
+        cfg = self._base_cfg()
+        assert cfg.vcd_url is None
+        assert cfg.vcd_user is None
+        assert cfg.vcd_password is None
+        assert cfg.vcd_org is None
+
+    def test_vcd_configured_when_all_set(self):
+        cfg = self._base_cfg(
+            vcd_url="https://vcd.example.com",
+            vcd_user="admin",
+            vcd_password="secret",
+        )
+        assert cfg.vcd_configured is True
+
+    def test_vcd_not_configured_when_partial(self):
+        cfg = self._base_cfg(vcd_url="https://vcd.example.com")
+        assert cfg.vcd_configured is False
+
+    def test_vcd_not_configured_when_none(self):
+        cfg = self._base_cfg()
+        assert cfg.vcd_configured is False
+
+    def test_vcd_org_optional_for_configured(self):
+        cfg = self._base_cfg(
+            vcd_url="https://vcd.example.com",
+            vcd_user="admin",
+            vcd_password="secret",
+            vcd_org="MyOrg",
+        )
+        assert cfg.vcd_configured is True
+        assert cfg.vcd_org == "MyOrg"
+
+    def test_from_env_reads_vcd_vars(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("VCD_URL", "https://vcd.example.com")
+        monkeypatch.setenv("VCD_USER", "admin")
+        monkeypatch.setenv("VCD_PASSWORD", "secret")
+        monkeypatch.setenv("VCD_ORG", "MyOrg")
+
+        cfg = Config.from_env()
+        assert cfg.vcd_url == "https://vcd.example.com"
+        assert cfg.vcd_user == "admin"
+        assert cfg.vcd_password == "secret"
+        assert cfg.vcd_org == "MyOrg"
+        assert cfg.vcd_configured is True
+
+    def test_from_env_vcd_absent(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("VCD_URL", raising=False)
+        monkeypatch.delenv("VCD_USER", raising=False)
+        monkeypatch.delenv("VCD_PASSWORD", raising=False)
+        monkeypatch.delenv("VCD_ORG", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.vcd_url is None
+        assert cfg.vcd_configured is False
+
+
+class TestZabbixConfig:
+    def _base_cfg(self, **kwargs):
+        defaults = dict(yc_token="a", netbox_url="b", netbox_token="c")
+        defaults.update(kwargs)
+        return Config(**defaults)
+
+    def test_zabbix_defaults_none(self):
+        cfg = self._base_cfg()
+        assert cfg.zabbix_url is None
+        assert cfg.zabbix_user is None
+        assert cfg.zabbix_password is None
+
+    def test_zabbix_configured_when_all_set(self):
+        cfg = self._base_cfg(
+            zabbix_url="https://zabbix.example.com",
+            zabbix_user="Admin",
+            zabbix_password="zabbix",
+        )
+        assert cfg.zabbix_configured is True
+
+    def test_zabbix_not_configured_when_partial(self):
+        cfg = self._base_cfg(zabbix_url="https://zabbix.example.com")
+        assert cfg.zabbix_configured is False
+
+    def test_zabbix_not_configured_when_none(self):
+        cfg = self._base_cfg()
+        assert cfg.zabbix_configured is False
+
+    def test_from_env_reads_zabbix_vars(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("ZABBIX_URL", "https://zabbix.example.com")
+        monkeypatch.setenv("ZABBIX_USER", "Admin")
+        monkeypatch.setenv("ZABBIX_PASSWORD", "zabbix")
+
+        cfg = Config.from_env()
+        assert cfg.zabbix_url == "https://zabbix.example.com"
+        assert cfg.zabbix_user == "Admin"
+        assert cfg.zabbix_password == "zabbix"
+        assert cfg.zabbix_configured is True
+
+    def test_from_env_zabbix_absent(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("ZABBIX_URL", raising=False)
+        monkeypatch.delenv("ZABBIX_USER", raising=False)
+        monkeypatch.delenv("ZABBIX_PASSWORD", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.zabbix_url is None
+        assert cfg.zabbix_configured is False
+
+
+class TestAllProvidersConfig:
+    def test_from_env_all_providers(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("VCD_URL", "https://vcd.example.com")
+        monkeypatch.setenv("VCD_USER", "admin")
+        monkeypatch.setenv("VCD_PASSWORD", "secret")
+        monkeypatch.setenv("ZABBIX_URL", "https://zabbix.example.com")
+        monkeypatch.setenv("ZABBIX_USER", "Admin")
+        monkeypatch.setenv("ZABBIX_PASSWORD", "zabbix")
+
+        cfg = Config.from_env()
+        assert cfg.vcd_configured is True
+        assert cfg.zabbix_configured is True
+        assert cfg.yc_token == "yc"
+
+    def test_from_env_only_yc(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("VCD_URL", raising=False)
+        monkeypatch.delenv("VCD_USER", raising=False)
+        monkeypatch.delenv("VCD_PASSWORD", raising=False)
+        monkeypatch.delenv("VCD_ORG", raising=False)
+        monkeypatch.delenv("ZABBIX_URL", raising=False)
+        monkeypatch.delenv("ZABBIX_USER", raising=False)
+        monkeypatch.delenv("ZABBIX_PASSWORD", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.vcd_configured is False
+        assert cfg.zabbix_configured is False
+        assert cfg.yc_token == "yc"
+
+    def test_empty_env_string_treated_as_none(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("VCD_URL", "")
+        monkeypatch.setenv("ZABBIX_URL", "")
+
+        cfg = Config.from_env()
+        assert cfg.vcd_url is None
+        assert cfg.zabbix_url is None
+        assert cfg.vcd_configured is False
+        assert cfg.zabbix_configured is False
