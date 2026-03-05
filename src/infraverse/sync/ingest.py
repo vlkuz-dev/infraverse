@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from infraverse.db.models import CloudAccount, VM
+from infraverse.db.models import CloudAccount
 from infraverse.db.repository import Repository
 from infraverse.providers.base import CloudProvider, VMInfo
 from infraverse.providers.zabbix import ZabbixClient, ZabbixHost
@@ -68,20 +68,7 @@ class DataIngestor:
         items_updated = 0
 
         for vm_info in vms:
-            existing = (
-                self.session.query(VM)
-                .filter_by(
-                    cloud_account_id=cloud_account.id,
-                    external_id=vm_info.id,
-                )
-                .first()
-            )
-            if existing:
-                items_updated += 1
-            else:
-                items_created += 1
-
-            self.repo.upsert_vm(
+            _, created = self.repo.upsert_vm(
                 cloud_account_id=cloud_account.id,
                 external_id=vm_info.id,
                 name=vm_info.name,
@@ -92,6 +79,10 @@ class DataIngestor:
                 cloud_name=vm_info.cloud_name,
                 folder_name=vm_info.folder_name,
             )
+            if created:
+                items_created += 1
+            else:
+                items_updated += 1
 
         # Mark VMs not seen in this sync as stale
         self.repo.mark_vms_stale(cloud_account.id, sync_start)
@@ -141,20 +132,28 @@ class DataIngestor:
             logger.error("Failed to fetch Zabbix hosts: %s", exc)
             raise
 
+        items_created = 0
+        items_updated = 0
+
         for host in hosts:
-            self.repo.upsert_monitoring_host(
+            _, created = self.repo.upsert_monitoring_host(
                 source="zabbix",
                 external_id=host.hostid,
                 name=host.name,
                 status=host.status,
                 ip_addresses=host.ip_addresses,
             )
+            if created:
+                items_created += 1
+            else:
+                items_updated += 1
 
         self.repo.update_sync_run(
             sync_run.id,
             status="success",
             items_found=len(hosts),
-            items_created=len(hosts),
+            items_created=items_created,
+            items_updated=items_updated,
         )
         self.session.commit()
 

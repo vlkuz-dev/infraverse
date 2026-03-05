@@ -66,13 +66,13 @@ class TestServeCommand:
         parser = build_parser()
         args = parser.parse_args(["serve"])
         assert args.command == "serve"
-        assert args.host == "0.0.0.0"
+        assert args.host == "127.0.0.1"
         assert args.port == 8000
 
     def test_serve_custom_host(self):
         parser = build_parser()
-        args = parser.parse_args(["serve", "--host", "127.0.0.1"])
-        assert args.host == "127.0.0.1"
+        args = parser.parse_args(["serve", "--host", "0.0.0.0"])
+        assert args.host == "0.0.0.0"
 
     def test_serve_custom_port(self):
         parser = build_parser()
@@ -137,18 +137,36 @@ class TestCmdSync:
         mock_from_env.assert_called_once_with(dry_run=True)
         mock_engine.run.assert_called_once_with(use_batch=False, cleanup=False)
 
+    def test_cmd_sync_config_error_exits(self):
+        with patch("infraverse.config.Config.from_env", side_effect=ValueError("Missing YC_TOKEN")):
+            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+            with pytest.raises(SystemExit) as exc_info:
+                cmd_sync(args)
+            assert exc_info.value.code == 1
+
+    @patch("infraverse.config.Config.from_env")
+    def test_cmd_sync_engine_error_exits(self, mock_from_env):
+        mock_config = MagicMock()
+        mock_from_env.return_value = mock_config
+
+        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
+            mock_engine = MagicMock()
+            mock_engine.run.side_effect = RuntimeError("API down")
+            mock_engine_cls.return_value = mock_engine
+
+            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+            with pytest.raises(SystemExit) as exc_info:
+                cmd_sync(args)
+            assert exc_info.value.code == 1
+
 
 class TestCmdServe:
     """Tests for serve command execution."""
 
-    @patch("infraverse.config.Config.from_env")
     @patch("uvicorn.run")
-    def test_cmd_serve_starts_uvicorn(self, mock_uvicorn_run, mock_from_env):
-        mock_config = MagicMock()
-        mock_config.database_url = "sqlite:///test.db"
-        mock_from_env.return_value = mock_config
-
-        with patch("infraverse.web.app.create_app") as mock_create_app:
+    def test_cmd_serve_starts_uvicorn(self, mock_uvicorn_run):
+        with patch("infraverse.web.app.create_app") as mock_create_app, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///test.db"}):
             mock_app = MagicMock()
             mock_create_app.return_value = mock_app
 
@@ -157,32 +175,36 @@ class TestCmdServe:
 
         mock_uvicorn_run.assert_called_once_with(mock_app, host="127.0.0.1", port=9000)
 
-    @patch("infraverse.config.Config.from_env")
     @patch("uvicorn.run")
-    def test_cmd_serve_uses_config_db_url(self, mock_uvicorn_run, mock_from_env):
-        mock_config = MagicMock()
-        mock_config.database_url = "sqlite:///custom.db"
-        mock_from_env.return_value = mock_config
-
-        with patch("infraverse.web.app.create_app") as mock_create_app:
+    def test_cmd_serve_uses_database_url_env(self, mock_uvicorn_run):
+        with patch("infraverse.web.app.create_app") as mock_create_app, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///custom.db"}):
             mock_create_app.return_value = MagicMock()
-            args = argparse.Namespace(host="0.0.0.0", port=8000)
+            args = argparse.Namespace(host="127.0.0.1", port=8000)
             cmd_serve(args)
 
         mock_create_app.assert_called_once_with(database_url="sqlite:///custom.db")
+
+    @patch("uvicorn.run")
+    def test_cmd_serve_does_not_require_cloud_creds(self, mock_uvicorn_run):
+        """Serve should work without YC_TOKEN, NETBOX_URL, NETBOX_TOKEN."""
+        env = {"DATABASE_URL": "sqlite:///test.db"}
+        with patch("infraverse.web.app.create_app") as mock_create_app, \
+             patch.dict("os.environ", env, clear=True):
+            mock_create_app.return_value = MagicMock()
+            args = argparse.Namespace(host="127.0.0.1", port=8000)
+            cmd_serve(args)
+
+        mock_create_app.assert_called_once()
 
 
 class TestCmdDbInit:
     """Tests for db init command execution."""
 
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_db_init_creates_tables(self, mock_from_env):
-        mock_config = MagicMock()
-        mock_config.database_url = "sqlite:///:memory:"
-        mock_from_env.return_value = mock_config
-
+    def test_cmd_db_init_creates_tables(self):
         with patch("infraverse.db.engine.create_engine") as mock_create_engine, \
-             patch("infraverse.db.engine.init_db") as mock_init_db:
+             patch("infraverse.db.engine.init_db") as mock_init_db, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
             mock_engine = MagicMock()
             mock_create_engine.return_value = mock_engine
 
@@ -192,19 +214,27 @@ class TestCmdDbInit:
         mock_create_engine.assert_called_once_with("sqlite:///:memory:")
         mock_init_db.assert_called_once_with(mock_engine)
 
+    def test_cmd_db_init_does_not_require_cloud_creds(self):
+        """db init should work without YC_TOKEN, NETBOX_URL, NETBOX_TOKEN."""
+        env = {"DATABASE_URL": "sqlite:///:memory:"}
+        with patch("infraverse.db.engine.create_engine") as mock_ce, \
+             patch("infraverse.db.engine.init_db"), \
+             patch.dict("os.environ", env, clear=True):
+            mock_ce.return_value = MagicMock()
+            args = argparse.Namespace()
+            cmd_db_init(args)
+
+        mock_ce.assert_called_once()
+
 
 class TestCmdDbSeed:
     """Tests for db seed command execution."""
 
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_db_seed_creates_default_tenant(self, mock_from_env):
-        mock_config = MagicMock()
-        mock_config.database_url = "sqlite:///:memory:"
-        mock_from_env.return_value = mock_config
-
+    def test_cmd_db_seed_creates_default_tenant(self):
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
-             patch("infraverse.db.engine.create_session_factory") as mock_sf:
+             patch("infraverse.db.engine.create_session_factory") as mock_sf, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
             mock_engine = MagicMock()
             mock_ce.return_value = mock_engine
 
@@ -230,15 +260,11 @@ class TestCmdDbSeed:
             )
             mock_session.commit.assert_called_once()
 
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_db_seed_skips_if_exists(self, mock_from_env):
-        mock_config = MagicMock()
-        mock_config.database_url = "sqlite:///:memory:"
-        mock_from_env.return_value = mock_config
-
+    def test_cmd_db_seed_skips_if_exists(self):
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
-             patch("infraverse.db.engine.create_session_factory") as mock_sf:
+             patch("infraverse.db.engine.create_session_factory") as mock_sf, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
             mock_ce.return_value = MagicMock()
 
             mock_session = MagicMock()

@@ -188,7 +188,7 @@ class ComparisonEngine:
             )
 
         # Build summary
-        summary = self._build_summary(states)
+        summary = self.build_summary(states)
 
         return ComparisonResult(all_vms=states, summary=summary)
 
@@ -214,7 +214,7 @@ class ComparisonEngine:
                 discs.append("in monitoring but not in NetBox")
         return discs
 
-    def _build_summary(self, states: list[VMState]) -> dict[str, int]:
+    def build_summary(self, states: list[VMState]) -> dict[str, int]:
         """Build summary counts from VM states."""
         total = len(states)
         in_sync = sum(1 for s in states if not s.discrepancies)

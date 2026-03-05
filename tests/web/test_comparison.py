@@ -125,7 +125,12 @@ def test_comparison_active_page(client):
     resp = client.get("/comparison")
     html = resp.text
     # The comparison nav item should have active class
-    assert "Comparison" in html
+    import re
+    match = re.search(
+        r'<li class="nav-item\s+active">\s*<a class="nav-link" href="/comparison">',
+        html,
+    )
+    assert match is not None, "Comparison nav-item should have active class"
 
 
 # --- Seeded state tests ---

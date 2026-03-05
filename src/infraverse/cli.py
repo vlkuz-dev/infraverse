@@ -2,9 +2,27 @@
 
 import argparse
 import logging
+import os
 import sys
 
 logger = logging.getLogger(__name__)
+
+
+def _setup_logging() -> None:
+    """Configure logging from LOG_LEVEL env var."""
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    for name in ("urllib3", "requests", "httpx", "httpcore", "pynetbox"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def _get_database_url() -> str:
+    """Get database URL from environment with default."""
+    return os.getenv("DATABASE_URL", "sqlite:///infraverse.db")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     # serve command
     serve_parser = subparsers.add_parser("serve", help="Start the web UI")
     serve_parser.add_argument(
-        "--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)"
+        "--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
     )
     serve_parser.add_argument(
         "--port", type=int, default=8000, help="Bind port (default: 8000)"
@@ -53,57 +71,59 @@ def cmd_sync(args: argparse.Namespace) -> None:
     """Execute sync command: fetch from providers, sync to NetBox."""
     from infraverse.config import Config
 
-    config = Config.from_env(dry_run=args.dry_run)
+    try:
+        config = Config.from_env(dry_run=args.dry_run)
+    except ValueError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        sys.exit(1)
     config.setup_logging()
 
     from infraverse.sync.engine import SyncEngine
 
-    engine = SyncEngine(config)
-    stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
-    logger.info("Sync complete: %s", stats)
+    try:
+        engine = SyncEngine(config)
+        stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
+        logger.info("Sync complete: %s", stats)
+    except Exception:
+        logger.exception("Sync failed")
+        sys.exit(1)
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
     """Execute serve command: start web UI."""
     import uvicorn
 
-    from infraverse.config import Config
-
-    config = Config.from_env()
-    config.setup_logging()
+    _setup_logging()
+    database_url = _get_database_url()
 
     from infraverse.web.app import create_app
 
-    app = create_app(database_url=config.database_url)
+    app = create_app(database_url=database_url)
     uvicorn.run(app, host=args.host, port=args.port)
 
 
 def cmd_db_init(args: argparse.Namespace) -> None:
     """Execute db init command: create all database tables."""
-    from infraverse.config import Config
-
-    config = Config.from_env()
-    config.setup_logging()
+    _setup_logging()
+    database_url = _get_database_url()
 
     from infraverse.db.engine import create_engine, init_db
 
-    engine = create_engine(config.database_url)
+    engine = create_engine(database_url)
     init_db(engine)
-    logger.info("Database initialized at %s", config.database_url)
-    print(f"Database initialized: {config.database_url}")
+    logger.info("Database initialized")
+    print("Database initialized")
 
 
 def cmd_db_seed(args: argparse.Namespace) -> None:
     """Execute db seed command: create default tenant."""
-    from infraverse.config import Config
-
-    config = Config.from_env()
-    config.setup_logging()
+    _setup_logging()
+    database_url = _get_database_url()
 
     from infraverse.db.engine import create_engine, create_session_factory, init_db
     from infraverse.db.repository import Repository
 
-    engine = create_engine(config.database_url)
+    engine = create_engine(database_url)
     init_db(engine)
     session_factory = create_session_factory(engine)
 

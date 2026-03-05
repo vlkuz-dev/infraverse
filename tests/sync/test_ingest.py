@@ -254,6 +254,8 @@ class TestIngestMonitoringHosts:
         run = session.query(SyncRun).one()
         assert run.status == "success"
         assert run.items_found == 2
+        assert run.items_created == 2
+        assert run.items_updated == 0
 
     def test_ingest_zabbix_updates_existing(self, ingestor, repo, session):
         repo.upsert_monitoring_host(
@@ -270,6 +272,11 @@ class TestIngestMonitoringHosts:
         db_host = session.query(MonitoringHost).one()
         assert db_host.name == "new-name"
         assert db_host.status == "offline"
+
+        run = session.query(SyncRun).one()
+        assert run.items_found == 1
+        assert run.items_created == 0
+        assert run.items_updated == 1
 
     def test_ingest_zabbix_error_records_failed_run(self, ingestor, session):
         zabbix = _make_mock_zabbix(error=RuntimeError("Zabbix unreachable"))

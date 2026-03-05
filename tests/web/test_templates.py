@@ -67,15 +67,14 @@ def test_base_template_comparison_active():
     env = _get_env()
     template = env.get_template("base.html")
     html = template.render(active_page="comparison")
-    lines = html.split("\n")
-    comparison_active = False
-    for line in lines:
-        if "Comparison" in line:
-            break
-        if "nav-item active" in line:
-            comparison_active = True
-    # The active class should appear on the comparison nav-item
-    assert comparison_active or 'nav-item active' in html
+    # The comparison nav-item should have active class
+    # Find the comparison li element and verify it has the active class
+    import re
+    match = re.search(
+        r'<li class="nav-item\s+active">\s*<a class="nav-link" href="/comparison">',
+        html,
+    )
+    assert match is not None, "Comparison nav-item should have active class"
 
 
 def test_base_template_custom_css():

@@ -90,7 +90,12 @@ class Repository:
         memory_mb: int | None = None,
         cloud_name: str | None = None,
         folder_name: str | None = None,
-    ) -> VM:
+    ) -> tuple[VM, bool]:
+        """Upsert a VM record.
+
+        Returns:
+            Tuple of (VM, created) where created is True if the record was new.
+        """
         vm = (
             self.session.query(VM)
             .filter(
@@ -100,7 +105,8 @@ class Repository:
             .first()
         )
         now = datetime.now(timezone.utc)
-        if vm is None:
+        created = vm is None
+        if created:
             vm = VM(
                 cloud_account_id=cloud_account_id,
                 external_id=external_id,
@@ -124,7 +130,7 @@ class Repository:
             vm.folder_name = folder_name
             vm.last_seen_at = now
         self.session.flush()
-        return vm
+        return vm, created
 
     def get_vms_by_account(self, cloud_account_id: int) -> list[VM]:
         return (
@@ -166,7 +172,12 @@ class Repository:
         name: str,
         status: str = "unknown",
         ip_addresses: list[str] | None = None,
-    ) -> MonitoringHost:
+    ) -> tuple[MonitoringHost, bool]:
+        """Upsert a monitoring host record.
+
+        Returns:
+            Tuple of (MonitoringHost, created) where created is True if new.
+        """
         host = (
             self.session.query(MonitoringHost)
             .filter(
@@ -176,7 +187,8 @@ class Repository:
             .first()
         )
         now = datetime.now(timezone.utc)
-        if host is None:
+        created = host is None
+        if created:
             host = MonitoringHost(
                 source=source,
                 external_id=external_id,
@@ -192,7 +204,7 @@ class Repository:
             host.ip_addresses = ip_addresses or []
             host.last_seen_at = now
         self.session.flush()
-        return host
+        return host, created
 
     def get_all_monitoring_hosts(self) -> list[MonitoringHost]:
         return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()

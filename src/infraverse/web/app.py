@@ -13,8 +13,14 @@ TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
 
 
+_templates: Jinja2Templates | None = None
+
+
 def get_templates() -> Jinja2Templates:
-    return Jinja2Templates(directory=str(TEMPLATES_DIR))
+    global _templates
+    if _templates is None:
+        _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    return _templates
 
 
 def create_app(database_url: str = "sqlite:///infraverse.db") -> FastAPI:

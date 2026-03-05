@@ -113,7 +113,9 @@ def test_dashboard_shows_provider_summary(seeded_client):
 def test_dashboard_shows_sync_run(seeded_client):
     resp = seeded_client.get("/")
     html = resp.text
-    assert "success" in html
+    # Verify sync run data is rendered (source + status badge)
+    assert "yandex_cloud" in html
+    assert "bg-success-lt" in html
 
 
 def test_dashboard_active_page(seeded_client):

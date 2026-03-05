@@ -97,7 +97,6 @@ class TestTenantCRUD:
         session.commit()
         with pytest.raises(IntegrityError):
             repo.create_tenant("Dup Name")
-            session.flush()
 
 
 # --- CloudAccount CRUD ---
@@ -162,7 +161,6 @@ class TestCloudAccountCRUD:
     def test_create_account_missing_tenant(self, repo, session):
         with pytest.raises(IntegrityError):
             repo.create_cloud_account(99999, "yandex_cloud", "Orphan")
-            session.flush()
 
 
 # --- VM operations ---
@@ -175,7 +173,7 @@ class TestVMOperations:
         return repo.create_cloud_account(tenant.id, "yandex_cloud", "YC VMs")
 
     def test_upsert_vm_create(self, repo, account):
-        vm = repo.upsert_vm(
+        vm, created = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-001",
             name="web-server",
@@ -187,6 +185,7 @@ class TestVMOperations:
             folder_name="prod",
         )
         assert vm.id is not None
+        assert created is True
         assert vm.name == "web-server"
         assert vm.status == "active"
         assert vm.ip_addresses == ["10.0.0.1"]
@@ -203,7 +202,7 @@ class TestVMOperations:
             name="old-name",
             status="active",
         )
-        vm = repo.upsert_vm(
+        vm, created = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-upd",
             name="new-name",
@@ -212,6 +211,7 @@ class TestVMOperations:
             vcpus=8,
             memory_mb=16384,
         )
+        assert created is False
         assert vm.name == "new-name"
         assert vm.status == "offline"
         assert vm.ip_addresses == ["10.0.0.2"]
@@ -219,12 +219,12 @@ class TestVMOperations:
         assert vm.memory_mb == 16384
 
     def test_upsert_vm_preserves_id_on_update(self, repo, account):
-        vm1 = repo.upsert_vm(
+        vm1, _ = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-id",
             name="orig",
         )
-        vm2 = repo.upsert_vm(
+        vm2, _ = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-id",
             name="updated",
@@ -232,7 +232,7 @@ class TestVMOperations:
         assert vm1.id == vm2.id
 
     def test_upsert_vm_default_status(self, repo, account):
-        vm = repo.upsert_vm(
+        vm, _ = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-def",
             name="default-vm",
@@ -240,7 +240,7 @@ class TestVMOperations:
         assert vm.status == "unknown"
 
     def test_upsert_vm_default_ip_empty(self, repo, account):
-        vm = repo.upsert_vm(
+        vm, _ = repo.upsert_vm(
             cloud_account_id=account.id,
             external_id="fhm-noip",
             name="no-ip",
@@ -275,7 +275,7 @@ class TestVMOperations:
     def test_mark_vms_stale(self, repo, account):
         # Create two VMs with different last_seen_at
         old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        vm_old = repo.upsert_vm(account.id, "fhm-old", "old-vm", status="active")
+        vm_old, _ = repo.upsert_vm(account.id, "fhm-old", "old-vm", status="active")
         # Manually set last_seen_at to past
         vm_old.last_seen_at = old_time
         repo.session.flush()
@@ -318,9 +318,9 @@ class TestVMOperations:
         t = repo.create_tenant("Stale Scope Tenant")
         acc1 = repo.create_cloud_account(t.id, "yandex_cloud", "Acc1")
         acc2 = repo.create_cloud_account(t.id, "yandex_cloud", "Acc2")
-        vm1 = repo.upsert_vm(acc1.id, "fhm-1", "vm1", status="active")
+        vm1, _ = repo.upsert_vm(acc1.id, "fhm-1", "vm1", status="active")
         vm1.last_seen_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
-        vm2 = repo.upsert_vm(acc2.id, "fhm-2", "vm2", status="active")
+        vm2, _ = repo.upsert_vm(acc2.id, "fhm-2", "vm2", status="active")
         vm2.last_seen_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
         repo.session.flush()
 
@@ -339,7 +339,7 @@ class TestVMOperations:
 
 class TestMonitoringHostOperations:
     def test_upsert_monitoring_host_create(self, repo):
-        host = repo.upsert_monitoring_host(
+        host, created = repo.upsert_monitoring_host(
             source="zabbix",
             external_id="zbx-100",
             name="monitor-1",
@@ -347,6 +347,7 @@ class TestMonitoringHostOperations:
             ip_addresses=["10.0.0.5"],
         )
         assert host.id is not None
+        assert created is True
         assert host.source == "zabbix"
         assert host.name == "monitor-1"
         assert host.status == "active"
@@ -355,25 +356,26 @@ class TestMonitoringHostOperations:
 
     def test_upsert_monitoring_host_update(self, repo):
         repo.upsert_monitoring_host("zabbix", "zbx-upd", "old-host", "active")
-        host = repo.upsert_monitoring_host(
+        host, created = repo.upsert_monitoring_host(
             "zabbix", "zbx-upd", "new-host", "offline", ["10.0.0.6"]
         )
+        assert created is False
         assert host.name == "new-host"
         assert host.status == "offline"
         assert host.ip_addresses == ["10.0.0.6"]
 
     def test_upsert_monitoring_host_preserves_id(self, repo):
-        h1 = repo.upsert_monitoring_host("zabbix", "zbx-id", "host1")
-        h2 = repo.upsert_monitoring_host("zabbix", "zbx-id", "host2")
+        h1, _ = repo.upsert_monitoring_host("zabbix", "zbx-id", "host1")
+        h2, _ = repo.upsert_monitoring_host("zabbix", "zbx-id", "host2")
         assert h1.id == h2.id
 
     def test_upsert_monitoring_host_default_status(self, repo):
-        host = repo.upsert_monitoring_host("zabbix", "zbx-def", "def-host")
+        host, _ = repo.upsert_monitoring_host("zabbix", "zbx-def", "def-host")
         assert host.status == "unknown"
 
     def test_upsert_monitoring_host_different_sources(self, repo):
-        h1 = repo.upsert_monitoring_host("zabbix", "same-id", "zbx-host")
-        h2 = repo.upsert_monitoring_host("prometheus", "same-id", "prom-host")
+        h1, _ = repo.upsert_monitoring_host("zabbix", "same-id", "zbx-host")
+        h2, _ = repo.upsert_monitoring_host("prometheus", "same-id", "prom-host")
         assert h1.id != h2.id
 
     def test_get_all_monitoring_hosts(self, repo):

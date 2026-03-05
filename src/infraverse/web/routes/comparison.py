@@ -82,7 +82,7 @@ def _filter_results(
         filtered = [s for s in filtered if search_lower in s.vm_name.lower()]
 
     engine = ComparisonEngine()
-    summary = engine._build_summary(filtered)
+    summary = engine.build_summary(filtered)
     return ComparisonResult(all_vms=filtered, summary=summary)
 
 
@@ -90,6 +90,25 @@ def _get_providers(repo: Repository) -> list[str]:
     """Get distinct provider types from cloud accounts."""
     accounts = repo.list_cloud_accounts()
     return sorted({a.provider_type for a in accounts})
+
+
+def _build_context(request: Request, provider, status, search):
+    """Shared logic for comparison and comparison_table routes."""
+    session_factory = request.app.state.session_factory
+    with session_factory() as session:
+        repo = Repository(session)
+        result = _run_comparison(repo)
+        providers = _get_providers(repo)
+
+    result = _filter_results(result, provider=provider, status=status, search=search)
+
+    return {
+        "result": result,
+        "providers": providers,
+        "current_provider": provider or "",
+        "current_status": status or "",
+        "current_search": search or "",
+    }
 
 
 @router.get("/comparison")
@@ -100,25 +119,13 @@ async def comparison(
     search: str | None = None,
 ):
     templates = get_templates()
-    session_factory = request.app.state.session_factory
-    with session_factory() as session:
-        repo = Repository(session)
-        result = _run_comparison(repo)
-        providers = _get_providers(repo)
-
-    result = _filter_results(result, provider=provider, status=status, search=search)
+    context = _build_context(request, provider, status, search)
+    context["active_page"] = "comparison"
 
     return templates.TemplateResponse(
         request,
         "comparison.html",
-        {
-            "active_page": "comparison",
-            "result": result,
-            "providers": providers,
-            "current_provider": provider or "",
-            "current_status": status or "",
-            "current_search": search or "",
-        },
+        context,
     )
 
 
@@ -130,22 +137,10 @@ async def comparison_table(
     search: str | None = None,
 ):
     templates = get_templates()
-    session_factory = request.app.state.session_factory
-    with session_factory() as session:
-        repo = Repository(session)
-        result = _run_comparison(repo)
-        providers = _get_providers(repo)
-
-    result = _filter_results(result, provider=provider, status=status, search=search)
+    context = _build_context(request, provider, status, search)
 
     return templates.TemplateResponse(
         request,
         "comparison_table.html",
-        {
-            "result": result,
-            "providers": providers,
-            "current_provider": provider or "",
-            "current_status": status or "",
-            "current_search": search or "",
-        },
+        context,
     )
