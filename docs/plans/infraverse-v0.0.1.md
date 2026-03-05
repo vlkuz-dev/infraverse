@@ -265,10 +265,10 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 9: Port comparison engine
-- [ ] Copy `src/netbox_sync/comparison/engine.py` -> `src/infraverse/comparison/engine.py`, update imports
-- [ ] Copy `src/netbox_sync/comparison/models.py` -> `src/infraverse/comparison/models.py`
-- [ ] Port comparison tests, update imports
-- [ ] Run tests - must pass before next task
+- [x] Copy `src/netbox_sync/comparison/engine.py` -> `src/infraverse/comparison/engine.py`, update imports
+- [x] Copy `src/netbox_sync/comparison/models.py` -> `src/infraverse/comparison/models.py`
+- [x] Port comparison tests, update imports
+- [x] Run tests - must pass before next task
 
 ### Task 10: Tabler UI - base template and static assets
 - [ ] Create `src/infraverse/web/templates/base.html` with Tabler CDN layout (sidebar nav: Dashboard, Comparison), responsive, HTMX included
