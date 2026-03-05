@@ -174,10 +174,10 @@ src/netbox_sync/
 - [x] run linter (`ruff check src/ tests/`) — all issues must be fixed
 
 ### Task 12: [Final] Update documentation
-- [ ] update README.md with new features: vCloud Director, Zabbix, web UI
-- [ ] add configuration section for new env vars
-- [ ] add usage examples for `serve` command
-- [ ] update Dockerfile if needed (expose port, add serve as default cmd option)
+- [x] update README.md with new features: vCloud Director, Zabbix, web UI
+- [x] add configuration section for new env vars
+- [x] add usage examples for `serve` command
+- [x] update Dockerfile if needed (expose port, add serve as default cmd option)
 
 ## Technical Details
 

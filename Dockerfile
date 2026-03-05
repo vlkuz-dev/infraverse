@@ -13,5 +13,7 @@ RUN groupadd --gid 1000 app && \
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/netbox-sync /usr/local/bin/netbox-sync
 
+EXPOSE 8000
+
 USER app
 ENTRYPOINT ["netbox-sync"]
