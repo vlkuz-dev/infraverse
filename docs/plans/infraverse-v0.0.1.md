@@ -202,13 +202,13 @@ SyncRun
 ## Implementation Steps
 
 ### Task 1: Project rename and new package skeleton
-- [ ] Create `src/infraverse/__init__.py` with `__version__ = "0.0.1"`
-- [ ] Create `src/infraverse/__main__.py` (copy from netbox_sync, update imports)
-- [ ] Create all subdirectory `__init__.py` files (db, providers, sync, comparison, ip, web, web/routes)
-- [ ] Update `pyproject.toml`: name="infraverse", version="0.0.1", update scripts entry to `infraverse = "infraverse.cli:main"`, add sqlalchemy dependency, update package-data paths, update URLs
-- [ ] Remove old `src/netbox_sync/` directory
-- [ ] Write tests: verify package imports and version
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/__init__.py` with `__version__ = "0.0.1"`
+- [x] Create `src/infraverse/__main__.py` (copy from netbox_sync, update imports)
+- [x] Create all subdirectory `__init__.py` files (db, providers, sync, comparison, ip, web, web/routes)
+- [x] Update `pyproject.toml`: name="infraverse", version="0.0.1", update scripts entry to `infraverse = "infraverse.cli:main"`, add sqlalchemy dependency, update package-data paths, update URLs
+- [x] Remove old `src/netbox_sync/` directory
+- [x] Write tests: verify package imports and version
+- [x] Run tests - must pass before next task
 
 ### Task 2: Port configuration module
 - [ ] Create `src/infraverse/config.py` - copy from netbox_sync, add `database_url` field (default: `sqlite:///infraverse.db`)
