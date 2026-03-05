@@ -33,10 +33,11 @@ class ComparisonEngine:
             ComparisonResult with per-VM state and summary.
         """
         # Build lookup structures (name lowercased -> source data)
-        cloud_by_name: dict[str, VMInfo] = {}
+        # Cloud uses list values to handle same-named VMs from different providers
+        cloud_by_name: dict[str, list[VMInfo]] = {}
         cloud_by_ip: dict[str, VMInfo] = {}
         for vm in cloud_vms:
-            cloud_by_name[vm.name.lower()] = vm
+            cloud_by_name.setdefault(vm.name.lower(), []).append(vm)
             for ip in vm.ip_addresses:
                 cloud_by_ip[ip] = vm
 
@@ -60,48 +61,64 @@ class ComparisonEngine:
         all_names.update(netbox_by_name.keys())
         all_names.update(zabbix_by_name.keys())
 
-        # Track which entries from each source have been consumed by IP matching
-        # to prevent double-counting (name lower -> True)
-        ip_consumed_netbox: set[str] = set()
-        ip_consumed_zabbix: set[str] = set()
-        ip_consumed_cloud: set[str] = set()
+        # Names whose standalone VMState entries should be removed after IP matching
+        # because they were merged into another entry via IP
+        ip_merged_names: set[str] = set()
 
         states: list[VMState] = []
 
         # Phase 1: Name-based matching
         for name in sorted(all_names):
-            cloud_vm = cloud_by_name.get(name)
+            cloud_vms_for_name = cloud_by_name.get(name, [])
             netbox_vm = netbox_by_name.get(name)
             zabbix_host = zabbix_by_name.get(name)
 
-            # Use original casing from whichever source has it
-            display_name = name
-            if cloud_vm:
-                display_name = cloud_vm.name
-            elif netbox_vm:
-                display_name = netbox_vm.name
-            elif zabbix_host:
-                display_name = zabbix_host.name
+            if len(cloud_vms_for_name) <= 1:
+                # Normal case: zero or one cloud VM with this name
+                cloud_vm = cloud_vms_for_name[0] if cloud_vms_for_name else None
 
-            state = VMState(
-                vm_name=display_name,
-                in_cloud=cloud_vm is not None,
-                in_netbox=netbox_vm is not None,
-                in_monitoring=zabbix_host is not None,
-                cloud_provider=cloud_vm.provider if cloud_vm else None,
-            )
-            states.append(state)
+                display_name = name
+                if cloud_vm:
+                    display_name = cloud_vm.name
+                elif netbox_vm:
+                    display_name = netbox_vm.name
+                elif zabbix_host:
+                    display_name = zabbix_host.name
+
+                state = VMState(
+                    vm_name=display_name,
+                    in_cloud=cloud_vm is not None,
+                    in_netbox=netbox_vm is not None,
+                    in_monitoring=zabbix_host is not None,
+                    cloud_provider=cloud_vm.provider if cloud_vm else None,
+                )
+                states.append(state)
+            else:
+                # Multiple cloud VMs with same name from different providers
+                for cloud_vm in cloud_vms_for_name:
+                    state = VMState(
+                        vm_name=cloud_vm.name,
+                        in_cloud=True,
+                        in_netbox=netbox_vm is not None,
+                        in_monitoring=zabbix_host is not None,
+                        cloud_provider=cloud_vm.provider,
+                    )
+                    states.append(state)
 
         # Phase 2: IP-based fallback matching
         # For each state entry that is missing a system, try to find a match
-        # from that system via shared IP address.
+        # from that system via shared IP address. Matched counterparts are
+        # tracked in ip_merged_names and removed afterwards to avoid duplicates.
         for state in states:
             name_key = state.vm_name.lower()
 
+            if name_key in ip_merged_names:
+                continue
+
             # Gather IPs from all sources that matched this entry by name
             state_ips: set[str] = set()
-            if name_key in cloud_by_name:
-                state_ips.update(cloud_by_name[name_key].ip_addresses)
+            for cvm in cloud_by_name.get(name_key, []):
+                state_ips.update(cvm.ip_addresses)
             if name_key in netbox_by_name:
                 state_ips.update(netbox_by_name[name_key].ip_addresses)
             if name_key in zabbix_by_name:
@@ -116,11 +133,9 @@ class ComparisonEngine:
                     if ip in netbox_by_ip:
                         nb_vm = netbox_by_ip[ip]
                         nb_key = nb_vm.name.lower()
-                        # Only match if that NetBox VM wasn't already name-matched
-                        # to THIS entry, and hasn't been consumed by another IP match
-                        if nb_key != name_key and nb_key not in ip_consumed_netbox:
+                        if nb_key != name_key and nb_key not in ip_merged_names:
                             state.in_netbox = True
-                            ip_consumed_netbox.add(nb_key)
+                            ip_merged_names.add(nb_key)
                             break
 
             # Try to find Zabbix match by IP
@@ -129,9 +144,9 @@ class ComparisonEngine:
                     if ip in zabbix_by_ip:
                         zb_host = zabbix_by_ip[ip]
                         zb_key = zb_host.name.lower()
-                        if zb_key != name_key and zb_key not in ip_consumed_zabbix:
+                        if zb_key != name_key and zb_key not in ip_merged_names:
                             state.in_monitoring = True
-                            ip_consumed_zabbix.add(zb_key)
+                            ip_merged_names.add(zb_key)
                             break
 
             # Try to find Cloud match by IP
@@ -140,11 +155,16 @@ class ComparisonEngine:
                     if ip in cloud_by_ip:
                         c_vm = cloud_by_ip[ip]
                         c_key = c_vm.name.lower()
-                        if c_key != name_key and c_key not in ip_consumed_cloud:
+                        if c_key != name_key and c_key not in ip_merged_names:
                             state.in_cloud = True
                             state.cloud_provider = c_vm.provider
-                            ip_consumed_cloud.add(c_key)
+                            ip_merged_names.add(c_key)
                             break
+
+        # Remove entries that were merged into other entries via IP matching
+        states = [
+            s for s in states if s.vm_name.lower() not in ip_merged_names
+        ]
 
         # Phase 3: Compute discrepancies
         for state in states:

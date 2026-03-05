@@ -1,5 +1,6 @@
 """Web routes for the NetBox sync dashboard."""
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
@@ -8,6 +9,8 @@ from fastapi.templating import Jinja2Templates
 
 from netbox_sync.comparison.engine import ComparisonEngine
 from netbox_sync.config import Config
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -53,9 +56,28 @@ def comparison(
     search: str = Query(default="", description="Filter by VM name substring"),
 ):
     """Run comparison engine and render results."""
-    cloud_vms = request.app.state.cloud_fetcher()
-    netbox_vms = request.app.state.netbox_fetcher()
-    zabbix_hosts = request.app.state.zabbix_fetcher()
+    errors: list[str] = []
+
+    try:
+        cloud_vms = request.app.state.cloud_fetcher()
+    except Exception:
+        logger.exception("Failed to fetch cloud VMs")
+        cloud_vms = []
+        errors.append("Failed to fetch cloud VMs")
+
+    try:
+        netbox_vms = request.app.state.netbox_fetcher()
+    except Exception:
+        logger.exception("Failed to fetch NetBox VMs")
+        netbox_vms = []
+        errors.append("Failed to fetch NetBox VMs")
+
+    try:
+        zabbix_hosts = request.app.state.zabbix_fetcher()
+    except Exception:
+        logger.exception("Failed to fetch Zabbix hosts")
+        zabbix_hosts = []
+        errors.append("Failed to fetch Zabbix hosts")
 
     engine = ComparisonEngine()
     result = engine.compare(cloud_vms, netbox_vms, zabbix_hosts)
@@ -85,6 +107,7 @@ def comparison(
         context={
             "vms": vms,
             "summary": result.summary,
+            "errors": errors,
             "filters": {
                 "provider": provider,
                 "status": status,

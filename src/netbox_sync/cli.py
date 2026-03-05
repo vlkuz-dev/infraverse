@@ -119,17 +119,19 @@ def _run_serve(args: argparse.Namespace) -> None:
     yc_client = YandexCloudClient(config.yc_token)
     nb_client = NetBoxClient(config.netbox_url, config.netbox_token)
 
+    vcd_client = None
+    if config.vcd_configured:
+        from netbox_sync.clients.vcloud import VCloudDirectorClient
+
+        vcd_client = VCloudDirectorClient(
+            config.vcd_url, config.vcd_user, config.vcd_password,
+            config.vcd_org or "System",
+        )
+
     def cloud_fetcher():
         vms = yc_client.fetch_vms()
-        if config.vcd_configured:
-            from netbox_sync.clients.vcloud import VCloudDirectorClient
-
-            vcd = VCloudDirectorClient(
-                config.vcd_url, config.vcd_user, config.vcd_password,
-                config.vcd_org or "System",
-            )
-            vcd.authenticate()
-            vms.extend(vcd.fetch_vms())
+        if vcd_client:
+            vms.extend(vcd_client.fetch_vms())
         return vms
 
     zabbix_fetcher_fn = None

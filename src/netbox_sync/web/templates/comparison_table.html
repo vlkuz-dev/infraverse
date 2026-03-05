@@ -1,3 +1,11 @@
+{% if errors %}
+<section class="comparison-errors">
+    {% for error in errors %}
+    <p class="status-warning">{{ error }}</p>
+    {% endfor %}
+</section>
+{% endif %}
+
 <section class="comparison-summary">
     <p>Total: {{ summary.total }} | In sync: {{ summary.in_sync }} | With discrepancies: {{ summary.with_discrepancies }}</p>
 </section>

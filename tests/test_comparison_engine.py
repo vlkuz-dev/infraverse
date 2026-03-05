@@ -349,6 +349,67 @@ class TestCloudProvider:
         assert by_name["vcd-vm"].cloud_provider == "vcloud-director"
 
 
+class TestDuplicateNameAcrossProviders:
+    """VMs with same name from different cloud providers."""
+
+    def test_same_name_different_providers_creates_separate_entries(self):
+        engine = ComparisonEngine()
+        cloud = [
+            _vm("web-01", ["10.0.0.1"], provider="yandex-cloud"),
+            _vm("web-01", ["10.0.0.2"], provider="vcloud-director"),
+        ]
+        result = engine.compare(cloud, [], [])
+
+        assert len(result.all_vms) == 2
+        providers = {s.cloud_provider for s in result.all_vms}
+        assert providers == {"yandex-cloud", "vcloud-director"}
+
+    def test_same_name_different_providers_with_netbox(self):
+        engine = ComparisonEngine()
+        cloud = [
+            _vm("web-01", provider="yandex-cloud"),
+            _vm("web-01", provider="vcloud-director"),
+        ]
+        netbox = [_vm("web-01")]
+        result = engine.compare(cloud, netbox, [])
+
+        # Both cloud entries should see the NetBox match
+        assert len(result.all_vms) == 2
+        assert all(s.in_netbox for s in result.all_vms)
+        assert all(s.in_cloud for s in result.all_vms)
+
+
+class TestIPMatchingDeduplication:
+    """IP matching should merge entries and remove duplicates."""
+
+    def test_ip_match_removes_counterpart_entry(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("cloud-vm", ["10.0.0.5"])]
+        netbox = [_vm("nb-vm", ["10.0.0.5"])]
+        result = engine.compare(cloud, netbox, [])
+
+        # Should be ONE entry (merged via IP), not two
+        assert len(result.all_vms) == 1
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is True
+
+    def test_ip_match_three_way_merge(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("cloud-vm", ["10.0.0.5"])]
+        netbox = [_vm("nb-vm", ["10.0.0.5"])]
+        zabbix = [_zhost("zb-vm", ["10.0.0.5"])]
+        result = engine.compare(cloud, netbox, zabbix)
+
+        # All three should be merged into one entry
+        assert len(result.all_vms) == 1
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is True
+        assert state.in_monitoring is True
+        assert state.discrepancies == []
+
+
 class TestSummary:
     """Summary counts are correct."""
 

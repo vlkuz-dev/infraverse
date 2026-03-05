@@ -297,3 +297,55 @@ class TestComparisonHTMX:
         response = client.get("/comparison")
         assert "<!DOCTYPE html>" in response.text
         assert "<table" in response.text
+
+
+class TestComparisonErrorHandling:
+    """Tests for graceful error handling when fetchers fail."""
+
+    def test_cloud_fetcher_failure_returns_200(self):
+        def failing_cloud():
+            raise RuntimeError("cloud down")
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=failing_cloud,
+            netbox_fetcher=_make_netbox_vms,
+            zabbix_fetcher=_make_zabbix_hosts,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "Failed to fetch cloud VMs" in response.text
+
+    def test_all_fetchers_fail_returns_200(self):
+        def fail():
+            raise RuntimeError("down")
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=fail,
+            netbox_fetcher=fail,
+            zabbix_fetcher=fail,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "Failed to fetch cloud VMs" in response.text
+        assert "Failed to fetch NetBox VMs" in response.text
+        assert "Failed to fetch Zabbix hosts" in response.text
+
+    def test_partial_failure_shows_available_data(self):
+        def failing_zabbix():
+            raise RuntimeError("zabbix down")
+
+        app = create_app(
+            config=_make_config(),
+            cloud_fetcher=_make_cloud_vms,
+            netbox_fetcher=_make_netbox_vms,
+            zabbix_fetcher=failing_zabbix,
+        )
+        client = TestClient(app)
+        response = client.get("/comparison")
+        assert response.status_code == 200
+        assert "web-01" in response.text
+        assert "Failed to fetch Zabbix hosts" in response.text
