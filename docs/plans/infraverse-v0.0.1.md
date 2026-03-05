@@ -271,11 +271,11 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 10: Tabler UI - base template and static assets
-- [ ] Create `src/infraverse/web/templates/base.html` with Tabler CDN layout (sidebar nav: Dashboard, Comparison), responsive, HTMX included
-- [ ] Create `src/infraverse/web/static/style.css` with minimal custom overrides for Tabler
-- [ ] Verify Tabler CDN resources load correctly (check tabler.io for latest CDN links)
-- [ ] Write basic template rendering test
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/web/templates/base.html` with Tabler CDN layout (sidebar nav: Dashboard, Comparison), responsive, HTMX included
+- [x] Create `src/infraverse/web/static/style.css` with minimal custom overrides for Tabler
+- [x] Verify Tabler CDN resources load correctly (check tabler.io for latest CDN links)
+- [x] Write basic template rendering test
+- [x] Run tests - must pass before next task
 
 ### Task 11: Web app factory and dashboard route
 - [ ] Create `src/infraverse/web/app.py` - FastAPI app factory, mount static files, include routers, inject DB session dependency
