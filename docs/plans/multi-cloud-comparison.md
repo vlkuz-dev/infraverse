@@ -148,13 +148,13 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 9: Add comparison view to frontend
-- [ ] add `GET /comparison` route that runs ComparisonEngine and renders results
-- [ ] create `src/netbox_sync/web/templates/comparison.html` — table of all VMs with status columns (cloud, NetBox, Zabbix) and color-coded discrepancies
-- [ ] add HTMX-powered refresh button to re-run comparison without full page reload
-- [ ] add filtering: by provider, by status (all/only discrepancies), by name search
-- [ ] write tests for comparison route with mocked data sources
-- [ ] write tests for filtering parameters
-- [ ] run tests — must pass before next task
+- [x] add `GET /comparison` route that runs ComparisonEngine and renders results
+- [x] create `src/netbox_sync/web/templates/comparison.html` — table of all VMs with status columns (cloud, NetBox, Zabbix) and color-coded discrepancies
+- [x] add HTMX-powered refresh button to re-run comparison without full page reload
+- [x] add filtering: by provider, by status (all/only discrepancies), by name search
+- [x] write tests for comparison route with mocked data sources
+- [x] write tests for filtering parameters
+- [x] run tests — must pass before next task
 
 ### Task 10: Add CLI `serve` command
 - [ ] extend `cli.py` argparse with `serve` subcommand: `netbox-sync serve --host 0.0.0.0 --port 8000`

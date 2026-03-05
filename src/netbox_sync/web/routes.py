@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from netbox_sync.comparison.engine import ComparisonEngine
 from netbox_sync.config import Config
 
 router = APIRouter()
@@ -39,6 +40,55 @@ async def dashboard(request: Request):
             "summary": {
                 "total_providers": sum(1 for p in providers if p["configured"]),
                 "configured_providers": providers,
+            },
+        },
+    )
+
+
+@router.get("/comparison", response_class=HTMLResponse)
+async def comparison(
+    request: Request,
+    provider: str = Query(default="", description="Filter by cloud provider"),
+    status: str = Query(default="all", description="Filter: all or discrepancies"),
+    search: str = Query(default="", description="Filter by VM name substring"),
+):
+    """Run comparison engine and render results."""
+    cloud_vms = request.app.state.cloud_fetcher()
+    netbox_vms = request.app.state.netbox_fetcher()
+    zabbix_hosts = request.app.state.zabbix_fetcher()
+
+    engine = ComparisonEngine()
+    result = engine.compare(cloud_vms, netbox_vms, zabbix_hosts)
+
+    vms = result.all_vms
+
+    if provider:
+        provider_lower = provider.lower()
+        vms = [
+            vm for vm in vms
+            if vm.cloud_provider and vm.cloud_provider.lower() == provider_lower
+        ]
+
+    if status == "discrepancies":
+        vms = [vm for vm in vms if vm.discrepancies]
+
+    if search:
+        search_lower = search.lower()
+        vms = [vm for vm in vms if search_lower in vm.vm_name.lower()]
+
+    htmx_request = request.headers.get("HX-Request") == "true"
+    template_name = "comparison_table.html" if htmx_request else "comparison.html"
+
+    return templates.TemplateResponse(
+        request=request,
+        name=template_name,
+        context={
+            "vms": vms,
+            "summary": result.summary,
+            "filters": {
+                "provider": provider,
+                "status": status,
+                "search": search,
             },
         },
     )

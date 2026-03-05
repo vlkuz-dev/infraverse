@@ -1,0 +1,41 @@
+<table class="comparison-table">
+    <thead>
+        <tr>
+            <th>VM Name</th>
+            <th>Cloud</th>
+            <th>NetBox</th>
+            <th>Zabbix</th>
+            <th>Provider</th>
+            <th>Discrepancies</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for vm in vms %}
+        <tr class="{% if vm.discrepancies %}row-discrepancy{% else %}row-ok{% endif %}">
+            <td>{{ vm.vm_name }}</td>
+            <td class="{% if vm.in_cloud %}status-ok{% else %}status-missing{% endif %}">
+                {% if vm.in_cloud %}Yes{% else %}No{% endif %}
+            </td>
+            <td class="{% if vm.in_netbox %}status-ok{% else %}status-missing{% endif %}">
+                {% if vm.in_netbox %}Yes{% else %}No{% endif %}
+            </td>
+            <td class="{% if vm.in_monitoring %}status-ok{% else %}status-missing{% endif %}">
+                {% if vm.in_monitoring %}Yes{% else %}No{% endif %}
+            </td>
+            <td>{{ vm.cloud_provider or "—" }}</td>
+            <td class="{% if vm.discrepancies %}status-warning{% endif %}">
+                {% if vm.discrepancies %}
+                    {{ vm.discrepancies | join(", ") }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        {% if not vms %}
+        <tr>
+            <td colspan="6">No VMs found.</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
