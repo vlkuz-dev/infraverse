@@ -139,13 +139,13 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 8: Add FastAPI web application
-- [ ] add `fastapi`, `jinja2`, `uvicorn` to project dependencies in `pyproject.toml`
-- [ ] create `src/netbox_sync/web/app.py` with FastAPI application factory (`create_app()`)
-- [ ] create `src/netbox_sync/web/templates/base.html` — base layout (minimal CSS, HTMX CDN)
-- [ ] create `src/netbox_sync/web/templates/dashboard.html` — main page showing provider status and summary stats
-- [ ] create `src/netbox_sync/web/routes.py` with `GET /` route rendering dashboard
-- [ ] write tests: app creation, dashboard route returns 200, template renders
-- [ ] run tests — must pass before next task
+- [x] add `fastapi`, `jinja2`, `uvicorn` to project dependencies in `pyproject.toml`
+- [x] create `src/netbox_sync/web/app.py` with FastAPI application factory (`create_app()`)
+- [x] create `src/netbox_sync/web/templates/base.html` — base layout (minimal CSS, HTMX CDN)
+- [x] create `src/netbox_sync/web/templates/dashboard.html` — main page showing provider status and summary stats
+- [x] create `src/netbox_sync/web/routes.py` with `GET /` route rendering dashboard
+- [x] write tests: app creation, dashboard route returns 200, template renders
+- [x] run tests — must pass before next task
 
 ### Task 9: Add comparison view to frontend
 - [ ] add `GET /comparison` route that runs ComparisonEngine and renders results
