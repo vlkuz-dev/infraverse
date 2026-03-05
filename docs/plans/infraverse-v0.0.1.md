@@ -217,11 +217,11 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 3: Database layer - engine and models
-- [ ] Create `src/infraverse/db/engine.py` with `create_engine()`, `SessionLocal`, `init_db()` (creates all tables)
-- [ ] Create `src/infraverse/db/models.py` with SQLAlchemy ORM models: Tenant, CloudAccount, VM, MonitoringHost, SyncRun
-- [ ] Write tests for model creation, relationships (Tenant->CloudAccounts->VMs), and table initialization
-- [ ] Write tests for edge cases (unique constraints, nullable fields, JSON columns)
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/db/engine.py` with `create_engine()`, `SessionLocal`, `init_db()` (creates all tables)
+- [x] Create `src/infraverse/db/models.py` with SQLAlchemy ORM models: Tenant, CloudAccount, VM, MonitoringHost, SyncRun
+- [x] Write tests for model creation, relationships (Tenant->CloudAccounts->VMs), and table initialization
+- [x] Write tests for edge cases (unique constraints, nullable fields, JSON columns)
+- [x] Run tests - must pass before next task
 
 ### Task 4: Database repository layer
 - [ ] Create `src/infraverse/db/repository.py` with Repository class
