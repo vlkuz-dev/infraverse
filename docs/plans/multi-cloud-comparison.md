@@ -121,16 +121,16 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 6: Build ComparisonEngine
-- [ ] create `src/netbox_sync/comparison/models.py` with dataclasses: `VMState` (vm_name, in_cloud: bool, in_netbox: bool, in_monitoring: bool, cloud_provider: str|None, discrepancies: list), `ComparisonResult` (all_vms: list[VMState], summary: dict)
-- [ ] create `src/netbox_sync/comparison/engine.py` with `ComparisonEngine` class
-- [ ] implement `compare()` method: takes cloud VMs (from all providers), NetBox VMs, Zabbix hosts → returns `ComparisonResult`
-- [ ] matching logic: match by VM name (primary) and IP address (secondary fallback)
-- [ ] detect discrepancies: "in cloud but not in NetBox", "in NetBox but not in cloud", "in cloud but not in monitoring", "in monitoring but not in cloud", "in NetBox but not in monitoring"
-- [ ] write tests for comparison with all VMs matching across all three systems
-- [ ] write tests for VMs missing from one system
-- [ ] write tests for VMs with IP-based matching when names differ
-- [ ] write tests for empty data from one or more sources
-- [ ] run tests — must pass before next task
+- [x] create `src/netbox_sync/comparison/models.py` with dataclasses: `VMState` (vm_name, in_cloud: bool, in_netbox: bool, in_monitoring: bool, cloud_provider: str|None, discrepancies: list), `ComparisonResult` (all_vms: list[VMState], summary: dict)
+- [x] create `src/netbox_sync/comparison/engine.py` with `ComparisonEngine` class
+- [x] implement `compare()` method: takes cloud VMs (from all providers), NetBox VMs, Zabbix hosts → returns `ComparisonResult`
+- [x] matching logic: match by VM name (primary) and IP address (secondary fallback)
+- [x] detect discrepancies: "in cloud but not in NetBox", "in NetBox but not in cloud", "in cloud but not in monitoring", "in monitoring but not in cloud", "in NetBox but not in monitoring"
+- [x] write tests for comparison with all VMs matching across all three systems
+- [x] write tests for VMs missing from one system
+- [x] write tests for VMs with IP-based matching when names differ
+- [x] write tests for empty data from one or more sources
+- [x] run tests — must pass before next task
 
 ### Task 7: Extend NetBoxClient with read methods for comparison
 - [ ] add `fetch_all_vms() -> list[VMInfo]` method to `NetBoxClient` that returns all VMs (or tagged VMs) as VMInfo objects
