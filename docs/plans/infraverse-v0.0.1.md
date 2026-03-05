@@ -313,16 +313,16 @@ SyncRun
 - [x] Run tests - must pass before next task
 
 ### Task 15: Verify acceptance criteria
-- [ ] Verify project imports as `infraverse` and CLI runs as `infraverse`
-- [ ] Verify SQLite DB is created and populated on `infraverse db init`
-- [ ] Verify Tenant -> CloudAccount -> VM model works end-to-end
-- [ ] Verify Zabbix client connects without error (manual test with .env)
-- [ ] Verify Tabler UI renders on `infraverse serve` (dashboard + comparison)
-- [ ] Verify comparison reads from DB, not live API
-- [ ] Verify sync-to-NetBox still works: `infraverse sync`
-- [ ] Run full test suite (unit tests)
-- [ ] Run linter (`ruff check src/ tests/`) - all issues must be fixed
-- [ ] Verify test count is comparable to original (~490+ tests)
+- [x] Verify project imports as `infraverse` and CLI runs as `infraverse`
+- [x] Verify SQLite DB is created and populated on `infraverse db init`
+- [x] Verify Tenant -> CloudAccount -> VM model works end-to-end
+- [x] Verify Zabbix client connects without error (manual test with .env)
+- [x] Verify Tabler UI renders on `infraverse serve` (dashboard + comparison)
+- [x] Verify comparison reads from DB, not live API
+- [x] Verify sync-to-NetBox still works: `infraverse sync`
+- [x] Run full test suite (unit tests)
+- [x] Run linter (`ruff check src/ tests/`) - all issues must be fixed
+- [x] Verify test count is comparable to original (~490+ tests)
 
 ### Task 16: [Final] Update documentation
 - [ ] Update README.md: new project name, installation, usage, architecture diagram
