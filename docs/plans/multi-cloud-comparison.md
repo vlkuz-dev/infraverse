@@ -76,10 +76,10 @@ src/netbox_sync/
 ## Implementation Steps
 
 ### Task 1: Cloud Provider abstraction and VMInfo model
-- [ ] create `src/netbox_sync/clients/base.py` with `CloudProvider` Protocol defining `fetch_vms() -> list[VMInfo]` and `get_provider_name() -> str`
-- [ ] define `VMInfo` dataclass: `name`, `id`, `status`, `ip_addresses: list[str]`, `vcpus`, `memory_mb`, `provider`, `cloud_name`, `folder_name`
-- [ ] write tests for VMInfo dataclass creation and field validation
-- [ ] run tests — must pass before next task
+- [x] create `src/netbox_sync/clients/base.py` with `CloudProvider` Protocol defining `fetch_vms() -> list[VMInfo]` and `get_provider_name() -> str`
+- [x] define `VMInfo` dataclass: `name`, `id`, `status`, `ip_addresses: list[str]`, `vcpus`, `memory_mb`, `provider`, `cloud_name`, `folder_name`
+- [x] write tests for VMInfo dataclass creation and field validation
+- [x] run tests — must pass before next task
 
 ### Task 2: Refactor YandexCloudClient to implement CloudProvider
 - [ ] add `fetch_vms() -> list[VMInfo]` method to `YandexCloudClient` that wraps existing `fetch_all_data()` and converts YC VM dicts to `VMInfo` objects
