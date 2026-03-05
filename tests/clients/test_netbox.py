@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
+from netbox_sync.clients.base import VMInfo
 from netbox_sync.clients.netbox import NetBoxClient
 
 
@@ -485,6 +486,126 @@ class TestFetchVms:
         result = nb_client.fetch_vms()
 
         assert result == []
+
+
+class TestFetchAllVms:
+    def _make_vm_record(self, id, name, status_value="active", vcpus=2, memory=4096,
+                        primary_ip4=None, primary_ip6=None, cluster=None):
+        """Helper to create a mock VM record with pynetbox-like attributes."""
+        status = MagicMock()
+        status.value = status_value
+        vm = MockRecord(id, name=name, status=status, vcpus=vcpus, memory=memory,
+                        primary_ip4=primary_ip4, primary_ip6=primary_ip6, cluster=cluster)
+        return vm
+
+    def test_converts_vms_to_vminfo(self, nb_client):
+        ip4 = MagicMock()
+        ip4.__str__ = lambda self: "10.0.0.1/24"
+        cluster = MagicMock()
+        cluster.__str__ = lambda self: "my-cloud/prod"
+        vm = self._make_vm_record(100, "web-1", primary_ip4=ip4, cluster=cluster)
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert len(result) == 1
+        assert isinstance(result[0], VMInfo)
+        assert result[0].name == "web-1"
+        assert result[0].id == "100"
+        assert result[0].status == "active"
+        assert result[0].ip_addresses == ["10.0.0.1"]
+        assert result[0].vcpus == 2
+        assert result[0].memory_mb == 4096
+        assert result[0].provider == "netbox"
+        assert result[0].folder_name == "my-cloud/prod"
+
+    def test_handles_both_ipv4_and_ipv6(self, nb_client):
+        ip4 = MagicMock()
+        ip4.__str__ = lambda self: "10.0.0.5/32"
+        ip6 = MagicMock()
+        ip6.__str__ = lambda self: "2001:db8::1/128"
+        vm = self._make_vm_record(101, "dual-stack", primary_ip4=ip4, primary_ip6=ip6)
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].ip_addresses == ["10.0.0.5", "2001:db8::1"]
+
+    def test_handles_no_ips(self, nb_client):
+        vm = self._make_vm_record(102, "no-ip")
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].ip_addresses == []
+
+    def test_maps_offline_status(self, nb_client):
+        vm = self._make_vm_record(103, "stopped-vm", status_value="offline")
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].status == "offline"
+
+    def test_maps_decommissioning_status(self, nb_client):
+        vm = self._make_vm_record(104, "decom-vm", status_value="decommissioning")
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].status == "offline"
+
+    def test_maps_unknown_status(self, nb_client):
+        vm = self._make_vm_record(105, "weird-vm", status_value="planned")
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].status == "unknown"
+
+    def test_handles_none_vcpus_and_memory(self, nb_client):
+        vm = self._make_vm_record(106, "bare-vm", vcpus=None, memory=None)
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].vcpus == 0
+        assert result[0].memory_mb == 0
+
+    def test_multiple_vms(self, nb_client):
+        vms = [
+            self._make_vm_record(1, "vm-a"),
+            self._make_vm_record(2, "vm-b"),
+            self._make_vm_record(3, "vm-c"),
+        ]
+        nb_client.nb.virtualization.virtual_machines.all.return_value = vms
+
+        result = nb_client.fetch_all_vms()
+
+        assert len(result) == 3
+        assert [v.name for v in result] == ["vm-a", "vm-b", "vm-c"]
+
+    def test_error_returns_empty_list(self, nb_client):
+        nb_client.nb.virtualization.virtual_machines.all.side_effect = Exception("API error")
+
+        result = nb_client.fetch_all_vms()
+
+        assert result == []
+
+    def test_empty_netbox_returns_empty_list(self, nb_client):
+        nb_client.nb.virtualization.virtual_machines.all.return_value = []
+
+        result = nb_client.fetch_all_vms()
+
+        assert result == []
+
+    def test_no_cluster_gives_empty_folder(self, nb_client):
+        vm = self._make_vm_record(107, "orphan-vm", cluster=None)
+        nb_client.nb.virtualization.virtual_machines.all.return_value = [vm]
+
+        result = nb_client.fetch_all_vms()
+
+        assert result[0].folder_name == ""
 
 
 class TestAddTagToObject:

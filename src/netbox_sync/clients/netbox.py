@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 import pynetbox
 from pynetbox.core.response import Record
 
+from netbox_sync.clients.base import VMInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -877,6 +879,54 @@ class NetBoxClient:
             return vms
         except Exception as e:
             logger.error(f"Failed to fetch VMs: {e}")
+            return []
+
+    def fetch_all_vms(self) -> List[VMInfo]:
+        """
+        Fetch all VMs from NetBox as VMInfo objects for comparison.
+
+        Returns:
+            list of VMInfo objects
+        """
+        try:
+            records = list(self.nb.virtualization.virtual_machines.all())
+            result = []
+            for vm in records:
+                ip_addresses = []
+                if hasattr(vm, 'primary_ip4') and vm.primary_ip4:
+                    addr = str(vm.primary_ip4).split('/')[0]
+                    ip_addresses.append(addr)
+                if hasattr(vm, 'primary_ip6') and vm.primary_ip6:
+                    addr = str(vm.primary_ip6).split('/')[0]
+                    ip_addresses.append(addr)
+
+                status = "unknown"
+                if hasattr(vm, 'status') and vm.status:
+                    raw = vm.status.value if hasattr(vm.status, 'value') else str(vm.status)
+                    if raw == "active":
+                        status = "active"
+                    elif raw in ("offline", "decommissioning"):
+                        status = "offline"
+
+                cluster_name = ""
+                if hasattr(vm, 'cluster') and vm.cluster:
+                    cluster_name = str(vm.cluster)
+
+                result.append(VMInfo(
+                    name=vm.name,
+                    id=str(vm.id),
+                    status=status,
+                    ip_addresses=ip_addresses,
+                    vcpus=vm.vcpus or 0,
+                    memory_mb=vm.memory or 0,
+                    provider="netbox",
+                    cloud_name="",
+                    folder_name=cluster_name,
+                ))
+            logger.info(f"Fetched {len(result)} VMs from NetBox as VMInfo")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to fetch VMs as VMInfo: {e}")
             return []
 
     def create_vm(self, vm_data: Dict[str, Any]) -> Optional[Record]:

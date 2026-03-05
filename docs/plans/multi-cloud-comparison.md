@@ -133,10 +133,10 @@ src/netbox_sync/
 - [x] run tests — must pass before next task
 
 ### Task 7: Extend NetBoxClient with read methods for comparison
-- [ ] add `fetch_all_vms() -> list[VMInfo]` method to `NetBoxClient` that returns all VMs (or tagged VMs) as VMInfo objects
-- [ ] reuse existing pynetbox `.filter()` / `.all()` patterns
-- [ ] write tests for `fetch_all_vms()` with mock pynetbox records
-- [ ] run tests — must pass before next task
+- [x] add `fetch_all_vms() -> list[VMInfo]` method to `NetBoxClient` that returns all VMs (or tagged VMs) as VMInfo objects
+- [x] reuse existing pynetbox `.filter()` / `.all()` patterns
+- [x] write tests for `fetch_all_vms()` with mock pynetbox records
+- [x] run tests — must pass before next task
 
 ### Task 8: Add FastAPI web application
 - [ ] add `fastapi`, `jinja2`, `uvicorn` to project dependencies in `pyproject.toml`
