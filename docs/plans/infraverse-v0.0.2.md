@@ -130,14 +130,14 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 7: External resource links on detail pages
-- [ ] Add `external_links` config section to `config.py`: URL templates for Yandex Cloud console, vCloud UI, Zabbix host, NetBox VM
-- [ ] Default templates: `YC_CONSOLE_URL=https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}`, `ZABBIX_HOST_URL={zabbix_url}/hosts.php?form=update&hostid={host_id}`, `NETBOX_VM_URL={netbox_url}/virtualization/virtual-machines/{vm_id}/`
-- [ ] Create `src/infraverse/web/links.py` helper that renders URLs from templates + VM/host data
-- [ ] Add external link buttons to `vm_detail.html` (cloud console, NetBox, Zabbix)
-- [ ] Add external link to `account_detail.html` (cloud console)
-- [ ] Write tests for URL template rendering with various data
-- [ ] Write tests for missing data (graceful fallback - no link shown)
-- [ ] Run tests - must pass before next task
+- [x] Add `external_links` config section to `config.py`: URL templates for Yandex Cloud console, vCloud UI, Zabbix host, NetBox VM
+- [x] Default templates: `YC_CONSOLE_URL=https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}`, `ZABBIX_HOST_URL={zabbix_url}/hosts.php?form=update&hostid={host_id}`, `NETBOX_VM_URL={netbox_url}/virtualization/virtual-machines/{vm_id}/`
+- [x] Create `src/infraverse/web/links.py` helper that renders URLs from templates + VM/host data
+- [x] Add external link buttons to `vm_detail.html` (cloud console, NetBox, Zabbix)
+- [x] Add external link to `account_detail.html` (cloud console)
+- [x] Write tests for URL template rendering with various data
+- [x] Write tests for missing data (graceful fallback - no link shown)
+- [x] Run tests - must pass before next task
 
 ### Task 8: Sidebar navigation update
 - [ ] Update `base.html` sidebar to add new navigation items: "Cloud Accounts" section with link to accounts list

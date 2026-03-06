@@ -362,6 +362,68 @@ class TestSyncIntervalConfig:
         assert cfg.sync_interval_minutes == 120
 
 
+class TestExternalLinksConfig:
+    def _base_cfg(self, **kwargs):
+        defaults = dict(yc_token="a", netbox_url="b", netbox_token="c")
+        defaults.update(kwargs)
+        return Config(**defaults)
+
+    def test_external_links_default_none(self):
+        cfg = self._base_cfg()
+        assert cfg.yc_console_url is None
+        assert cfg.zabbix_host_url is None
+        assert cfg.netbox_vm_url is None
+
+    def test_external_links_custom_values(self):
+        cfg = self._base_cfg(
+            yc_console_url="https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}",
+            zabbix_host_url="{zabbix_url}/hosts.php?form=update&hostid={host_id}",
+            netbox_vm_url="{netbox_url}/virtualization/virtual-machines/{vm_id}/",
+        )
+        assert cfg.yc_console_url == "https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}"
+        assert cfg.zabbix_host_url == "{zabbix_url}/hosts.php?form=update&hostid={host_id}"
+        assert cfg.netbox_vm_url == "{netbox_url}/virtualization/virtual-machines/{vm_id}/"
+
+    def test_from_env_reads_external_link_vars(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("YC_CONSOLE_URL", "https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}")
+        monkeypatch.setenv("ZABBIX_HOST_URL", "{zabbix_url}/hosts.php?form=update&hostid={host_id}")
+        monkeypatch.setenv("NETBOX_VM_URL", "{netbox_url}/virtualization/virtual-machines/{vm_id}/")
+
+        cfg = Config.from_env()
+        assert cfg.yc_console_url == "https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}"
+        assert cfg.zabbix_host_url == "{zabbix_url}/hosts.php?form=update&hostid={host_id}"
+        assert cfg.netbox_vm_url == "{netbox_url}/virtualization/virtual-machines/{vm_id}/"
+
+    def test_from_env_external_links_absent(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("YC_CONSOLE_URL", raising=False)
+        monkeypatch.delenv("ZABBIX_HOST_URL", raising=False)
+        monkeypatch.delenv("NETBOX_VM_URL", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.yc_console_url is None
+        assert cfg.zabbix_host_url is None
+        assert cfg.netbox_vm_url is None
+
+    def test_from_env_empty_string_treated_as_none(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("YC_CONSOLE_URL", "")
+        monkeypatch.setenv("ZABBIX_HOST_URL", "")
+        monkeypatch.setenv("NETBOX_VM_URL", "")
+
+        cfg = Config.from_env()
+        assert cfg.yc_console_url is None
+        assert cfg.zabbix_host_url is None
+        assert cfg.netbox_vm_url is None
+
+
 class TestAllProvidersConfig:
     def test_from_env_all_providers(self, monkeypatch):
         monkeypatch.setenv("YC_TOKEN", "yc")

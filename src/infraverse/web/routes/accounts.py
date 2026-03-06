@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
+from infraverse.web.links import build_account_links
 
 router = APIRouter()
 
@@ -73,6 +74,9 @@ def account_detail(request: Request, account_id: int):
                 "error_message": run.error_message,
             })
 
+    app_config = getattr(request.app.state, "config", None)
+    external_links = build_account_links(account_data, app_config)
+
     return templates.TemplateResponse(
         request,
         "account_detail.html",
@@ -85,5 +89,6 @@ def account_detail(request: Request, account_id: int):
             "active_count": active_count,
             "offline_count": offline_count,
             "sync_runs": run_list,
+            "external_links": external_links,
         },
     )

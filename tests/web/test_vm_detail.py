@@ -192,6 +192,52 @@ def test_vm_detail_not_found_has_dashboard_link():
     assert 'href="/"' in resp.text
 
 
+# --- External links tests ---
+
+
+def test_vm_detail_shows_external_links_when_configured():
+    """VM detail shows external link buttons when config has URL templates."""
+    from infraverse.config import Config
+
+    config = Config(
+        yc_token="t",
+        netbox_url="https://netbox.example.com",
+        netbox_token="t",
+        yc_console_url="https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}",
+    )
+    app = create_app("sqlite:///:memory:", config=config)
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t = repo.create_tenant("Test")
+        a = repo.create_cloud_account(
+            t.id, "yandex_cloud", "YC",
+            config={"folder_id": "folder-abc"},
+        )
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=a.id,
+            external_id="vm-ext-001",
+            name="linked-vm",
+            status="active",
+        )
+        session.commit()
+        vm_id = vm.id
+
+    client = TestClient(app)
+    resp = client.get(f"/vms/{vm_id}")
+    assert resp.status_code == 200
+    assert "External Links" in resp.text
+    assert "Cloud Console" in resp.text
+    assert "console.yandex.cloud/folders/folder-abc/compute/instances/vm-ext-001" in resp.text
+
+
+def test_vm_detail_no_external_links_when_not_configured():
+    """VM detail does not show external links section when no URL templates configured."""
+    app, vm_id = _create_seeded_app()
+    client = TestClient(app)
+    resp = client.get(f"/vms/{vm_id}")
+    assert "External Links" not in resp.text
+
+
 # --- Comparison table link tests ---
 
 

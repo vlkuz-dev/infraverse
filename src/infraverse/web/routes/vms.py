@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
+from infraverse.web.links import build_vm_links
 
 router = APIRouter()
 
@@ -45,12 +46,16 @@ def vm_detail(request: Request, vm_id: int):
                 "id": vm.cloud_account.id,
                 "name": vm.cloud_account.name,
                 "provider_type": vm.cloud_account.provider_type,
+                "config": vm.cloud_account.config or {},
             }
             if vm.cloud_account.tenant:
                 tenant_data = {
                     "id": vm.cloud_account.tenant.id,
                     "name": vm.cloud_account.tenant.name,
                 }
+
+    app_config = getattr(request.app.state, "config", None)
+    external_links = build_vm_links(vm_data, account_data, app_config)
 
     return templates.TemplateResponse(
         request,
@@ -60,5 +65,6 @@ def vm_detail(request: Request, vm_id: int):
             "vm": vm_data,
             "account": account_data,
             "tenant": tenant_data,
+            "external_links": external_links,
         },
     )

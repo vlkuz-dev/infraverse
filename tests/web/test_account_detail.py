@@ -219,6 +219,70 @@ def test_account_detail_not_found_has_dashboard_link():
     assert 'href="/"' in resp.text
 
 
+# --- External links tests ---
+
+
+def test_account_detail_shows_external_links_when_configured():
+    """Account detail shows external link buttons for YC accounts with folder_id."""
+    from infraverse.config import Config
+
+    config = Config(
+        yc_token="t",
+        netbox_url="https://netbox.example.com",
+        netbox_token="t",
+        yc_console_url="https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}",
+    )
+    app = create_app("sqlite:///:memory:", config=config)
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t = repo.create_tenant("Test")
+        a = repo.create_cloud_account(
+            t.id, "yandex_cloud", "YC Prod",
+            config={"folder_id": "folder-xyz"},
+        )
+        session.commit()
+        account_id = a.id
+
+    client = TestClient(app)
+    resp = client.get(f"/accounts/{account_id}")
+    assert resp.status_code == 200
+    assert "External Links" in resp.text
+    assert "Cloud Console" in resp.text
+    assert "console.yandex.cloud/folders/folder-xyz" in resp.text
+
+
+def test_account_detail_no_external_links_when_not_configured():
+    """Account detail does not show external links when no URL templates."""
+    app, account_id = _create_seeded_app()
+    client = TestClient(app)
+    resp = client.get(f"/accounts/{account_id}")
+    assert "External Links" not in resp.text
+
+
+def test_account_detail_no_external_links_for_vcloud():
+    """Account detail does not show YC console links for non-YC accounts."""
+    from infraverse.config import Config
+
+    config = Config(
+        yc_token="t",
+        netbox_url="https://netbox.example.com",
+        netbox_token="t",
+        yc_console_url="https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}",
+    )
+    app = create_app("sqlite:///:memory:", config=config)
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t = repo.create_tenant("Test")
+        a = repo.create_cloud_account(t.id, "vcloud", "vCloud Prod")
+        session.commit()
+        account_id = a.id
+
+    client = TestClient(app)
+    resp = client.get(f"/accounts/{account_id}")
+    assert resp.status_code == 200
+    assert "External Links" not in resp.text
+
+
 # --- Dashboard link tests ---
 
 
