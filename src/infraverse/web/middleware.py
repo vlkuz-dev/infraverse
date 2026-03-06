@@ -29,7 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         user = request.session.get("user") if hasattr(request, "session") else None
 
         if not user:
-            return RedirectResponse(url="/auth/login", status_code=307)
+            return RedirectResponse(url="/auth/login", status_code=302)
 
         # Check role
         if not user.get("has_role", False):

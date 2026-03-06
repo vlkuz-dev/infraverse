@@ -180,5 +180,5 @@ class TestLogout:
 
         # Verify session is cleared: accessing protected route redirects to login
         resp = client.get("/", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]

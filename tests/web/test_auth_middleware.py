@@ -89,22 +89,22 @@ class TestAuthMiddlewareUnauthenticated:
 
     def test_unauthenticated_dashboard_redirects_to_login(self, app, client):
         resp = client.get("/", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
     def test_unauthenticated_accounts_redirects_to_login(self, app, client):
         resp = client.get("/accounts", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
     def test_unauthenticated_vms_redirects_to_login(self, app, client):
         resp = client.get("/vms", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
     def test_unauthenticated_comparison_redirects_to_login(self, app, client):
         resp = client.get("/comparison", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
 
@@ -175,7 +175,7 @@ class TestAuthMiddlewareSessionExpiry:
 
         # Now the session cookie should be expired
         resp = client.get("/", follow_redirects=False)
-        assert resp.status_code == 307
+        assert resp.status_code == 302
         assert "/auth/login" in resp.headers["location"]
 
 
