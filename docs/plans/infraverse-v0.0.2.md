@@ -147,11 +147,11 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 9: Repository migration
-- [ ] Rename local directory reference in documentation (README.md)
-- [ ] Update any hardcoded repository references in source files (check pyproject.toml URLs - already correct)
-- [ ] Verify `.git/config` remote points to correct URL
-- [ ] Update `CLAUDE.md` or memory files if they reference old paths/names
-- [ ] Run tests - must pass before next task
+- [x] Rename local directory reference in documentation (README.md)
+- [x] Update any hardcoded repository references in source files (check pyproject.toml URLs - already correct)
+- [x] Verify `.git/config` remote points to correct URL
+- [x] Update `CLAUDE.md` or memory files if they reference old paths/names
+- [x] Run tests - must pass before next task
 
 ### Task 10: Version bump
 - [ ] Update version to `0.0.2` in `src/infraverse/__init__.py`
