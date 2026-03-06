@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.name }} - Infraverse{% endblock %}
+{% block pretitle %}Cloud Account{% endblock %}
+{% block page_title %}{{ account.name }}{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Account Details</h3>
+                <div class="card-actions">
+                    <span class="badge bg-azure-lt">{{ account.provider_type }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Name</div>
+                        <div class="datagrid-content">{{ account.name }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Provider</div>
+                        <div class="datagrid-content">
+                            <span class="badge bg-azure-lt">{{ account.provider_type }}</span>
+                        </div>
+                    </div>
+                    {% if tenant %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Tenant</div>
+                        <div class="datagrid-content">{{ tenant.name }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Total VMs</div>
+                        <div class="datagrid-content">{{ vm_count }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Active VMs</div>
+                        <div class="datagrid-content text-success">{{ active_count }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Offline VMs</div>
+                        <div class="datagrid-content text-danger">{{ offline_count }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Created</div>
+                        <div class="datagrid-content">{{ account.created_at.strftime("%Y-%m-%d %H:%M UTC") if account.created_at else "-" }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Updated</div>
+                        <div class="datagrid-content">{{ account.updated_at.strftime("%Y-%m-%d %H:%M UTC") if account.updated_at else "-" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% if external_links %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3 class="card-title">External Links</h3>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-column gap-2">
+                    {% for link in external_links %}
+                    <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary w-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" /><path d="M11 13l9 -9" /><path d="M15 4h5v5" /></svg>
+                        {{ link.label }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if account.config %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3 class="card-title">Configuration</h3>
+            </div>
+            <div class="card-body">
+                <div class="datagrid">
+                    {% for key, value in account.config.items() %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">{{ key }}</div>
+                        <div class="datagrid-content">{{ value }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Virtual Machines</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>IPs</th>
+                            <th>vCPUs</th>
+                            <th>Memory</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vm in vms %}
+                        <tr>
+                            <td><a href="/vms/{{ vm.id }}">{{ vm.name }}</a></td>
+                            <td>
+                                {% if vm.status == "active" %}
+                                <span class="badge bg-success-lt">Active</span>
+                                {% elif vm.status == "offline" %}
+                                <span class="badge bg-danger-lt">Offline</span>
+                                {% else %}
+                                <span class="badge bg-secondary-lt">{{ vm.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for ip in vm.ip_addresses %}
+                                <span class="badge bg-azure-lt me-1">{{ ip }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ vm.vcpus if vm.vcpus is not none else "-" }}</td>
+                            <td>{{ (vm.memory_mb | string) + " MB" if vm.memory_mb is not none else "-" }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not vms %}
+                        <tr>
+                            <td colspan="5" class="text-secondary">No VMs found for this account</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3 class="card-title">Recent Sync Runs</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Finished</th>
+                            <th>Found</th>
+                            <th>Created</th>
+                            <th>Updated</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for run in sync_runs %}
+                        <tr>
+                            <td>{{ run.source }}</td>
+                            <td>
+                                {% if run.status == 'success' %}
+                                <span class="badge bg-success-lt">{{ run.status }}</span>
+                                {% elif run.status == 'failed' %}
+                                <span class="badge bg-danger-lt">{{ run.status }}</span>
+                                {% else %}
+                                <span class="badge bg-warning-lt">{{ run.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '-' }}</td>
+                            <td>{{ run.finished_at.strftime('%Y-%m-%d %H:%M') if run.finished_at else '-' }}</td>
+                            <td>{{ run.items_found }}</td>
+                            <td>{{ run.items_created }}</td>
+                            <td>{{ run.items_updated }}</td>
+                            <td class="text-secondary">{{ run.error_message or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not sync_runs %}
+                        <tr>
+                            <td colspan="8" class="text-secondary">No sync runs yet</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

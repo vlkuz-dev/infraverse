@@ -1,11 +1,11 @@
-"""Tests for netbox_sync.sync.engine module."""
+"""Tests for infraverse.sync.engine module."""
 
 from unittest.mock import patch
 
 import pytest
 
-from netbox_sync.config import Config
-from netbox_sync.sync.engine import SyncEngine
+from infraverse.config import Config
+from infraverse.sync.engine import SyncEngine
 
 
 @pytest.fixture
@@ -50,8 +50,8 @@ def batch_stats():
 
 
 class TestSyncEngineInit:
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_creates_clients(self, mock_yc_cls, mock_nb_cls, config):
         engine = SyncEngine(config)
 
@@ -63,8 +63,8 @@ class TestSyncEngineInit:
         )
         assert engine.config is config
 
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_passes_dry_run(self, mock_yc_cls, mock_nb_cls):
         cfg = Config(
             yc_token="t", netbox_url="u", netbox_token="n", dry_run=True
@@ -74,10 +74,10 @@ class TestSyncEngineInit:
 
 
 class TestSyncEngineRunBatch:
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_batch_sync_flow(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
         config, yc_data, id_mapping, batch_stats,
@@ -99,10 +99,10 @@ class TestSyncEngineRunBatch:
         )
         assert result == batch_stats
 
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_batch_no_cleanup(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
         config, yc_data, id_mapping, batch_stats,
@@ -123,10 +123,10 @@ class TestSyncEngineRunBatch:
 
 
 class TestSyncEngineRunStandard:
-    @patch("netbox_sync.sync.engine.sync_vms")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_standard_sync_flow(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_vms,
         config, yc_data, id_mapping,
@@ -145,11 +145,11 @@ class TestSyncEngineRunStandard:
         )
         assert result == {"created": 1, "updated": 0, "skipped": 0, "errors": 0}
 
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_vms")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_vms")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_standard_does_not_call_batch(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_vms, mock_batch,
         config, yc_data, id_mapping,
@@ -164,10 +164,10 @@ class TestSyncEngineRunStandard:
 
 
 class TestSyncEngineFetchErrors:
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_skips_cleanup_on_fetch_errors(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
         config, id_mapping, batch_stats,
@@ -195,10 +195,10 @@ class TestSyncEngineFetchErrors:
             yc_data_with_errors, mock_nb_cls.return_value, id_mapping, cleanup_orphaned=False
         )
 
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_allows_cleanup_without_fetch_errors(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
         config, yc_data, id_mapping, batch_stats,
@@ -216,10 +216,10 @@ class TestSyncEngineFetchErrors:
 
 
 class TestSyncEngineDefaults:
-    @patch("netbox_sync.sync.engine.sync_vms_optimized")
-    @patch("netbox_sync.sync.engine.sync_infrastructure")
-    @patch("netbox_sync.sync.engine.NetBoxClient")
-    @patch("netbox_sync.sync.engine.YandexCloudClient")
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
     def test_defaults_to_batch_with_cleanup(
         self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
         config, yc_data, id_mapping, batch_stats,

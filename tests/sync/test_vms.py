@@ -1,8 +1,8 @@
-"""Tests for netbox_sync.sync.vms module."""
+"""Tests for infraverse.sync.vms module."""
 
 from unittest.mock import patch
 
-from netbox_sync.sync.vms import (
+from infraverse.sync.vms import (
     prepare_vm_data,
     update_vm_parameters,
     sync_vm_disks,
@@ -174,6 +174,16 @@ class TestPrepareVmData:
         assert detect_platform_slug("some-linux-distro") == DEFAULT_PLATFORM_SLUG
         assert detect_platform_slug("") == DEFAULT_PLATFORM_SLUG
         assert detect_platform_slug("FreeBSD") == DEFAULT_PLATFORM_SLUG
+        # Debian version matching uses word boundaries, not substring
+        assert detect_platform_slug("debian-11") == "debian-11"
+        assert detect_platform_slug("debian-12") == "debian-12"
+        assert detect_platform_slug("debian-12-v20241115") == "debian-12"
+        assert detect_platform_slug("debian-bullseye") == "debian-11"
+        assert detect_platform_slug("debian-bookworm") == "debian-12"
+        # CentOS version matching uses word boundaries
+        assert detect_platform_slug("centos-7") == "centos-7"
+        assert detect_platform_slug("centos-7.9") == "centos-7"
+        assert detect_platform_slug("centos-8") == DEFAULT_PLATFORM_SLUG
 
     def test_comments_include_metadata(self):
         """Comments include VM ID, zone, platform, OS, and creation date."""
@@ -666,7 +676,7 @@ class TestSyncVms:
             }]
         }
 
-        with patch("netbox_sync.sync.vms.cleanup_orphaned_vms") as mock_cleanup:
+        with patch("infraverse.sync.vms.cleanup_orphaned_vms") as mock_cleanup:
             mock_cleanup.return_value = 0
             sync_vms(yc_data, netbox, {"zones": {}, "folders": {"f1": 20}}, cleanup_orphaned=True)
             mock_cleanup.assert_called_once()

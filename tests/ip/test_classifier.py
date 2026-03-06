@@ -1,7 +1,7 @@
-"""Tests for netbox_sync.ip.classifier module."""
+"""Tests for infraverse.ip.classifier module."""
 
 
-from netbox_sync.ip.classifier import is_private_ip
+from infraverse.ip.classifier import is_private_ip
 
 
 class TestIsPrivateIP:
@@ -18,10 +18,9 @@ class TestIsPrivateIP:
         assert is_private_ip("10.0.0.1/24") is True
 
     def test_public_ip(self):
-        assert is_private_ip("8.8.8.8") is False
+        assert is_private_ip("51.250.1.10") is False
 
     def test_loopback(self):
-        # 127.0.0.1 is considered private by Python's ipaddress module
         assert is_private_ip("127.0.0.1") is True
 
     def test_invalid_ip(self):

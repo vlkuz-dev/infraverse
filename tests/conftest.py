@@ -1,4 +1,4 @@
-"""Shared fixtures and mocks for netbox-sync tests."""
+"""Shared fixtures and mocks for infraverse tests."""
 
 from unittest.mock import MagicMock
 

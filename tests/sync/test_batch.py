@@ -1,8 +1,8 @@
-"""Tests for netbox_sync.sync.batch — batch/optimized sync operations."""
+"""Tests for infraverse.sync.batch — batch/optimized sync operations."""
 
 from unittest.mock import MagicMock
 
-from netbox_sync.sync.batch import (
+from infraverse.sync.batch import (
     NetBoxCache,
     _normalize_comments,
     load_netbox_data,

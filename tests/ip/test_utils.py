@@ -1,7 +1,7 @@
-"""Tests for netbox_sync.ip.utils module."""
+"""Tests for infraverse.ip.utils module."""
 
 
-from netbox_sync.ip.utils import get_ip_without_cidr, ensure_cidr_notation
+from infraverse.ip.utils import get_ip_without_cidr, ensure_cidr_notation
 
 
 class TestGetIPWithoutCIDR:

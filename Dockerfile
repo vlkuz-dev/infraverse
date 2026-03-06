@@ -1,7 +1,7 @@
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 COPY src/ src/
 RUN pip install --no-cache-dir .
 
@@ -11,9 +11,9 @@ RUN groupadd --gid 1000 app && \
     useradd --uid 1000 --gid app --shell /bin/false app
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin/netbox-sync /usr/local/bin/netbox-sync
+COPY --from=builder /usr/local/bin/infraverse /usr/local/bin/infraverse
 
 EXPOSE 8000
 
 USER app
-ENTRYPOINT ["netbox-sync"]
+ENTRYPOINT ["infraverse"]

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Cloud Accounts - Infraverse{% endblock %}
+{% block pretitle %}Infrastructure{% endblock %}
+{% block page_title %}Cloud Accounts{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">All Cloud Accounts</h3>
+                <div class="card-actions">
+                    <span class="badge bg-azure-lt">{{ total_accounts }} account{{ "s" if total_accounts != 1 else "" }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% for tenant_name, accounts in grouped_accounts.items() %}
+                <div class="mb-4">
+                    <h4 class="mb-3">{{ tenant_name }}</h4>
+                    <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                            <thead>
+                                <tr>
+                                    <th>Account Name</th>
+                                    <th>Provider</th>
+                                    <th>VMs</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in accounts %}
+                                <tr>
+                                    <td><a href="/accounts/{{ account.id }}">{{ account.name }}</a></td>
+                                    <td>
+                                        {% if account.provider_type == "yandex_cloud" %}
+                                        <span class="badge bg-azure-lt">{{ account.provider_type }}</span>
+                                        {% elif account.provider_type == "vcloud" %}
+                                        <span class="badge bg-green-lt">{{ account.provider_type }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary-lt">{{ account.provider_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ account.vm_count }}</td>
+                                    <td>{{ account.created_at.strftime("%Y-%m-%d %H:%M UTC") if account.created_at else "-" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not grouped_accounts %}
+                <div class="empty">
+                    <p class="empty-title">No cloud accounts found</p>
+                    <p class="empty-subtitle text-secondary">Add cloud accounts to start syncing infrastructure data.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

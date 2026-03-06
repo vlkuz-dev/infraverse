@@ -1,0 +1,78 @@
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">VM Comparison ({{ result.all_vms | length }} results)</h3>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead>
+                <tr>
+                    <th>VM Name</th>
+                    <th>Cloud</th>
+                    {% if netbox_configured %}
+                    <th>NetBox</th>
+                    {% endif %}
+                    <th>Monitoring</th>
+                    <th>Provider</th>
+                    <th>Discrepancies</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vm in result.all_vms %}
+                <tr>
+                    <td>
+                        {% if vm_name_to_id and vm.vm_name in vm_name_to_id %}
+                        <a href="/vms/{{ vm_name_to_id[vm.vm_name] }}">{{ vm.vm_name }}</a>
+                        {% else %}
+                        {{ vm.vm_name }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vm.in_cloud %}
+                        <span class="badge bg-success-lt">Yes</span>
+                        {% else %}
+                        <span class="badge bg-danger-lt">No</span>
+                        {% endif %}
+                    </td>
+                    {% if netbox_configured %}
+                    <td>
+                        {% if vm.in_netbox %}
+                        <span class="badge bg-success-lt">Yes</span>
+                        {% else %}
+                        <span class="badge bg-danger-lt">No</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td>
+                        {% if vm.in_monitoring %}
+                        <span class="badge bg-success-lt">Yes</span>
+                        {% else %}
+                        <span class="badge bg-danger-lt">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vm.cloud_provider %}
+                        <span class="badge bg-azure-lt">{{ vm.cloud_provider }}</span>
+                        {% else %}
+                        <span class="text-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vm.discrepancies %}
+                        {% for d in vm.discrepancies %}
+                        <span class="badge bg-warning-lt">{{ d }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <span class="text-success">OK</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not result.all_vms %}
+                <tr>
+                    <td colspan="{% if netbox_configured %}6{% else %}5{% endif %}" class="text-secondary">No VMs found</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,7 +1,7 @@
-"""Tests for netbox_sync.sync.cleanup module."""
+"""Tests for infraverse.sync.cleanup module."""
 
 
-from netbox_sync.sync.cleanup import cleanup_orphaned_infrastructure, cleanup_orphaned_vms
+from infraverse.sync.cleanup import cleanup_orphaned_infrastructure, cleanup_orphaned_vms
 from tests.conftest import MockRecord, MockTag, make_mock_netbox_client
 
 

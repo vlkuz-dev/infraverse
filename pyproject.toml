@@ -3,18 +3,18 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "netbox-yandexcloud-sync"
-version = "3.0.0"
-description = "Sync multi-cloud infrastructure to NetBox and compare state across providers"
+name = "infraverse"
+version = "0.0.2"
+description = "Infrastructure visibility platform - multi-cloud sync, comparison, and monitoring"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "vlkuz-dev"},
 ]
-keywords = ["netbox", "yandex-cloud", "sync", "cmdb", "infrastructure"]
+keywords = ["infrastructure", "multi-cloud", "sync", "cmdb", "monitoring", "netbox"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -32,6 +32,8 @@ dependencies = [
     "fastapi>=0.110.0",
     "jinja2>=3.1.0",
     "uvicorn>=0.29.0",
+    "sqlalchemy>=2.0.0",
+    "apscheduler>=3.10.0",
 ]
 
 [project.optional-dependencies]
@@ -41,18 +43,18 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/vlkuz-dev/netbox-yandexcloud-sync"
-Repository = "https://github.com/vlkuz-dev/netbox-yandexcloud-sync"
-Issues = "https://github.com/vlkuz-dev/netbox-yandexcloud-sync/issues"
+Homepage = "https://github.com/vlkuz-dev/infraverse"
+Repository = "https://github.com/vlkuz-dev/infraverse"
+Issues = "https://github.com/vlkuz-dev/infraverse/issues"
 
 [project.scripts]
-netbox-sync = "netbox_sync.cli:main"
+infraverse = "infraverse.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"netbox_sync.web" = ["templates/*.html", "static/*.css"]
+"infraverse.web" = ["templates/*.html", "static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

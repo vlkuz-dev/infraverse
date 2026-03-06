@@ -1,8 +1,8 @@
-"""Tests for netbox_sync.sync.infrastructure module."""
+"""Tests for infraverse.sync.infrastructure module."""
 
 from unittest.mock import patch
 
-from netbox_sync.sync.infrastructure import sync_infrastructure
+from infraverse.sync.infrastructure import sync_infrastructure
 from tests.conftest import MockRecord, make_mock_netbox_client
 
 
@@ -198,7 +198,7 @@ class TestSyncInfrastructure:
 
         yc_data = {"zones": [], "folders": [], "subnets": []}
 
-        with patch("netbox_sync.sync.infrastructure.cleanup_orphaned_infrastructure") as mock_cleanup:
+        with patch("infraverse.sync.infrastructure.cleanup_orphaned_infrastructure") as mock_cleanup:
             mock_cleanup.return_value = {"sites": 0, "clusters": 0, "prefixes": 0}
             sync_infrastructure(yc_data, netbox, cleanup_orphaned=True)
             mock_cleanup.assert_called_once_with(yc_data, netbox, netbox.dry_run)
@@ -209,7 +209,7 @@ class TestSyncInfrastructure:
 
         yc_data = {"zones": [], "folders": [], "subnets": []}
 
-        with patch("netbox_sync.sync.infrastructure.cleanup_orphaned_infrastructure") as mock_cleanup:
+        with patch("infraverse.sync.infrastructure.cleanup_orphaned_infrastructure") as mock_cleanup:
             sync_infrastructure(yc_data, netbox, cleanup_orphaned=False)
             mock_cleanup.assert_not_called()
 
