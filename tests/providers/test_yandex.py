@@ -488,6 +488,27 @@ class TestFetchAllData:
         assert result["_has_fetch_errors"] is True
         assert len(result["vms"]) == 0
 
+    def test_fetch_all_data_sets_error_flag_on_folder_fetch_failure(self, mock_client):
+        """Test that _has_fetch_errors is set when fetch_folders fails for a cloud."""
+        def mock_get(url, **kwargs):
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                resp = MagicMock()
+                resp.raise_for_status.side_effect = Exception("Permission denied")
+                return resp
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        assert result["_has_fetch_errors"] is True
+        assert len(result["folders"]) == 0
+        assert len(result["vms"]) == 0
+
     def test_fetch_all_data_no_error_flag_on_success(self, mock_client):
         """Test that _has_fetch_errors is False when all fetches succeed."""
         def mock_get(url, **kwargs):

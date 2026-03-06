@@ -228,7 +228,12 @@ class YandexCloudClient:
                 "description": cloud.get("description", "")
             })
 
-            folders = self.fetch_folders(cloud_id)
+            try:
+                folders = self.fetch_folders(cloud_id)
+            except Exception as e:
+                logger.error(f"Failed to fetch folders for cloud {cloud_name}: {e}")
+                folders = []
+                result["_has_fetch_errors"] = True
             for folder in folders:
                 folder_id = folder["id"]
                 folder_name = folder.get("name", folder_id)
