@@ -84,7 +84,6 @@ class TestTriggerNow:
         svc._run_ingestion = MagicMock()
         svc.start(interval_minutes=60)
         try:
-            original_next = svc._scheduler.get_job("ingestion").next_run_time
             svc.trigger_now()
             # Trigger sets next_run_time to now - the job still exists
             job = svc._scheduler.get_job("ingestion")

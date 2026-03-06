@@ -222,7 +222,7 @@ class TestCmdServe:
             args = argparse.Namespace(host="127.0.0.1", port=8000)
             cmd_serve(args)
 
-        mock_create_app.assert_called_once_with(database_url="sqlite:///custom.db")
+        mock_create_app.assert_called_once_with(database_url="sqlite:///custom.db", config=None)
 
     @patch("uvicorn.run")
     def test_cmd_serve_does_not_require_cloud_creds(self, mock_uvicorn_run):

@@ -68,14 +68,14 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 2: Integrate scheduler with FastAPI lifespan
-- [ ] Add `SYNC_INTERVAL_MINUTES` env var to `config.py` (default: 0 = disabled)
-- [ ] Update `web/app.py` to accept scheduler config and start scheduler in FastAPI lifespan if interval > 0
-- [ ] Store `SchedulerService` instance in `app.state.scheduler`
-- [ ] Ensure scheduler stops cleanly on app shutdown
-- [ ] Write tests for config with SYNC_INTERVAL_MINUTES (0, 30, custom values)
-- [ ] Write tests for app startup with scheduler enabled vs disabled
-- [ ] Write tests for app shutdown stops scheduler
-- [ ] Run tests - must pass before next task
+- [x] Add `SYNC_INTERVAL_MINUTES` env var to `config.py` (default: 0 = disabled)
+- [x] Update `web/app.py` to accept scheduler config and start scheduler in FastAPI lifespan if interval > 0
+- [x] Store `SchedulerService` instance in `app.state.scheduler`
+- [x] Ensure scheduler stops cleanly on app shutdown
+- [x] Write tests for config with SYNC_INTERVAL_MINUTES (0, 30, custom values)
+- [x] Write tests for app startup with scheduler enabled vs disabled
+- [x] Write tests for app shutdown stops scheduler
+- [x] Run tests - must pass before next task
 
 ### Task 3: Add "fetch now" API endpoint and UI button
 - [ ] Create `src/infraverse/web/routes/sync.py` with `POST /sync/trigger` route

@@ -33,6 +33,7 @@ class Config:
         zabbix_url: str | None = None,
         zabbix_user: str | None = None,
         zabbix_password: str | None = None,
+        sync_interval_minutes: int = 0,
     ):
         self.yc_token = yc_token
         self.netbox_url = netbox_url
@@ -46,6 +47,7 @@ class Config:
         self.zabbix_url = zabbix_url
         self.zabbix_user = zabbix_user
         self.zabbix_password = zabbix_password
+        self.sync_interval_minutes = sync_interval_minutes
 
     @classmethod
     def from_env(cls, dry_run: bool = False) -> "Config":
@@ -85,6 +87,7 @@ class Config:
             zabbix_url=os.getenv("ZABBIX_URL") or None,
             zabbix_user=os.getenv("ZABBIX_USER") or None,
             zabbix_password=os.getenv("ZABBIX_PASSWORD") or None,
+            sync_interval_minutes=int(os.getenv("SYNC_INTERVAL_MINUTES", "0")),
         )
 
     @property

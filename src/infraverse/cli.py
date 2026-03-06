@@ -169,9 +169,22 @@ def cmd_serve(args: argparse.Namespace) -> None:
     _setup_logging()
     database_url = _get_database_url()
 
+    config = None
+    sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
+    if sync_interval > 0:
+        from infraverse.config import Config
+
+        try:
+            config = Config.from_env()
+        except ValueError as exc:
+            logger.warning(
+                "Scheduler disabled - config incomplete: %s", exc,
+            )
+            config = None
+
     from infraverse.web.app import create_app
 
-    app = create_app(database_url=database_url)
+    app = create_app(database_url=database_url, config=config)
     uvicorn.run(app, host=args.host, port=args.port)
 
 

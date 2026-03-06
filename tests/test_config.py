@@ -316,6 +316,52 @@ class TestZabbixConfig:
         assert cfg.zabbix_configured is False
 
 
+class TestSyncIntervalConfig:
+    def _base_cfg(self, **kwargs):
+        defaults = dict(yc_token="a", netbox_url="b", netbox_token="c")
+        defaults.update(kwargs)
+        return Config(**defaults)
+
+    def test_sync_interval_defaults_zero(self):
+        cfg = self._base_cfg()
+        assert cfg.sync_interval_minutes == 0
+
+    def test_sync_interval_custom_value(self):
+        cfg = self._base_cfg(sync_interval_minutes=30)
+        assert cfg.sync_interval_minutes == 30
+
+    def test_sync_interval_large_value(self):
+        cfg = self._base_cfg(sync_interval_minutes=1440)
+        assert cfg.sync_interval_minutes == 1440
+
+    def test_from_env_default_zero(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("SYNC_INTERVAL_MINUTES", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 0
+
+    def test_from_env_reads_sync_interval(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("SYNC_INTERVAL_MINUTES", "30")
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 30
+
+    def test_from_env_sync_interval_custom(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("SYNC_INTERVAL_MINUTES", "120")
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 120
+
+
 class TestAllProvidersConfig:
     def test_from_env_all_providers(self, monkeypatch):
         monkeypatch.setenv("YC_TOKEN", "yc")
