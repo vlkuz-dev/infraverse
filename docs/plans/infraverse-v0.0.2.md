@@ -160,17 +160,17 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 11: Verify acceptance criteria
-- [ ] Verify scheduler starts with `infraverse serve` when SYNC_INTERVAL_MINUTES > 0
-- [ ] Verify "Fetch Now" button triggers ingestion and shows result
-- [ ] Verify scheduler status displayed on dashboard
-- [ ] Verify quick-filter buttons work on comparison page
-- [ ] Verify VM detail page renders with all fields and external links
-- [ ] Verify cloud account detail page renders with VM list and sync history
-- [ ] Verify accounts list page shows all accounts grouped by tenant
-- [ ] Verify all existing functionality still works (sync, comparison, dashboard)
-- [ ] Run full test suite (unit tests)
-- [ ] Run linter (`ruff check src/ tests/`) - all issues must be fixed
-- [ ] Verify test count is comparable to v0.0.1 (~500+) plus new tests
+- [x] Verify scheduler starts with `infraverse serve` when SYNC_INTERVAL_MINUTES > 0
+- [x] Verify "Fetch Now" button triggers ingestion and shows result
+- [x] Verify scheduler status displayed on dashboard
+- [x] Verify quick-filter buttons work on comparison page
+- [x] Verify VM detail page renders with all fields and external links
+- [x] Verify cloud account detail page renders with VM list and sync history
+- [x] Verify accounts list page shows all accounts grouped by tenant
+- [x] Verify all existing functionality still works (sync, comparison, dashboard)
+- [x] Run full test suite (unit tests)
+- [x] Run linter (`ruff check src/ tests/`) - all issues must be fixed
+- [x] Verify test count is comparable to v0.0.1 (~500+) plus new tests
 
 ### Task 12: [Final] Update documentation
 - [ ] Update README.md with new features: scheduler, fetch-now, detail pages, quick-filters
