@@ -284,6 +284,17 @@ class Repository:
             .all()
         )
 
+    def get_monitoring_hosts_by_tenant(
+        self, tenant_id: int
+    ) -> list[MonitoringHost]:
+        return (
+            self.session.query(MonitoringHost)
+            .join(CloudAccount, MonitoringHost.cloud_account_id == CloudAccount.id)
+            .filter(CloudAccount.tenant_id == tenant_id)
+            .order_by(MonitoringHost.name)
+            .all()
+        )
+
     def get_monitoring_host_by_name(self, name: str) -> MonitoringHost | None:
         """Find a monitoring host by exact name match (case-insensitive)."""
         return (

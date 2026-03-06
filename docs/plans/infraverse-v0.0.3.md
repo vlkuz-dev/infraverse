@@ -223,12 +223,12 @@ oidc:
 
 ### Task 11: Update ComparisonEngine for DB-driven monitoring
 
-- [ ] write tests for comparison using MonitoringHost records linked to accounts
-- [ ] update comparison route to load MonitoringHost data per account/tenant
-- [ ] simplify comparison: monitoring presence comes from MonitoringHost records matching VM names
-- [ ] remove need to pass raw `zabbix_hosts` list to ComparisonEngine
-- [ ] write tests for comparison with partial monitoring data (some accounts have monitoring, some don't)
-- [ ] run tests — must pass before next task
+- [x] write tests for comparison using MonitoringHost records linked to accounts
+- [x] update comparison route to load MonitoringHost data per account/tenant
+- [x] simplify comparison: monitoring presence comes from MonitoringHost records matching VM names
+- [x] remove need to pass raw `zabbix_hosts` list to ComparisonEngine
+- [x] write tests for comparison with partial monitoring data (some accounts have monitoring, some don't)
+- [x] run tests — must pass before next task
 
 ---
 

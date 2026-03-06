@@ -547,6 +547,42 @@ class TestMonitoringHostOperations:
         names = [h.name for h in hosts]
         assert names == ["a-host", "z-host"]
 
+    def test_get_monitoring_hosts_by_tenant(self, repo):
+        t1 = repo.create_tenant("Mon Tenant A")
+        t2 = repo.create_tenant("Mon Tenant B")
+        a1 = repo.create_cloud_account(t1.id, "yandex_cloud", "A YC")
+        a2 = repo.create_cloud_account(t2.id, "yandex_cloud", "B YC")
+        repo.upsert_monitoring_host(
+            "zabbix", "z-1", "host-a1", "active", cloud_account_id=a1.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "z-2", "host-a2", "active", cloud_account_id=a1.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "z-3", "host-b1", "active", cloud_account_id=a2.id,
+        )
+        t1_hosts = repo.get_monitoring_hosts_by_tenant(t1.id)
+        assert len(t1_hosts) == 2
+        assert {h.name for h in t1_hosts} == {"host-a1", "host-a2"}
+
+        t2_hosts = repo.get_monitoring_hosts_by_tenant(t2.id)
+        assert len(t2_hosts) == 1
+        assert t2_hosts[0].name == "host-b1"
+
+    def test_get_monitoring_hosts_by_tenant_empty(self, repo):
+        tenant = repo.create_tenant("Empty Mon Tenant")
+        repo.create_cloud_account(tenant.id, "yandex_cloud", "No Mon")
+        assert repo.get_monitoring_hosts_by_tenant(tenant.id) == []
+
+    def test_get_monitoring_hosts_by_tenant_excludes_unlinked(self, repo):
+        """MonitoringHost without cloud_account_id is not returned by tenant query."""
+        tenant = repo.create_tenant("Unlinked Mon Tenant")
+        repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Unlinked")
+        repo.upsert_monitoring_host(
+            "zabbix", "z-orphan", "orphan-host", "active",
+        )
+        assert repo.get_monitoring_hosts_by_tenant(tenant.id) == []
+
 
 # --- SyncRun operations ---
 

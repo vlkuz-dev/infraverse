@@ -507,3 +507,123 @@ class TestSummary:
         assert result.summary["in_netbox_only"] == 1
         # vm-e: monitoring only
         assert result.summary["in_monitoring_only"] == 1
+
+
+class TestMonitoredVMNames:
+    """ComparisonEngine with monitored_vm_names (DB-driven monitoring)."""
+
+    def test_vm_monitored_by_name(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("web-01", ["10.0.0.1"])]
+        result = engine.compare(
+            cloud, [], monitored_vm_names={"web-01"},
+            netbox_configured=False,
+        )
+        state = result.all_vms[0]
+        assert state.in_monitoring is True
+        assert state.discrepancies == []
+
+    def test_vm_not_monitored(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("web-01")]
+        result = engine.compare(
+            cloud, [], monitored_vm_names=set(),
+            monitoring_configured=True,
+        )
+        state = result.all_vms[0]
+        assert state.in_monitoring is False
+        assert "in cloud but not in monitoring" in state.discrepancies
+
+    def test_case_insensitive_monitoring_match(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("Web-Server-01")]
+        result = engine.compare(
+            cloud, [], monitored_vm_names={"web-server-01"},
+        )
+        assert result.all_vms[0].in_monitoring is True
+
+    def test_multiple_vms_mixed_monitoring(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b"), _vm("vm-c")]
+        result = engine.compare(
+            cloud, [],
+            monitored_vm_names={"vm-a", "vm-c"},
+            monitoring_configured=True,
+            netbox_configured=False,
+        )
+        by_name = {s.vm_name.lower(): s for s in result.all_vms}
+        assert by_name["vm-a"].in_monitoring is True
+        assert by_name["vm-b"].in_monitoring is False
+        assert by_name["vm-c"].in_monitoring is True
+        assert by_name["vm-a"].discrepancies == []
+        assert "in cloud but not in monitoring" in by_name["vm-b"].discrepancies
+
+    def test_monitored_names_ignores_zabbix_hosts(self):
+        """When monitored_vm_names is provided, zabbix_hosts is ignored."""
+        engine = ComparisonEngine()
+        cloud = [_vm("web-01")]
+        zabbix = [_zhost("web-01")]
+        result = engine.compare(
+            cloud, [],
+            zabbix_hosts=zabbix,
+            monitored_vm_names=set(),
+            monitoring_configured=True,
+        )
+        # monitored_vm_names takes priority, so web-01 is NOT monitored
+        assert result.all_vms[0].in_monitoring is False
+
+    def test_monitored_names_with_netbox(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        netbox = [_vm("vm-1")]
+        result = engine.compare(
+            cloud, netbox,
+            monitored_vm_names={"vm-1"},
+        )
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is True
+        assert state.in_monitoring is True
+        assert state.discrepancies == []
+
+    def test_monitored_names_empty_means_not_configured_by_default(self):
+        """Empty monitored_vm_names with monitoring_configured=False -> no discrepancies."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        result = engine.compare(
+            cloud, [],
+            monitored_vm_names=set(),
+            monitoring_configured=False,
+            netbox_configured=False,
+        )
+        state = result.all_vms[0]
+        assert state.in_monitoring is False
+        assert state.discrepancies == []
+
+    def test_only_cloud_vms_appear_in_results(self):
+        """With monitored_vm_names, only cloud/netbox VMs appear, not orphan monitoring names."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        # Monitored names include an orphan that's not in cloud
+        result = engine.compare(
+            cloud, [],
+            monitored_vm_names={"vm-1", "orphan-host"},
+            monitoring_configured=True,
+        )
+        # Only vm-1 should appear, not orphan-host
+        assert len(result.all_vms) == 1
+        assert result.all_vms[0].vm_name == "vm-1"
+        assert result.all_vms[0].in_monitoring is True
+
+    def test_summary_with_monitored_names(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b")]
+        result = engine.compare(
+            cloud, [],
+            monitored_vm_names={"vm-a"},
+            monitoring_configured=True,
+            netbox_configured=False,
+        )
+        assert result.summary["total"] == 2
+        assert result.summary["in_sync"] == 1  # vm-a: cloud + monitoring
+        assert result.summary["with_discrepancies"] == 1  # vm-b: cloud only

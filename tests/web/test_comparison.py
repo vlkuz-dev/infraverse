@@ -61,13 +61,14 @@ def seeded_app():
             ip_addresses=["10.0.0.3"],
         )
 
-        # Monitoring hosts
+        # Monitoring hosts (linked to cloud accounts)
         repo.upsert_monitoring_host(
             source="zabbix",
             external_id="z-001",
             name="web-server-1",
             status="active",
             ip_addresses=["10.0.0.1"],
+            cloud_account_id=yc_account.id,
         )
         repo.upsert_monitoring_host(
             source="zabbix",
@@ -75,14 +76,7 @@ def seeded_app():
             name="db-server-1",
             status="active",
             ip_addresses=["10.0.0.2"],
-        )
-        # Monitoring host not in cloud
-        repo.upsert_monitoring_host(
-            source="zabbix",
-            external_id="z-003",
-            name="legacy-host-1",
-            status="active",
-            ip_addresses=["10.0.0.99"],
+            cloud_account_id=yc_account.id,
         )
 
         session.commit()
@@ -142,7 +136,6 @@ def test_comparison_shows_vms(seeded_client):
     assert "web-server-1" in html
     assert "db-server-1" in html
     assert "app-server-1" in html
-    assert "legacy-host-1" in html
 
 
 def test_comparison_shows_provider_badges(seeded_client):
@@ -157,8 +150,6 @@ def test_comparison_shows_discrepancies(seeded_client):
     html = resp.text
     # app-server-1 is in cloud but not monitoring
     assert "in cloud but not in monitoring" in html
-    # legacy-host-1 is in monitoring but not cloud
-    assert "in monitoring but not in cloud" in html
 
 
 def test_comparison_monitoring_discrepancies_with_config():
@@ -202,8 +193,8 @@ def test_comparison_no_netbox_discrepancy_when_not_configured(seeded_client):
 def test_comparison_summary_counts(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text
-    # 4 total VMs (web-server-1, db-server-1, app-server-1, legacy-host-1)
-    assert "4 results" in html
+    # 3 total VMs (web-server-1, db-server-1, app-server-1)
+    assert "3 results" in html
 
 
 def test_comparison_table_headers(seeded_client):
@@ -253,9 +244,8 @@ def test_filter_by_status_in_sync_shows_matched_vms(seeded_client):
 def test_filter_by_status_with_issues(seeded_client):
     resp = seeded_client.get("/comparison?status=with_issues")
     html = resp.text
-    # Only VMs with cloud/monitoring discrepancies
+    # app-server-1 is in cloud but not monitoring
     assert "app-server-1" in html
-    assert "legacy-host-1" in html
     # web-server-1 and db-server-1 are in sync (cloud + monitoring)
     assert "web-server-1" not in html
     assert "db-server-1" not in html
@@ -430,7 +420,6 @@ def test_table_partial_filter_status_with_issues(seeded_client):
     assert resp.status_code == 200
     html = resp.text
     assert "app-server-1" in html
-    assert "legacy-host-1" in html
     assert "web-server-1" not in html
     assert "db-server-1" not in html
 
@@ -442,7 +431,6 @@ def test_table_partial_filter_status_all(seeded_client):
     assert "web-server-1" in html
     assert "db-server-1" in html
     assert "app-server-1" in html
-    assert "legacy-host-1" in html
 
 
 # --- Combined filter tests on table partial ---
@@ -510,12 +498,10 @@ def _create_multi_tenant_comparison_app():
         # Beta VMs
         repo.upsert_vm(a2.id, "vm-010", "beta-app", status="active", ip_addresses=["10.1.0.1"])
 
-        # Monitoring: only acme-web is monitored
-        repo.upsert_monitoring_host("zabbix", "z-001", "acme-web", status="active", ip_addresses=["10.0.0.1"])
-        # Monitoring: beta-app is monitored
-        repo.upsert_monitoring_host("zabbix", "z-010", "beta-app", status="active", ip_addresses=["10.1.0.1"])
-        # Monitoring: orphan host not matching any cloud VM
-        repo.upsert_monitoring_host("zabbix", "z-099", "orphan-host", status="active", ip_addresses=["10.9.0.1"])
+        # Monitoring: only acme-web is monitored (linked to its cloud account)
+        repo.upsert_monitoring_host("zabbix", "z-001", "acme-web", status="active", ip_addresses=["10.0.0.1"], cloud_account_id=a1.id)
+        # Monitoring: beta-app is monitored (linked to its cloud account)
+        repo.upsert_monitoring_host("zabbix", "z-010", "beta-app", status="active", ip_addresses=["10.1.0.1"], cloud_account_id=a2.id)
 
         session.commit()
         ids = {"t1": t1.id, "t2": t2.id, "a1": a1.id, "a2": a2.id}
@@ -546,7 +532,7 @@ def test_comparison_with_tenant_filter_second_tenant():
 
 
 def test_comparison_without_tenant_filter_shows_all():
-    """Comparison without tenant filter shows all VMs."""
+    """Comparison without tenant filter shows all cloud VMs."""
     app, ids = _create_multi_tenant_comparison_app()
     client = TestClient(app)
     resp = client.get("/comparison")
@@ -554,7 +540,6 @@ def test_comparison_without_tenant_filter_shows_all():
     assert "acme-web" in html
     assert "acme-db" in html
     assert "beta-app" in html
-    assert "orphan-host" in html
 
 
 def test_comparison_tenant_filter_invalid_shows_all():
@@ -608,3 +593,97 @@ def test_comparison_has_tenant_selector():
     assert "All Tenants" in html
     assert "Acme Corp" in html
     assert "Beta Inc" in html
+
+
+# --- Partial monitoring data tests ---
+
+
+def _create_partial_monitoring_app():
+    """Create app where one account has monitoring data and another doesn't."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t1 = repo.create_tenant("Corp A")
+        t2 = repo.create_tenant("Corp B")
+
+        a1 = repo.create_cloud_account(t1.id, "yandex_cloud", "Corp A YC")
+        a2 = repo.create_cloud_account(t2.id, "yandex_cloud", "Corp B YC")
+
+        # Corp A VMs: both monitored
+        repo.upsert_vm(a1.id, "vm-001", "a-web", status="active")
+        repo.upsert_vm(a1.id, "vm-002", "a-db", status="active")
+        repo.upsert_monitoring_host(
+            "zabbix", "z-001", "a-web", status="active",
+            cloud_account_id=a1.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "z-002", "a-db", status="active",
+            cloud_account_id=a1.id,
+        )
+
+        # Corp B VMs: none monitored
+        repo.upsert_vm(a2.id, "vm-010", "b-web", status="active")
+        repo.upsert_vm(a2.id, "vm-011", "b-api", status="active")
+
+        session.commit()
+        ids = {"t1": t1.id, "t2": t2.id, "a1": a1.id, "a2": a2.id}
+    return app, ids
+
+
+def test_partial_monitoring_tenant_with_monitoring_all_in_sync():
+    """Tenant whose VMs are all monitored shows no discrepancies."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    assert "a-web" in html
+    assert "a-db" in html
+    assert "in cloud but not in monitoring" not in html
+
+
+def test_partial_monitoring_tenant_without_monitoring_shows_discrepancies():
+    """Tenant whose VMs have no monitoring shows discrepancies for all."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t2']}")
+    html = resp.text
+    assert "b-web" in html
+    assert "b-api" in html
+    # No monitoring hosts linked to this tenant, so all VMs should have discrepancies
+    assert "in cloud but not in monitoring" in html
+
+
+def test_partial_monitoring_global_shows_mixed():
+    """Global comparison shows both monitored and unmonitored VMs."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "a-web" in html
+    assert "a-db" in html
+    assert "b-web" in html
+    assert "b-api" in html
+
+
+def test_partial_monitoring_global_in_sync_filter():
+    """Global filter for in_sync returns only monitored VMs."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=in_sync")
+    html = resp.text
+    assert "a-web" in html
+    assert "a-db" in html
+    assert "b-web" not in html
+    assert "b-api" not in html
+
+
+def test_partial_monitoring_global_with_issues_filter():
+    """Global filter for with_issues returns only unmonitored VMs."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=with_issues")
+    html = resp.text
+    assert "b-web" in html
+    assert "b-api" in html
+    assert "a-web" not in html
+    assert "a-db" not in html

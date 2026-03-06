@@ -16,9 +16,10 @@ class ComparisonEngine:
         self,
         cloud_vms: list[VMInfo],
         netbox_vms: list[VMInfo],
-        zabbix_hosts: list[ZabbixHost],
+        zabbix_hosts: list[ZabbixHost] | None = None,
         monitoring_configured: bool = True,
         netbox_configured: bool = True,
+        monitored_vm_names: set[str] | None = None,
     ) -> ComparisonResult:
         """Compare VMs across all three systems.
 
@@ -29,15 +30,170 @@ class ComparisonEngine:
         Args:
             cloud_vms: VMs from all cloud providers.
             netbox_vms: VMs from NetBox.
-            zabbix_hosts: Hosts from Zabbix.
+            zabbix_hosts: Hosts from Zabbix (legacy mode, used when
+                monitored_vm_names is not provided).
             monitoring_configured: Whether monitoring (Zabbix) is configured.
                 When False, monitoring-related discrepancies are not reported.
             netbox_configured: Whether NetBox data is available.
                 When False, NetBox-related discrepancies are not reported.
+            monitored_vm_names: Set of VM names (case-insensitive) known to be
+                monitored (from MonitoringHost DB records). When provided,
+                takes priority over zabbix_hosts for determining monitoring
+                presence.
 
         Returns:
             ComparisonResult with per-VM state and summary.
         """
+        # DB-driven monitoring: use pre-resolved monitored names
+        if monitored_vm_names is not None:
+            return self._compare_with_monitored_names(
+                cloud_vms, netbox_vms, monitored_vm_names,
+                monitoring_configured, netbox_configured,
+            )
+
+        # Legacy mode: full three-way matching with ZabbixHost list
+        return self._compare_with_zabbix_hosts(
+            cloud_vms, netbox_vms, zabbix_hosts or [],
+            monitoring_configured, netbox_configured,
+        )
+
+    def _compare_with_monitored_names(
+        self,
+        cloud_vms: list[VMInfo],
+        netbox_vms: list[VMInfo],
+        monitored_vm_names: set[str],
+        monitoring_configured: bool,
+        netbox_configured: bool,
+    ) -> ComparisonResult:
+        """Compare using pre-resolved monitored VM names from DB.
+
+        Monitoring presence is determined by name lookup in monitored_vm_names
+        (case-insensitive). No IP-based monitoring matching is needed since
+        the ingestion flow already resolved name/IP matches.
+        """
+        monitored_lower = {n.lower() for n in monitored_vm_names}
+
+        cloud_by_name: dict[str, list[VMInfo]] = {}
+        cloud_by_ip: dict[str, list[VMInfo]] = {}
+        for vm in cloud_vms:
+            cloud_by_name.setdefault(vm.name.lower(), []).append(vm)
+            for ip in vm.ip_addresses:
+                cloud_by_ip.setdefault(ip, []).append(vm)
+
+        netbox_by_name: dict[str, list[VMInfo]] = {}
+        netbox_by_ip: dict[str, list[VMInfo]] = {}
+        for vm in netbox_vms:
+            netbox_by_name.setdefault(vm.name.lower(), []).append(vm)
+            for ip in vm.ip_addresses:
+                netbox_by_ip.setdefault(ip, []).append(vm)
+
+        # Only cloud and netbox names participate (monitoring is a lookup)
+        all_names: set[str] = set()
+        all_names.update(cloud_by_name.keys())
+        all_names.update(netbox_by_name.keys())
+
+        ip_merged_names: set[str] = set()
+        states: list[VMState] = []
+
+        for name in sorted(all_names):
+            cloud_vms_for_name = cloud_by_name.get(name, [])
+            netbox_vms_for_name = netbox_by_name.get(name, [])
+
+            has_netbox = len(netbox_vms_for_name) > 0
+            has_monitoring = name in monitored_lower
+
+            if len(cloud_vms_for_name) <= 1:
+                cloud_vm = cloud_vms_for_name[0] if cloud_vms_for_name else None
+                display_name = name
+                if cloud_vm:
+                    display_name = cloud_vm.name
+                elif netbox_vms_for_name:
+                    display_name = netbox_vms_for_name[0].name
+
+                state = VMState(
+                    vm_name=display_name,
+                    in_cloud=cloud_vm is not None,
+                    in_netbox=has_netbox,
+                    in_monitoring=has_monitoring,
+                    cloud_provider=cloud_vm.provider if cloud_vm else None,
+                )
+                states.append(state)
+            else:
+                for cloud_vm in cloud_vms_for_name:
+                    state = VMState(
+                        vm_name=cloud_vm.name,
+                        in_cloud=True,
+                        in_netbox=has_netbox,
+                        in_monitoring=has_monitoring,
+                        cloud_provider=cloud_vm.provider,
+                    )
+                    states.append(state)
+
+        # IP-based fallback for cloud <-> netbox matching only
+        for state in states:
+            name_key = state.vm_name.lower()
+            if name_key in ip_merged_names:
+                continue
+
+            state_ips: set[str] = set()
+            for cvm in cloud_by_name.get(name_key, []):
+                state_ips.update(cvm.ip_addresses)
+            for nb_vm in netbox_by_name.get(name_key, []):
+                state_ips.update(nb_vm.ip_addresses)
+
+            if not state_ips:
+                continue
+
+            if not state.in_netbox:
+                matched = False
+                for ip in state_ips:
+                    if matched:
+                        break
+                    for nb_vm in netbox_by_ip.get(ip, []):
+                        nb_key = nb_vm.name.lower()
+                        if nb_key != name_key and nb_key not in ip_merged_names:
+                            state.in_netbox = True
+                            ip_merged_names.add(nb_key)
+                            matched = True
+                            break
+
+            if not state.in_cloud:
+                matched = False
+                for ip in state_ips:
+                    if matched:
+                        break
+                    for c_vm in cloud_by_ip.get(ip, []):
+                        c_key = c_vm.name.lower()
+                        if c_key != name_key and c_key not in ip_merged_names:
+                            state.in_cloud = True
+                            state.cloud_provider = c_vm.provider
+                            ip_merged_names.add(c_key)
+                            matched = True
+                            break
+
+        states = [
+            s for s in states if s.vm_name.lower() not in ip_merged_names
+        ]
+
+        for state in states:
+            state.discrepancies = self._compute_discrepancies(
+                state,
+                monitoring_configured=monitoring_configured,
+                netbox_configured=netbox_configured,
+            )
+
+        summary = self.build_summary(states)
+        return ComparisonResult(all_vms=states, summary=summary)
+
+    def _compare_with_zabbix_hosts(
+        self,
+        cloud_vms: list[VMInfo],
+        netbox_vms: list[VMInfo],
+        zabbix_hosts: list[ZabbixHost],
+        monitoring_configured: bool,
+        netbox_configured: bool,
+    ) -> ComparisonResult:
+        """Legacy comparison with raw ZabbixHost list."""
         # Build lookup structures (name lowercased -> source data)
         # Cloud uses list values to handle same-named VMs from different providers
         cloud_by_name: dict[str, list[VMInfo]] = {}
