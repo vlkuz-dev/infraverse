@@ -213,13 +213,13 @@ oidc:
 
 ### Task 10: Refactor DataIngestor for new monitoring flow
 
-- [ ] write tests for updated `ingest_monitoring_hosts()` that takes VM list and queries per VM
-- [ ] refactor `DataIngestor.ingest_monitoring_hosts()` to iterate VMs and call `check_vm_monitoring()`
-- [ ] store results in MonitoringHost with `cloud_account_id` set
-- [ ] remove bulk `fetch_hosts()` usage from ingest flow
-- [ ] update `ingest_all()` to pass VMs to new monitoring check
-- [ ] write tests for full ingest flow: cloud ingest then monitoring check
-- [ ] run tests — must pass before next task
+- [x] write tests for updated `ingest_monitoring_hosts()` that takes VM list and queries per VM
+- [x] refactor `DataIngestor.ingest_monitoring_hosts()` to iterate VMs and call `check_vm_monitoring()`
+- [x] store results in MonitoringHost with `cloud_account_id` set
+- [x] remove bulk `fetch_hosts()` usage from ingest flow
+- [x] update `ingest_all()` to pass VMs to new monitoring check
+- [x] write tests for full ingest flow: cloud ingest then monitoring check
+- [x] run tests — must pass before next task
 
 ### Task 11: Update ComparisonEngine for DB-driven monitoring
 

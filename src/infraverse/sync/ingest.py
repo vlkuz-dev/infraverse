@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from infraverse.db.models import CloudAccount
 from infraverse.db.repository import Repository
 from infraverse.providers.base import CloudProvider, VMInfo
-from infraverse.providers.zabbix import ZabbixClient, ZabbixHost
+from infraverse.sync.monitoring import check_all_vms_monitoring
 
 logger = logging.getLogger(__name__)
 
@@ -118,15 +118,21 @@ class DataIngestor:
 
     def ingest_monitoring_hosts(
         self,
-        zabbix_client: ZabbixClient,
+        vms: list,
+        zabbix_client,
     ) -> int:
-        """Fetch hosts from Zabbix and upsert into DB.
+        """Check monitoring status for known VMs and store results in DB.
+
+        Instead of bulk-fetching all Zabbix hosts, queries Zabbix per VM
+        by name (with IP fallback) and stores found hosts as MonitoringHost
+        records linked to the VM's cloud account.
 
         Args:
-            zabbix_client: An authenticated ZabbixClient instance.
+            vms: List of VM objects (with name, ip_addresses, cloud_account_id).
+            zabbix_client: ZabbixClient with search_host_by_name/ip methods.
 
         Returns:
-            Number of hosts found.
+            Number of VMs found to be monitored.
 
         Raises:
             Exception: Re-raises Zabbix errors after recording them in SyncRun.
@@ -137,7 +143,7 @@ class DataIngestor:
         sync_start = datetime.now(timezone.utc)
 
         try:
-            hosts: list[ZabbixHost] = zabbix_client.fetch_hosts()
+            results = check_all_vms_monitoring(vms, zabbix_client)
         except Exception as exc:
             self.repo.update_sync_run(
                 sync_run.id,
@@ -145,20 +151,25 @@ class DataIngestor:
                 error_message=str(exc),
             )
             self.session.commit()
-            logger.error("Failed to fetch Zabbix hosts: %s", exc)
+            logger.error("Failed to check VM monitoring: %s", exc)
             raise
 
         items_created = 0
         items_updated = 0
+        found_count = 0
 
         try:
-            for host in hosts:
+            for vm, result in zip(vms, results):
+                if not result.found:
+                    continue
+                found_count += 1
                 _, created = self.repo.upsert_monitoring_host(
                     source="zabbix",
-                    external_id=host.hostid,
-                    name=host.name,
-                    status=host.status,
-                    ip_addresses=host.ip_addresses,
+                    external_id=result.host.hostid,
+                    name=result.host.name,
+                    status=result.host.status,
+                    ip_addresses=result.host.ip_addresses,
+                    cloud_account_id=vm.cloud_account_id,
                 )
                 if created:
                     items_created += 1
@@ -171,7 +182,7 @@ class DataIngestor:
             self.repo.update_sync_run(
                 sync_run.id,
                 status="success",
-                items_found=len(hosts),
+                items_found=found_count,
                 items_created=items_created,
                 items_updated=items_updated,
             )
@@ -184,22 +195,25 @@ class DataIngestor:
                 error_message=str(exc),
             )
             self.session.commit()
-            logger.error("Failed to upsert Zabbix hosts: %s", exc)
+            logger.error("Failed to store monitoring results: %s", exc)
             raise
 
-        logger.info("Ingested %d monitoring hosts from Zabbix", len(hosts))
-        return len(hosts)
+        logger.info(
+            "Checked %d VMs for monitoring, %d found monitored",
+            len(vms), found_count,
+        )
+        return found_count
 
     def ingest_all(
         self,
         providers: dict[int, CloudProvider],
-        zabbix_client: ZabbixClient | None = None,
+        zabbix_client=None,
     ) -> dict[str, str]:
         """Ingest data from all configured providers.
 
         Args:
             providers: Map of CloudAccount.id -> CloudProvider instance.
-            zabbix_client: Optional ZabbixClient for monitoring hosts.
+            zabbix_client: Optional ZabbixClient for per-VM monitoring checks.
 
         Returns:
             Dict of source_name -> status ("success" or error message).
@@ -221,13 +235,14 @@ class DataIngestor:
                 logger.error("Account %s: ingestion failed: %s", account.name, exc)
 
         if zabbix_client is not None:
+            all_vms = self.repo.get_all_vms()
             try:
-                count = self.ingest_monitoring_hosts(zabbix_client)
+                count = self.ingest_monitoring_hosts(all_vms, zabbix_client)
                 results["zabbix"] = "success"
-                logger.info("Zabbix: ingested %d hosts", count)
+                logger.info("Zabbix: checked %d VMs, %d monitored", len(all_vms), count)
             except Exception as exc:
                 self.session.rollback()
                 results["zabbix"] = f"error: {exc}"
-                logger.error("Zabbix: ingestion failed: %s", exc)
+                logger.error("Zabbix: monitoring check failed: %s", exc)
 
         return results

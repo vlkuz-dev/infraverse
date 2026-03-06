@@ -61,13 +61,20 @@ def _make_mock_provider(vms: list[VMInfo] | None = None, error: Exception | None
     return provider
 
 
-def _make_mock_zabbix(hosts: list[ZabbixHost] | None = None, error: Exception | None = None):
-    """Create a mock ZabbixClient."""
+def _make_mock_zabbix(
+    name_results: dict[str, ZabbixHost | None] | None = None,
+    ip_results: dict[str, ZabbixHost | None] | None = None,
+    error: Exception | None = None,
+):
+    """Create a mock ZabbixClient with per-VM search methods."""
     client = MagicMock()
     if error:
-        client.fetch_hosts.side_effect = error
+        client.search_host_by_name.side_effect = error
     else:
-        client.fetch_hosts.return_value = hosts or []
+        name_map = name_results or {}
+        client.search_host_by_name.side_effect = lambda name: name_map.get(name)
+        ip_map = ip_results or {}
+        client.search_host_by_ip.side_effect = lambda ip: ip_map.get(ip)
     return client
 
 
@@ -218,14 +225,15 @@ class TestIngestCloudVms:
         assert run.items_found == 2
 
 
-# --- ingest_monitoring_hosts tests ---
+# --- ingest_monitoring_hosts tests (per-VM monitoring check) ---
 
 
 class TestIngestMonitoringHosts:
-    def test_ingest_empty_zabbix(self, ingestor, session):
-        zabbix = _make_mock_zabbix(hosts=[])
+    def test_ingest_no_vms(self, ingestor, session):
+        """No VMs to check -> 0 found, sync run success."""
+        zabbix = _make_mock_zabbix()
 
-        count = ingestor.ingest_monitoring_hosts(zabbix)
+        count = ingestor.ingest_monitoring_hosts([], zabbix)
 
         assert count == 0
         assert session.query(MonitoringHost).count() == 0
@@ -233,79 +241,186 @@ class TestIngestMonitoringHosts:
         assert run.status == "success"
         assert run.source == "zabbix"
 
-    def test_ingest_zabbix_hosts(self, ingestor, session):
-        hosts = [
-            ZabbixHost(name="web-1", hostid="101", status="active", ip_addresses=["10.0.0.1"]),
-            ZabbixHost(name="db-1", hostid="102", status="offline", ip_addresses=["10.0.0.2"]),
-        ]
-        zabbix = _make_mock_zabbix(hosts=hosts)
-
-        count = ingestor.ingest_monitoring_hosts(zabbix)
-
-        assert count == 2
-        db_hosts = session.query(MonitoringHost).order_by(MonitoringHost.name).all()
-        assert len(db_hosts) == 2
-        assert db_hosts[0].name == "db-1"
-        assert db_hosts[0].external_id == "102"
-        assert db_hosts[0].source == "zabbix"
-        assert db_hosts[1].name == "web-1"
-        assert db_hosts[1].ip_addresses == ["10.0.0.1"]
-
-        run = session.query(SyncRun).one()
-        assert run.status == "success"
-        assert run.items_found == 2
-        assert run.items_created == 2
-        assert run.items_updated == 0
-
-    def test_ingest_zabbix_updates_existing(self, ingestor, repo, session):
-        repo.upsert_monitoring_host(
-            source="zabbix", external_id="101", name="old-name", status="active",
+    def test_ingest_vm_found_by_name(self, ingestor, tenant_and_account, repo, session):
+        """VM found by name -> MonitoringHost created with cloud_account_id."""
+        _, account = tenant_and_account
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=account.id, external_id="ext-1",
+            name="web-1", status="active", ip_addresses=["10.0.0.1"],
         )
         session.commit()
 
-        hosts = [ZabbixHost(name="new-name", hostid="101", status="offline", ip_addresses=["10.0.0.5"])]
-        zabbix = _make_mock_zabbix(hosts=hosts)
+        zabbix_host = ZabbixHost(name="web-1", hostid="z101", status="active", ip_addresses=["10.0.0.1"])
+        zabbix = _make_mock_zabbix(name_results={"web-1": zabbix_host})
 
-        count = ingestor.ingest_monitoring_hosts(zabbix)
+        count = ingestor.ingest_monitoring_hosts([vm], zabbix)
+
+        assert count == 1
+        db_host = session.query(MonitoringHost).one()
+        assert db_host.name == "web-1"
+        assert db_host.external_id == "z101"
+        assert db_host.source == "zabbix"
+        assert db_host.cloud_account_id == account.id
+        assert db_host.ip_addresses == ["10.0.0.1"]
+
+    def test_ingest_vm_found_by_ip_fallback(self, ingestor, tenant_and_account, repo, session):
+        """VM not found by name but found by IP -> MonitoringHost with Zabbix host name."""
+        _, account = tenant_and_account
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=account.id, external_id="ext-2",
+            name="web-2", status="active", ip_addresses=["10.0.0.5"],
+        )
+        session.commit()
+
+        zabbix_host = ZabbixHost(name="web-2-zabbix", hostid="z102", status="active", ip_addresses=["10.0.0.5"])
+        zabbix = _make_mock_zabbix(ip_results={"10.0.0.5": zabbix_host})
+
+        count = ingestor.ingest_monitoring_hosts([vm], zabbix)
+
+        assert count == 1
+        db_host = session.query(MonitoringHost).one()
+        assert db_host.name == "web-2-zabbix"
+        assert db_host.external_id == "z102"
+        assert db_host.cloud_account_id == account.id
+
+    def test_ingest_vm_not_found(self, ingestor, tenant_and_account, repo, session):
+        """VM not found in Zabbix -> no MonitoringHost created."""
+        _, account = tenant_and_account
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=account.id, external_id="ext-3",
+            name="unknown-vm", status="active",
+        )
+        session.commit()
+
+        zabbix = _make_mock_zabbix()
+
+        count = ingestor.ingest_monitoring_hosts([vm], zabbix)
+
+        assert count == 0
+        assert session.query(MonitoringHost).count() == 0
+
+    def test_ingest_mixed_found_and_not_found(self, ingestor, tenant_and_account, repo, session):
+        _, account = tenant_and_account
+        vm1, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="e1", name="found-vm", status="active")
+        vm2, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="e2", name="missing-vm", status="active")
+        session.commit()
+
+        host = ZabbixHost(name="found-vm", hostid="z1", status="active")
+        zabbix = _make_mock_zabbix(name_results={"found-vm": host})
+
+        count = ingestor.ingest_monitoring_hosts([vm1, vm2], zabbix)
+
+        assert count == 1
+        assert session.query(MonitoringHost).count() == 1
+        db_host = session.query(MonitoringHost).one()
+        assert db_host.name == "found-vm"
+
+        run = session.query(SyncRun).one()
+        assert run.items_found == 1
+        assert run.items_created == 1
+
+    def test_ingest_stores_cloud_account_id(self, ingestor, tenant_and_account, repo, session):
+        """MonitoringHost records get cloud_account_id from their source VM."""
+        tenant, account = tenant_and_account
+        account2 = repo.create_cloud_account(
+            tenant_id=tenant.id, provider_type="vcloud", name="vCloud",
+        )
+        session.commit()
+
+        vm1, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="y1", name="yc-vm", status="active")
+        vm2, _ = repo.upsert_vm(cloud_account_id=account2.id, external_id="v1", name="vc-vm", status="active")
+        session.commit()
+
+        h1 = ZabbixHost(name="yc-vm", hostid="z1", status="active")
+        h2 = ZabbixHost(name="vc-vm", hostid="z2", status="active")
+        zabbix = _make_mock_zabbix(name_results={"yc-vm": h1, "vc-vm": h2})
+
+        count = ingestor.ingest_monitoring_hosts([vm1, vm2], zabbix)
+
+        assert count == 2
+        hosts = session.query(MonitoringHost).order_by(MonitoringHost.name).all()
+        assert hosts[0].cloud_account_id == account2.id  # vc-vm -> vCloud account
+        assert hosts[1].cloud_account_id == account.id    # yc-vm -> YC account
+
+    def test_ingest_updates_existing_monitoring_host(self, ingestor, tenant_and_account, repo, session):
+        _, account = tenant_and_account
+        repo.upsert_monitoring_host(
+            source="zabbix", external_id="z101", name="old-name", status="active",
+        )
+        session.commit()
+
+        vm, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="ext-1", name="web-1", status="active")
+        session.commit()
+
+        host = ZabbixHost(name="new-name", hostid="z101", status="offline", ip_addresses=["10.0.0.5"])
+        zabbix = _make_mock_zabbix(name_results={"web-1": host})
+
+        count = ingestor.ingest_monitoring_hosts([vm], zabbix)
 
         assert count == 1
         db_host = session.query(MonitoringHost).one()
         assert db_host.name == "new-name"
         assert db_host.status == "offline"
+        assert db_host.cloud_account_id == account.id
 
         run = session.query(SyncRun).one()
-        assert run.items_found == 1
-        assert run.items_created == 0
         assert run.items_updated == 1
+        assert run.items_created == 0
 
-    def test_ingest_marks_stale_monitoring_hosts(self, ingestor, repo, session):
-        # Pre-create a host that won't be in the new fetch
+    def test_ingest_marks_stale_monitoring_hosts(self, ingestor, tenant_and_account, repo, session):
+        _, account = tenant_and_account
         repo.upsert_monitoring_host(
             source="zabbix", external_id="old-host", name="stale-host", status="active",
         )
         session.commit()
 
-        # Ingest with different host (old one missing)
-        hosts = [ZabbixHost(name="fresh-host", hostid="fresh-1", status="active")]
-        zabbix = _make_mock_zabbix(hosts=hosts)
+        vm, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="ext-1", name="fresh-vm", status="active")
+        session.commit()
 
-        ingestor.ingest_monitoring_hosts(zabbix)
+        host = ZabbixHost(name="fresh-vm", hostid="fresh-z", status="active")
+        zabbix = _make_mock_zabbix(name_results={"fresh-vm": host})
+
+        ingestor.ingest_monitoring_hosts([vm], zabbix)
 
         stale = session.query(MonitoringHost).filter_by(external_id="old-host").one()
         assert stale.status == "offline"
 
-        fresh = session.query(MonitoringHost).filter_by(external_id="fresh-1").one()
+        fresh = session.query(MonitoringHost).filter_by(external_id="fresh-z").one()
         assert fresh.status == "active"
 
-    def test_ingest_zabbix_error_records_failed_run(self, ingestor, session):
+    def test_ingest_zabbix_error_records_failed_run(self, ingestor, tenant_and_account, repo, session):
+        _, account = tenant_and_account
+        vm, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="ext-1", name="vm-1", status="active")
+        session.commit()
+
         zabbix = _make_mock_zabbix(error=RuntimeError("Zabbix unreachable"))
 
         with pytest.raises(RuntimeError, match="Zabbix unreachable"):
-            ingestor.ingest_monitoring_hosts(zabbix)
+            ingestor.ingest_monitoring_hosts([vm], zabbix)
 
         run = session.query(SyncRun).one()
         assert run.status == "failed"
         assert "Zabbix unreachable" in run.error_message
+
+    def test_sync_run_records_correct_counts(self, ingestor, tenant_and_account, repo, session):
+        _, account = tenant_and_account
+        vm1, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="e1", name="vm-1", status="active")
+        vm2, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="e2", name="vm-2", status="active")
+        vm3, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="e3", name="vm-3", status="active")
+        session.commit()
+
+        h1 = ZabbixHost(name="vm-1", hostid="z1", status="active")
+        h2 = ZabbixHost(name="vm-2", hostid="z2", status="active")
+        zabbix = _make_mock_zabbix(name_results={"vm-1": h1, "vm-2": h2})
+
+        count = ingestor.ingest_monitoring_hosts([vm1, vm2, vm3], zabbix)
+
+        assert count == 2
+        run = session.query(SyncRun).one()
+        assert run.status == "success"
+        assert run.items_found == 2
+        assert run.items_created == 2
+        assert run.items_updated == 0
 
 
 # --- ingest_all tests ---
@@ -324,7 +439,9 @@ class TestIngestAll:
 
         provider1 = _make_mock_provider(vms=[VMInfo(name="yc-vm", id="y1", status="active")])
         provider2 = _make_mock_provider(vms=[VMInfo(name="vc-vm", id="v1", status="active")])
-        zabbix = _make_mock_zabbix(hosts=[ZabbixHost(name="z-host", hostid="z1", status="active")])
+        # Per-VM monitoring: yc-vm found, vc-vm not found -> 1 MonitoringHost
+        z_host = ZabbixHost(name="yc-vm", hostid="z1", status="active")
+        zabbix = _make_mock_zabbix(name_results={"yc-vm": z_host})
 
         results = ingestor.ingest_all(
             providers={account.id: provider1, account2.id: provider2},
@@ -395,8 +512,15 @@ class TestIngestAll:
 
         assert results == {}
 
-    def test_ingest_all_both_fail(self, ingestor, tenant_and_account, session):
+    def test_ingest_all_both_fail(self, ingestor, tenant_and_account, repo, session):
         _, account = tenant_and_account
+        # Pre-create a VM so zabbix check has something to query
+        repo.upsert_vm(
+            cloud_account_id=account.id, external_id="pre-existing",
+            name="old-vm", status="active",
+        )
+        session.commit()
+
         failing_provider = _make_mock_provider(error=RuntimeError("cloud dead"))
         failing_zabbix = _make_mock_zabbix(error=RuntimeError("zabbix dead"))
 
@@ -411,3 +535,29 @@ class TestIngestAll:
         runs = session.query(SyncRun).all()
         assert len(runs) == 2
         assert all(r.status == "failed" for r in runs)
+
+    def test_ingest_all_cloud_then_monitoring(self, ingestor, tenant_and_account, session):
+        """Full flow: ingest cloud VMs, then check monitoring for those VMs."""
+        _, account = tenant_and_account
+        provider = _make_mock_provider(vms=[
+            VMInfo(name="web-1", id="y1", status="active", ip_addresses=["10.0.0.1"]),
+            VMInfo(name="db-1", id="y2", status="active", ip_addresses=["10.0.0.2"]),
+        ])
+
+        h1 = ZabbixHost(name="web-1", hostid="z1", status="active", ip_addresses=["10.0.0.1"])
+        zabbix = _make_mock_zabbix(name_results={"web-1": h1})
+
+        results = ingestor.ingest_all(
+            providers={account.id: provider},
+            zabbix_client=zabbix,
+        )
+
+        assert results["YC Russia"] == "success"
+        assert results["zabbix"] == "success"
+        assert session.query(VM).count() == 2
+        assert session.query(MonitoringHost).count() == 1
+
+        # MonitoringHost should be linked to the cloud account
+        mon_host = session.query(MonitoringHost).one()
+        assert mon_host.name == "web-1"
+        assert mon_host.cloud_account_id == account.id
