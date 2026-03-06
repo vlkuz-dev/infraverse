@@ -173,9 +173,9 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Verify test count is comparable to v0.0.1 (~500+) plus new tests
 
 ### Task 12: [Final] Update documentation
-- [ ] Update README.md with new features: scheduler, fetch-now, detail pages, quick-filters
-- [ ] Add SYNC_INTERVAL_MINUTES and external link URL env vars to `.env.example`
-- [ ] Update project knowledge docs if new patterns discovered
+- [x] Update README.md with new features: scheduler, fetch-now, detail pages, quick-filters
+- [x] Add SYNC_INTERVAL_MINUTES and external link URL env vars to `.env.example`
+- [x] Update project knowledge docs if new patterns discovered
 
 ## Technical Details
 

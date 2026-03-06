@@ -10,6 +10,11 @@ Infrastructure visibility platform - sync multi-cloud infrastructure to NetBox a
 - **Zabbix integration:** verify VMs are present in monitoring
 - **Comparison engine:** detect discrepancies across cloud, NetBox, and Zabbix (reads from DB)
 - **Web UI:** FastAPI dashboard with Tabler admin template, HTMX-powered comparison view, filtering, and refresh
+- **Scheduled data fetching:** APScheduler-based background ingestion at configurable intervals
+- **Manual "Fetch Now" button:** trigger on-demand data ingestion from the dashboard
+- **Detail pages:** dedicated pages for individual VMs and cloud accounts with external resource links
+- **Quick-filter buttons:** filter comparison results by status (all / with issues / in sync)
+- **External resource links:** configurable URL templates linking to Yandex Cloud console, Zabbix, and NetBox
 - **NetBox sync:** map cloud structure to NetBox hierarchy (zones -> sites, folders -> clusters)
 - Automatic creation of sites, clusters, and prefixes
 - Two sync modes: optimized batch (default) and standard sequential
@@ -117,6 +122,22 @@ cp .env.example .env
 | `ZABBIX_USER` | -- | Zabbix username |
 | `ZABBIX_PASSWORD` | -- | Zabbix password |
 
+### Optional: Scheduler
+
+| Variable | Default | Description |
+|---|---|---|
+| `SYNC_INTERVAL_MINUTES` | `0` (disabled) | Background data ingestion interval in minutes. Set to a positive value (e.g. `30`) to enable automatic fetching. |
+
+### Optional: External Links
+
+URL templates for linking detail pages to external systems. Use `{placeholder}` syntax for dynamic values.
+
+| Variable | Default | Description |
+|---|---|---|
+| `YC_CONSOLE_URL` | -- | Yandex Cloud console URL template, e.g. `https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}` |
+| `ZABBIX_HOST_URL` | -- | Zabbix host URL template, e.g. `{zabbix_url}/hosts.php?form=update&hostid={host_id}` |
+| `NETBOX_VM_URL` | -- | NetBox VM URL template, e.g. `{netbox_url}/virtualization/virtual-machines/{vm_id}/` |
+
 ### Optional: General
 
 | Variable | Default | Description |
@@ -163,13 +184,19 @@ infraverse serve
 
 # Custom host and port
 infraverse serve --host 127.0.0.1 --port 9000
+
+# Enable automatic data fetching every 30 minutes
+SYNC_INTERVAL_MINUTES=30 infraverse serve
 ```
 
 The web UI provides:
-- **Dashboard** (`/`) -- tenant overview, provider status, last sync timestamps, summary stats
-- **Comparison view** (`/comparison`) -- table of all VMs with status columns (cloud, NetBox, Zabbix) and color-coded discrepancies
+- **Dashboard** (`/`) -- tenant overview, provider status, last sync timestamps, summary stats, "Fetch Now" button, scheduler status
+- **Comparison view** (`/comparison`) -- table of all VMs with status columns (cloud, NetBox, Zabbix), color-coded discrepancies, quick-filter buttons (all / with issues / in sync)
+- **VM detail** (`/vms/{id}`) -- individual VM page with resources, IPs, comparison status, and external links to cloud console / NetBox / Zabbix
+- **Cloud accounts** (`/accounts`) -- list of all cloud accounts grouped by tenant
+- **Account detail** (`/accounts/{id}`) -- account info, VM list, sync history, external links
 - HTMX-powered refresh without full page reload
-- Filtering by provider, status (all/only discrepancies), and name search
+- Filtering by provider, status, and name search
 
 ### Docker
 
@@ -190,6 +217,7 @@ src/infraverse/
   __main__.py              # python -m support
   cli.py                   # CLI: sync, serve, db init, db seed
   config.py                # Configuration from env vars
+  scheduler.py             # APScheduler-based background ingestion
   db/
     engine.py              # SQLAlchemy engine, session factory
     models.py              # ORM models: Tenant, CloudAccount, VM, MonitoringHost, SyncRun
@@ -214,10 +242,14 @@ src/infraverse/
     classifier.py          # Private IP detection
     utils.py               # CIDR helpers
   web/
-    app.py                 # FastAPI app factory
+    app.py                 # FastAPI app factory with scheduler lifespan
+    links.py               # External URL template helper
     routes/
       dashboard.py         # Dashboard routes
-      comparison.py        # Comparison routes
+      comparison.py        # Comparison routes with quick-filters
+      sync.py              # Fetch-now and scheduler status endpoints
+      vms.py               # VM detail route
+      accounts.py          # Cloud account list and detail routes
     templates/             # Jinja2 + Tabler templates
     static/                # CSS overrides
 tests/
