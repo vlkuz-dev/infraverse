@@ -161,12 +161,12 @@ oidc:
 
 ### Task 5: Tenant-scoped web UI — dashboard and accounts
 
-- [ ] write tests for dashboard route with `?tenant_id=` filter parameter
-- [ ] add tenant selector dropdown to dashboard template
-- [ ] filter VMs and accounts by selected tenant (or show all if no filter)
-- [ ] update `accounts_list()` to support `?tenant_id=` query param
-- [ ] write tests for account list with and without tenant filter
-- [ ] run tests — must pass before next task
+- [x] write tests for dashboard route with `?tenant_id=` filter parameter
+- [x] add tenant selector dropdown to dashboard template
+- [x] filter VMs and accounts by selected tenant (or show all if no filter)
+- [x] update `accounts_list()` to support `?tenant_id=` query param
+- [x] write tests for account list with and without tenant filter
+- [x] run tests — must pass before next task
 
 ### Task 6: Tenant-scoped web UI — VMs and comparison
 

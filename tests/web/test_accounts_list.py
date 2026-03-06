@@ -152,3 +152,72 @@ def test_sidebar_accounts_active_on_list_page():
     # Match the li.nav-item.active that contains href="/accounts"
     pattern = r'<li class="nav-item active">\s*<a class="nav-link" href="/accounts">'
     assert re.search(pattern, html), "Accounts nav item should be active on accounts list page"
+
+
+# --- Tenant filter tests ---
+
+
+def test_accounts_list_no_filter_shows_all():
+    """Without tenant_id param, shows all accounts."""
+    app = _create_seeded_app()
+    client = TestClient(app)
+    resp = client.get("/accounts")
+    html = resp.text
+    assert "YC Production" in html
+    assert "vCloud Staging" in html
+    assert "YC Dev" in html
+
+
+def test_accounts_list_filter_by_tenant_id():
+    """With tenant_id param, shows only that tenant's accounts."""
+    app = _create_seeded_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        acme = repo.get_tenant_by_name("Acme Corp")
+        acme_id = acme.id
+    client = TestClient(app)
+    resp = client.get(f"/accounts?tenant_id={acme_id}")
+    html = resp.text
+    assert resp.status_code == 200
+    assert "YC Production" in html
+    assert "vCloud Staging" in html
+    assert "YC Dev" not in html
+
+
+def test_accounts_list_filter_other_tenant():
+    """Filter by Beta Inc shows only their accounts."""
+    app = _create_seeded_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        beta = repo.get_tenant_by_name("Beta Inc")
+        beta_id = beta.id
+    client = TestClient(app)
+    resp = client.get(f"/accounts?tenant_id={beta_id}")
+    html = resp.text
+    assert "YC Dev" in html
+    assert "YC Production" not in html
+    assert "vCloud Staging" not in html
+
+
+def test_accounts_list_filter_invalid_tenant_shows_all():
+    """Invalid tenant_id falls back to showing all accounts."""
+    app = _create_seeded_app()
+    client = TestClient(app)
+    resp = client.get("/accounts?tenant_id=9999")
+    html = resp.text
+    assert resp.status_code == 200
+    assert "YC Production" in html
+    assert "YC Dev" in html
+
+
+def test_accounts_list_filter_shows_correct_count():
+    """Filtered account list shows correct total count for the tenant."""
+    app = _create_seeded_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        acme = repo.get_tenant_by_name("Acme Corp")
+        acme_id = acme.id
+    client = TestClient(app)
+    resp = client.get(f"/accounts?tenant_id={acme_id}")
+    html = resp.text
+    assert "2 accounts" in html

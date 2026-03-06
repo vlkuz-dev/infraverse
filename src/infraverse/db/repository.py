@@ -79,16 +79,22 @@ class Repository:
     def list_cloud_accounts(self) -> list[CloudAccount]:
         return self.session.query(CloudAccount).order_by(CloudAccount.name).all()
 
-    def list_cloud_accounts_with_tenants(self) -> list[CloudAccount]:
-        """List all cloud accounts with tenant and vms eagerly loaded."""
+    def list_cloud_accounts_with_tenants(
+        self, tenant_id: int | None = None
+    ) -> list[CloudAccount]:
+        """List cloud accounts with tenant and vms eagerly loaded.
+
+        If tenant_id is provided, filters to that tenant's accounts only.
+        """
         from sqlalchemy.orm import subqueryload
 
-        return (
+        query = (
             self.session.query(CloudAccount)
             .options(joinedload(CloudAccount.tenant), subqueryload(CloudAccount.vms))
-            .order_by(CloudAccount.name)
-            .all()
         )
+        if tenant_id is not None:
+            query = query.filter(CloudAccount.tenant_id == tenant_id)
+        return query.order_by(CloudAccount.name).all()
 
     def list_cloud_accounts_by_tenant(self, tenant_id: int) -> list[CloudAccount]:
         return (
@@ -182,13 +188,16 @@ class Repository:
             .all()
         )
 
-    def get_all_vms(self) -> list[VM]:
-        return (
+    def get_all_vms(self, tenant_id: int | None = None) -> list[VM]:
+        query = (
             self.session.query(VM)
             .options(joinedload(VM.cloud_account))
-            .order_by(VM.name)
-            .all()
         )
+        if tenant_id is not None:
+            query = query.join(CloudAccount).filter(
+                CloudAccount.tenant_id == tenant_id
+            )
+        return query.order_by(VM.name).all()
 
     def mark_vms_stale(
         self, cloud_account_id: int, seen_before: datetime

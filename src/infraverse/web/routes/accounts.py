@@ -1,6 +1,6 @@
 """Cloud account routes for Infraverse web UI."""
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
@@ -10,12 +10,22 @@ router = APIRouter()
 
 
 @router.get("/accounts")
-def accounts_list(request: Request):
+def accounts_list(request: Request, tenant_id: int | None = Query(default=None)):
     templates = get_templates()
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
-        accounts = repo.list_cloud_accounts_with_tenants()
+
+        # Validate tenant_id — fall back to None if not found
+        selected_tenant_id = None
+        if tenant_id is not None:
+            tenant = repo.get_tenant(tenant_id)
+            if tenant is not None:
+                selected_tenant_id = tenant_id
+
+        accounts = repo.list_cloud_accounts_with_tenants(
+            tenant_id=selected_tenant_id
+        )
 
         # Group accounts by tenant and extract data while session is open
         grouped = {}

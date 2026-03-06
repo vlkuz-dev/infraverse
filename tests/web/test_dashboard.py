@@ -191,3 +191,106 @@ def test_dashboard_sync_run_statuses():
     assert "bg-success-lt" in html
     assert "bg-danger-lt" in html
     assert "Connection refused" in html
+
+
+# --- Tenant filter tests ---
+
+
+def _create_multi_tenant_app():
+    """Create app with two tenants, each with accounts and VMs."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t1 = repo.create_tenant("Acme Corp", description="Acme")
+        t2 = repo.create_tenant("Beta Inc", description="Beta")
+        a1 = repo.create_cloud_account(t1.id, "yandex_cloud", "Acme YC")
+        a2 = repo.create_cloud_account(t2.id, "vcloud", "Beta vCloud")
+        repo.upsert_vm(a1.id, "vm-001", "acme-web-1", status="active")
+        repo.upsert_vm(a1.id, "vm-002", "acme-db-1", status="offline")
+        repo.upsert_vm(a2.id, "vm-010", "beta-app-1", status="active")
+        session.commit()
+    return app
+
+
+def test_dashboard_no_filter_shows_all():
+    """Without tenant_id param, dashboard shows all VMs."""
+    app = _create_multi_tenant_app()
+    client = TestClient(app)
+    resp = client.get("/")
+    html = resp.text
+    assert resp.status_code == 200
+    assert "Acme Corp" in html
+    assert "Beta Inc" in html
+
+
+def test_dashboard_filter_by_tenant_id():
+    """With tenant_id param, dashboard shows only that tenant's data."""
+    app = _create_multi_tenant_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        acme = repo.get_tenant_by_name("Acme Corp")
+        acme_id = acme.id
+    client = TestClient(app)
+    resp = client.get(f"/?tenant_id={acme_id}")
+    html = resp.text
+    assert resp.status_code == 200
+    # Should show Acme's VMs (2 total: 1 active, 1 offline)
+    assert "acme-web-1" not in html  # VMs aren't listed on dashboard, but counts should match
+    # Total VMs count should be 2 for Acme tenant
+    compact = html.replace(" ", "").replace("\n", "")
+    assert ">2<" in compact  # 2 total VMs
+    # Should show only Acme's provider
+    assert "yandex_cloud" in html
+    # Should not show Beta's provider in the filtered view
+    assert "Beta vCloud" not in html
+
+
+def test_dashboard_filter_shows_only_filtered_tenant_accounts():
+    """Filtered dashboard only shows the selected tenant's accounts."""
+    app = _create_multi_tenant_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        beta = repo.get_tenant_by_name("Beta Inc")
+        beta_id = beta.id
+    client = TestClient(app)
+    resp = client.get(f"/?tenant_id={beta_id}")
+    html = resp.text
+    assert "Beta vCloud" in html
+    assert "Acme YC" not in html
+
+
+def test_dashboard_filter_invalid_tenant_id_shows_all():
+    """Invalid/non-existent tenant_id falls back to showing all data."""
+    app = _create_multi_tenant_app()
+    client = TestClient(app)
+    resp = client.get("/?tenant_id=9999")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Acme Corp" in html
+    assert "Beta Inc" in html
+
+
+def test_dashboard_has_tenant_selector():
+    """Dashboard should show a tenant selector dropdown when tenants exist."""
+    app = _create_multi_tenant_app()
+    client = TestClient(app)
+    resp = client.get("/")
+    html = resp.text
+    assert "tenant_id" in html
+    assert "All Tenants" in html
+    assert "Acme Corp" in html
+    assert "Beta Inc" in html
+
+
+def test_dashboard_tenant_selector_preserves_selection():
+    """Tenant selector should show the selected tenant as active."""
+    app = _create_multi_tenant_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        acme = repo.get_tenant_by_name("Acme Corp")
+        acme_id = acme.id
+    client = TestClient(app)
+    resp = client.get(f"/?tenant_id={acme_id}")
+    html = resp.text
+    # The selected option should be marked
+    assert f'value="{acme_id}"' in html
