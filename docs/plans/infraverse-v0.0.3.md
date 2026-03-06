@@ -256,13 +256,13 @@ oidc:
 
 ### Task 14: Auth middleware and session management
 
-- [ ] write tests for middleware: authenticated request passes through, unauthenticated redirects to login
-- [ ] create session middleware using `itsdangerous` signed cookies
-- [ ] store user info (name, email, has_role) in session after successful OIDC callback
-- [ ] add middleware to FastAPI app — skip for `/auth/*`, `/static/*`, `/health`
-- [ ] write tests for session expiry: expired cookie redirects to login
-- [ ] write tests for role check: user with required role gets access, user without gets 403
-- [ ] run tests — must pass before next task
+- [x] write tests for middleware: authenticated request passes through, unauthenticated redirects to login
+- [x] create session middleware using `itsdangerous` signed cookies
+- [x] store user info (name, email, has_role) in session after successful OIDC callback
+- [x] add middleware to FastAPI app — skip for `/auth/*`, `/static/*`, `/health`
+- [x] write tests for session expiry: expired cookie redirects to login
+- [x] write tests for role check: user with required role gets access, user without gets 403
+- [x] run tests — must pass before next task
 
 ### Task 15: Optional auth mode + UI user display
 

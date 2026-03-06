@@ -46,6 +46,7 @@ def create_app(
     database_url: str = "sqlite:///infraverse.db",
     config=None,
     infraverse_config=None,
+    session_max_age: int = 14 * 24 * 60 * 60,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
     engine = create_engine(database_url)
@@ -58,14 +59,27 @@ def create_app(
     app.state.config = config
     app.state.infraverse_config = infraverse_config
 
+    # Health endpoint (always accessible, no auth)
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
+
     # Set up OIDC auth if configured
     if infraverse_config is not None and infraverse_config.oidc_configured:
+        from infraverse.web.middleware import AuthMiddleware
         from infraverse.web.routes.auth import router as auth_router, setup_oauth
 
         oidc = infraverse_config.oidc
         app.state.oauth = setup_oauth(oidc)
         app.include_router(auth_router)
-        app.add_middleware(SessionMiddleware, secret_key=oidc.client_secret)
+        # Auth middleware must be added before session middleware
+        # (Starlette processes middleware in reverse order of addition)
+        app.add_middleware(AuthMiddleware)
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=oidc.client_secret,
+            max_age=session_max_age,
+        )
 
     if config is not None and config.sync_interval_minutes > 0:
         from infraverse.scheduler import SchedulerService

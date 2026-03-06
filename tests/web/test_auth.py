@@ -3,7 +3,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from fastapi import Request
 from fastapi.testclient import TestClient
 from starlette.responses import RedirectResponse
 
@@ -161,12 +160,6 @@ class TestLogout:
 
     def test_logout_clears_session(self, app, client):
         """After login+logout, session user data is cleared."""
-        # Add a test endpoint to inspect session state
-        @app.get("/test/session")
-        async def test_session(request: Request):
-            from fastapi.responses import JSONResponse
-            return JSONResponse({"user": request.session.get("user")})
-
         # Step 1: Simulate login via callback
         _mock_oauth(app, authorize_access_token_rv={
             "userinfo": {
@@ -178,14 +171,14 @@ class TestLogout:
         })
         client.get("/auth/callback", follow_redirects=False)
 
-        # Verify session has user
-        resp = client.get("/test/session")
-        assert resp.json()["user"] is not None
-        assert resp.json()["user"]["name"] == "John Doe"
+        # Verify authenticated user can access dashboard
+        resp = client.get("/", follow_redirects=False)
+        assert resp.status_code == 200
 
         # Step 2: Logout
         client.get("/auth/logout", follow_redirects=False)
 
-        # Verify session is cleared
-        resp = client.get("/test/session")
-        assert resp.json()["user"] is None
+        # Verify session is cleared: accessing protected route redirects to login
+        resp = client.get("/", follow_redirects=False)
+        assert resp.status_code == 307
+        assert "/auth/login" in resp.headers["location"]
