@@ -166,7 +166,7 @@ class DataIngestor:
                 _, created = self.repo.upsert_monitoring_host(
                     source="zabbix",
                     external_id=result.host.hostid,
-                    name=result.host.name,
+                    name=vm.name,
                     status=result.host.status,
                     ip_addresses=result.host.ip_addresses,
                     cloud_account_id=vm.cloud_account_id,
@@ -235,7 +235,12 @@ class DataIngestor:
                 logger.error("Account %s: ingestion failed: %s", account.name, exc)
 
         if zabbix_client is not None:
-            all_vms = self.repo.get_all_vms()
+            # Only check VMs from active accounts (those with providers)
+            active_account_ids = set(providers.keys())
+            all_vms = [
+                vm for vm in self.repo.get_all_vms()
+                if vm.cloud_account_id in active_account_ids
+            ]
             try:
                 count = self.ingest_monitoring_hosts(all_vms, zabbix_client)
                 results["zabbix"] = "success"

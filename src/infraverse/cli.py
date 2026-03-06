@@ -308,6 +308,19 @@ def cmd_serve(args: argparse.Namespace) -> None:
             sync_interval_minutes=sync_interval if infraverse_config else 0,
         )
 
+    # Sync YAML config to DB on startup so data is available immediately
+    if infraverse_config is not None:
+        from infraverse.db.engine import create_engine, create_session_factory, init_db
+        from infraverse.sync.config_sync import sync_config_to_db
+
+        engine = create_engine(database_url)
+        init_db(engine)
+        session_factory = create_session_factory(engine)
+        with session_factory() as session:
+            sync_config_to_db(infraverse_config, session)
+            session.commit()
+        logger.info("Config synced to database")
+
     from infraverse.web.app import create_app
 
     app = create_app(

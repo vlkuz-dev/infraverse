@@ -7,25 +7,11 @@ IP fallback.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from infraverse.providers.zabbix import ZabbixHost
 
 logger = logging.getLogger(__name__)
-
-
-class VMlike(Protocol):
-    """Protocol for VM-like objects (DB model or test fake)."""
-
-    name: str
-    ip_addresses: list[str] | None
-
-
-class ZabbixClientlike(Protocol):
-    """Protocol for ZabbixClient-like objects."""
-
-    def search_host_by_name(self, name: str) -> ZabbixHost | None: ...
-    def search_host_by_ip(self, ip: str) -> ZabbixHost | None: ...
 
 
 @dataclass

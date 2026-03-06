@@ -2,7 +2,7 @@ import infraverse
 
 
 def test_version():
-    assert infraverse.__version__ == "0.0.2"
+    assert infraverse.__version__ == "0.0.3"
 
 
 def test_version_matches_pyproject():

@@ -264,7 +264,7 @@ class TestIngestMonitoringHosts:
         assert db_host.ip_addresses == ["10.0.0.1"]
 
     def test_ingest_vm_found_by_ip_fallback(self, ingestor, tenant_and_account, repo, session):
-        """VM not found by name but found by IP -> MonitoringHost with Zabbix host name."""
+        """VM not found by name but found by IP -> MonitoringHost stores VM name (not Zabbix name)."""
         _, account = tenant_and_account
         vm, _ = repo.upsert_vm(
             cloud_account_id=account.id, external_id="ext-2",
@@ -279,7 +279,7 @@ class TestIngestMonitoringHosts:
 
         assert count == 1
         db_host = session.query(MonitoringHost).one()
-        assert db_host.name == "web-2-zabbix"
+        assert db_host.name == "web-2"
         assert db_host.external_id == "z102"
         assert db_host.cloud_account_id == account.id
 
@@ -359,7 +359,7 @@ class TestIngestMonitoringHosts:
 
         assert count == 1
         db_host = session.query(MonitoringHost).one()
-        assert db_host.name == "new-name"
+        assert db_host.name == "web-1"  # stores VM name, not Zabbix host name
         assert db_host.status == "offline"
         assert db_host.cloud_account_id == account.id
 

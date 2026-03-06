@@ -622,11 +622,8 @@ class TestBuildZabbixClientWithMonitoringConfig:
             password="config-pass",
         )
 
-    @patch("infraverse.providers.zabbix.ZabbixClient")
-    def test_falls_back_to_env_config(self, mock_zabbix_cls):
-        mock_client = MagicMock()
-        mock_zabbix_cls.return_value = mock_client
-
+    def test_returns_none_when_infraverse_config_has_no_monitoring(self):
+        """When using YAML config mode without monitoring section, returns None without falling back to env vars."""
         ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})  # no monitoring
         cfg = _make_config(
             zabbix_configured=True,
@@ -638,12 +635,7 @@ class TestBuildZabbixClientWithMonitoringConfig:
 
         result = svc._build_zabbix_client()
 
-        assert result is mock_client
-        mock_zabbix_cls.assert_called_once_with(
-            url="https://zabbix.env.com",
-            username="env-user",
-            password="env-pass",
-        )
+        assert result is None
 
     def test_returns_none_when_neither_configured(self):
         ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})

@@ -95,7 +95,7 @@ class SchedulerService:
             # Sync config to DB if YAML config is provided
             if self._infraverse_config is not None:
                 sync_config_to_db(self._infraverse_config, session)
-                session.flush()
+                session.commit()
 
             ingestor = DataIngestor(session)
 
@@ -197,6 +197,10 @@ class SchedulerService:
             except Exception as exc:
                 logger.error("Failed to build Zabbix client: %s", exc)
                 return None
+
+        # When using YAML config mode, don't fall back to env vars for monitoring
+        if self._infraverse_config is not None:
+            return None
 
         # Env-var mode fallback
         if not self._config.zabbix_configured:

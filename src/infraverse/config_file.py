@@ -131,8 +131,20 @@ def _parse_tenant(name: str, raw: dict) -> TenantConfig:
     )
 
 
+_MONITORING_REQUIRED_FIELDS = ("url", "username", "password")
+
+
 def _parse_monitoring(raw: dict) -> MonitoringConfig:
-    zabbix = raw.get("zabbix", {})
+    zabbix = raw.get("zabbix")
+    if not zabbix or not isinstance(zabbix, dict):
+        raise ValueError(
+            "Monitoring config must have a 'zabbix' section"
+        )
+    for field_name in _MONITORING_REQUIRED_FIELDS:
+        if field_name not in zabbix:
+            raise ValueError(
+                f"Monitoring zabbix config is missing required field '{field_name}'"
+            )
     return MonitoringConfig(
         zabbix_url=zabbix["url"],
         zabbix_username=zabbix["username"],

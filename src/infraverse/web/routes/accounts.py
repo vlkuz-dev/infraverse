@@ -38,6 +38,7 @@ def accounts_list(request: Request, tenant_id: int | None = Query(default=None))
                 "id": account.id,
                 "name": account.name,
                 "provider_type": account.provider_type,
+                "is_active": account.is_active,
                 "vm_count": vm_count,
                 "created_at": account.created_at,
             })
@@ -71,12 +72,19 @@ def account_detail(request: Request, account_id: int):
         vms = repo.get_vms_by_account(account_id)
         sync_runs = repo.get_sync_runs_by_account(account_id, limit=10)
 
-        # Extract data while session is open
+        # Extract data while session is open — mask sensitive config values
+        SENSITIVE_KEYS = {"token", "password", "client_secret", "secret"}
+        raw_config = account.config or {}
+        safe_config = {
+            k: "***" if k in SENSITIVE_KEYS else v
+            for k, v in raw_config.items()
+        }
         account_data = {
             "id": account.id,
             "name": account.name,
             "provider_type": account.provider_type,
-            "config": account.config or {},
+            "config": safe_config,
+            "is_active": account.is_active,
             "created_at": account.created_at,
             "updated_at": account.updated_at,
         }

@@ -1,5 +1,6 @@
 """FastAPI application factory for Infraverse web UI."""
 
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -84,9 +85,12 @@ def create_app(
         # Auth middleware must be added before session middleware
         # (Starlette processes middleware in reverse order of addition)
         app.add_middleware(AuthMiddleware)
+        session_secret = hashlib.sha256(
+            b"infraverse-session:" + oidc.client_secret.encode()
+        ).hexdigest()
         app.add_middleware(
             SessionMiddleware,
-            secret_key=oidc.client_secret,
+            secret_key=session_secret,
             max_age=session_max_age,
         )
 
