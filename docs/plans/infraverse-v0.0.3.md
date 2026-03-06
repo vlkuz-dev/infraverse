@@ -290,10 +290,10 @@ oidc:
 
 ### Task 17: [Final] Update documentation
 
-- [ ] update README.md with v0.0.3 features (multi-tenant, SSO, monitoring)
-- [ ] create `config.example.yaml` with commented examples
-- [ ] document OIDC setup instructions (Keycloak, generic provider)
-- [ ] update project knowledge docs if new patterns discovered
+- [x] update README.md with v0.0.3 features (multi-tenant, SSO, monitoring)
+- [x] create `config.example.yaml` with commented examples
+- [x] document OIDC setup instructions (Keycloak, generic provider)
+- [x] update project knowledge docs if new patterns discovered
 
 ## Technical Details
 

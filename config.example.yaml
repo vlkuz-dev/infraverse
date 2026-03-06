@@ -1,0 +1,68 @@
+# Infraverse Configuration File
+#
+# This file defines tenants, cloud accounts, monitoring, and OIDC settings.
+# Credentials use ${ENV_VAR} syntax and are expanded from environment variables.
+#
+# Usage:
+#   infraverse sync --config config.yaml
+#   infraverse serve --config config.yaml
+
+# =============================================================================
+# Tenants and Cloud Accounts
+# =============================================================================
+# Each tenant represents a customer or organization.
+# Each tenant has one or more cloud accounts.
+# Supported providers: yandex_cloud, vcloud
+
+tenants:
+  acme-corp:
+    description: "ACME Corporation"
+    cloud_accounts:
+      # Yandex Cloud account — requires only a token
+      - name: "acme-yandex-prod"
+        provider: yandex_cloud
+        token: "${YC_TOKEN_ACME}"
+
+      # vCloud Director account — requires url, username, password, org
+      - name: "acme-vcloud"
+        provider: vcloud
+        url: "https://vcd.example.com"
+        username: "admin"
+        password: "${VCD_PASSWORD_ACME}"
+        org: "acme-org"
+
+  beta-inc:
+    description: "Beta Inc"
+    cloud_accounts:
+      - name: "beta-yandex"
+        provider: yandex_cloud
+        token: "${YC_TOKEN_BETA}"
+
+# =============================================================================
+# Monitoring (optional)
+# =============================================================================
+# Zabbix configuration for per-VM monitoring checks.
+# When configured, each known VM is queried in Zabbix by name (then IP fallback).
+# Omit this section to skip monitoring checks entirely.
+
+# monitoring:
+#   zabbix:
+#     url: "https://zabbix.example.com/api_jsonrpc.php"
+#     username: "api_user"
+#     password: "${ZABBIX_PASSWORD}"
+
+# =============================================================================
+# OIDC Authentication (optional)
+# =============================================================================
+# OpenID Connect configuration for SSO.
+# When configured, all web routes require authentication.
+# Omit this section to run without authentication.
+#
+# Supported providers: Keycloak, Google Workspace, Azure AD, or any OIDC provider.
+# Redirect URI to register: https://<your-host>/auth/callback
+
+# oidc:
+#   provider_url: "https://keycloak.example.com/realms/infraverse"
+#   client_id: "infraverse"
+#   client_secret: "${OIDC_CLIENT_SECRET}"
+#   required_role: "infraverse-admin"
