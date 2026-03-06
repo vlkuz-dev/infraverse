@@ -78,15 +78,15 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 3: Add "fetch now" API endpoint and UI button
-- [ ] Create `src/infraverse/web/routes/sync.py` with `POST /sync/trigger` route
-- [ ] Route calls `app.state.scheduler.trigger_now()` and returns status
-- [ ] Add `GET /sync/status` route returning scheduler status as JSON (for HTMX polling)
-- [ ] Register sync routes in `web/routes/__init__.py`
-- [ ] Add "Fetch Now" button to `dashboard.html` using HTMX: `hx-post="/sync/trigger"` with loading indicator
-- [ ] Add scheduler status display on dashboard (next scheduled run, last run result)
-- [ ] Write tests for POST /sync/trigger (success, scheduler not configured)
-- [ ] Write tests for GET /sync/status response format
-- [ ] Run tests - must pass before next task
+- [x] Create `src/infraverse/web/routes/sync.py` with `POST /sync/trigger` route
+- [x] Route calls `app.state.scheduler.trigger_now()` and returns status
+- [x] Add `GET /sync/status` route returning scheduler status as JSON (for HTMX polling)
+- [x] Register sync routes in `web/routes/__init__.py`
+- [x] Add "Fetch Now" button to `dashboard.html` using HTMX: `hx-post="/sync/trigger"` with loading indicator
+- [x] Add scheduler status display on dashboard (next scheduled run, last run result)
+- [x] Write tests for POST /sync/trigger (success, scheduler not configured)
+- [x] Write tests for GET /sync/status response format
+- [x] Run tests - must pass before next task
 
 ### Task 4: Quick-filter buttons on comparison page
 - [ ] Update `comparison.html` to add button group above the filter card: "All", "With Issues", "In Sync"

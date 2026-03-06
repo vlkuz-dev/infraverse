@@ -48,6 +48,31 @@
         </div>
     </div>
 
+    <!-- Scheduler status and Fetch Now -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Data Sync</h3>
+                <div class="card-actions">
+                    <button class="btn btn-primary"
+                            hx-post="/sync/trigger"
+                            hx-target="#sync-status"
+                            hx-swap="innerHTML"
+                            hx-indicator="#sync-spinner">
+                        <span id="sync-spinner" class="spinner-border spinner-border-sm htmx-indicator me-1" role="status"></span>
+                        Fetch Now
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="sync-status"
+                 hx-get="/sync/status"
+                 hx-trigger="load, every 30s"
+                 hx-swap="innerHTML">
+                <div class="text-secondary">Loading scheduler status...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Provider summary -->
     <div class="col-lg-6">
         <div class="card">
