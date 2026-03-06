@@ -93,7 +93,11 @@
                             <td>
                                 <span class="badge bg-azure-lt">{{ ptype }}</span>
                             </td>
-                            <td>{{ info.count }}</td>
+                            <td>
+                                {% for acc in info.accounts %}
+                                <a href="/accounts/{{ acc.id }}" class="me-2">{{ acc.name }}</a>
+                                {% endfor %}
+                            </td>
                         </tr>
                         {% endfor %}
                         {% if not provider_summary %}

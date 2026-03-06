@@ -115,19 +115,19 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 6: Cloud account detail page
-- [ ] Add `get_cloud_account_with_tenant(account_id)` method to `db/repository.py` (joins tenant)
-- [ ] Create `src/infraverse/web/routes/accounts.py` with `GET /accounts/{account_id}` route
-- [ ] Create `src/infraverse/web/templates/account_detail.html` with Tabler card layout:
+- [x] Add `get_cloud_account_with_tenant(account_id)` method to `db/repository.py` (joins tenant)
+- [x] Create `src/infraverse/web/routes/accounts.py` with `GET /accounts/{account_id}` route
+- [x] Create `src/infraverse/web/templates/account_detail.html` with Tabler card layout:
   - Account name, provider type badge, tenant name
   - VM count and status summary (active/offline)
   - List of VMs (table with links to VM detail)
   - Latest sync runs for this account
   - Config info (non-secret settings from CloudAccount.config)
-- [ ] Register account routes in `web/routes/__init__.py`
-- [ ] Add links from dashboard provider/tenant tables to account detail
-- [ ] Write tests for GET /accounts/{account_id} with valid account
-- [ ] Write tests for GET /accounts/{account_id} with non-existent account (404)
-- [ ] Run tests - must pass before next task
+- [x] Register account routes in `web/routes/__init__.py`
+- [x] Add links from dashboard provider/tenant tables to account detail
+- [x] Write tests for GET /accounts/{account_id} with valid account
+- [x] Write tests for GET /accounts/{account_id} with non-existent account (404)
+- [x] Run tests - must pass before next task
 
 ### Task 7: External resource links on detail pages
 - [ ] Add `external_links` config section to `config.py`: URL templates for Yandex Cloud console, vCloud UI, Zabbix host, NetBox VM

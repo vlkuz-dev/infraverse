@@ -66,6 +66,15 @@ class Repository:
     def get_cloud_account(self, account_id: int) -> CloudAccount | None:
         return self.session.get(CloudAccount, account_id)
 
+    def get_cloud_account_with_tenant(self, account_id: int) -> CloudAccount | None:
+        """Get a single cloud account by ID with tenant eagerly loaded."""
+        return (
+            self.session.query(CloudAccount)
+            .options(joinedload(CloudAccount.tenant))
+            .filter(CloudAccount.id == account_id)
+            .first()
+        )
+
     def list_cloud_accounts(self) -> list[CloudAccount]:
         return self.session.query(CloudAccount).order_by(CloudAccount.name).all()
 
@@ -275,6 +284,17 @@ class Repository:
         run.finished_at = datetime.now(timezone.utc)
         self.session.flush()
         return run
+
+    def get_sync_runs_by_account(
+        self, cloud_account_id: int, limit: int = 10
+    ) -> list[SyncRun]:
+        return (
+            self.session.query(SyncRun)
+            .filter(SyncRun.cloud_account_id == cloud_account_id)
+            .order_by(SyncRun.started_at.desc())
+            .limit(limit)
+            .all()
+        )
 
     def get_latest_sync_runs(self, limit: int = 10) -> list[SyncRun]:
         return (
