@@ -100,9 +100,14 @@ class MonitoringHost(Base):
     name = Column(String, nullable=False)
     status = Column(String, nullable=False, default="unknown")
     ip_addresses = Column(JSON, default=list)
+    cloud_account_id = Column(
+        Integer, ForeignKey("cloud_accounts.id"), nullable=True
+    )
     last_seen_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    cloud_account = relationship("CloudAccount")
 
     __table_args__ = (
         UniqueConstraint("source", "external_id", name="uq_monitoring_source_external"),

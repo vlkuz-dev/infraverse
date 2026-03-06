@@ -234,6 +234,7 @@ class Repository:
         name: str,
         status: str = "unknown",
         ip_addresses: list[str] | None = None,
+        cloud_account_id: int | None = None,
     ) -> tuple[MonitoringHost, bool]:
         """Upsert a monitoring host record.
 
@@ -257,6 +258,7 @@ class Repository:
                 name=name,
                 status=status,
                 ip_addresses=ip_addresses or [],
+                cloud_account_id=cloud_account_id,
                 last_seen_at=now,
             )
             self.session.add(host)
@@ -264,12 +266,23 @@ class Repository:
             host.name = name
             host.status = status
             host.ip_addresses = ip_addresses or []
+            host.cloud_account_id = cloud_account_id
             host.last_seen_at = now
         self.session.flush()
         return host, created
 
     def get_all_monitoring_hosts(self) -> list[MonitoringHost]:
         return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()
+
+    def get_monitoring_hosts_by_account(
+        self, cloud_account_id: int
+    ) -> list[MonitoringHost]:
+        return (
+            self.session.query(MonitoringHost)
+            .filter(MonitoringHost.cloud_account_id == cloud_account_id)
+            .order_by(MonitoringHost.name)
+            .all()
+        )
 
     def get_monitoring_host_by_name(self, name: str) -> MonitoringHost | None:
         """Find a monitoring host by exact name match (case-insensitive)."""

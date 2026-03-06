@@ -194,13 +194,13 @@ oidc:
 
 ### Task 8: Add cloud_account_id to MonitoringHost
 
-- [ ] write tests for MonitoringHost with cloud_account_id FK
-- [ ] add `cloud_account_id` nullable FK to `MonitoringHost` model
-- [ ] update `upsert_monitoring_host()` to accept `cloud_account_id` parameter
-- [ ] add `get_monitoring_hosts_by_account(cloud_account_id)` repository method
-- [ ] write Alembic migration or update `init_db()` for new column
-- [ ] write tests for repository methods with cloud_account_id
-- [ ] run tests — must pass before next task
+- [x] write tests for MonitoringHost with cloud_account_id FK
+- [x] add `cloud_account_id` nullable FK to `MonitoringHost` model
+- [x] update `upsert_monitoring_host()` to accept `cloud_account_id` parameter
+- [x] add `get_monitoring_hosts_by_account(cloud_account_id)` repository method
+- [x] write Alembic migration or update `init_db()` for new column
+- [x] write tests for repository methods with cloud_account_id
+- [x] run tests — must pass before next task
 
 ### Task 9: Monitoring check per VM
 

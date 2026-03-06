@@ -462,6 +462,91 @@ class TestMonitoringHostOperations:
         assert h1.status == "offline"
         assert h2.status == "active"  # not affected (different source)
 
+    def test_upsert_monitoring_host_with_cloud_account_id(self, repo):
+        tenant = repo.create_tenant("Monitoring Tenant")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Mon")
+        host, created = repo.upsert_monitoring_host(
+            source="zabbix",
+            external_id="zbx-acc-1",
+            name="monitored-vm",
+            status="active",
+            ip_addresses=["10.0.0.1"],
+            cloud_account_id=account.id,
+        )
+        assert created is True
+        assert host.cloud_account_id == account.id
+
+    def test_upsert_monitoring_host_update_cloud_account_id(self, repo):
+        tenant = repo.create_tenant("Mon Update Tenant")
+        acc1 = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC2")
+
+        host, _ = repo.upsert_monitoring_host(
+            "zabbix", "zbx-upd-acc", "host1", "active",
+            cloud_account_id=acc1.id,
+        )
+        assert host.cloud_account_id == acc1.id
+
+        host, created = repo.upsert_monitoring_host(
+            "zabbix", "zbx-upd-acc", "host1-updated", "active",
+            cloud_account_id=acc2.id,
+        )
+        assert created is False
+        assert host.cloud_account_id == acc2.id
+
+    def test_upsert_monitoring_host_without_cloud_account_id(self, repo):
+        host, created = repo.upsert_monitoring_host(
+            "zabbix", "zbx-no-acc", "no-acc-host", "active",
+        )
+        assert created is True
+        assert host.cloud_account_id is None
+
+    def test_get_monitoring_hosts_by_account(self, repo):
+        tenant = repo.create_tenant("By Account Tenant")
+        acc1 = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC2")
+
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-a1", "host-a1", "active", cloud_account_id=acc1.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-a2", "host-a2", "active", cloud_account_id=acc1.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-b1", "host-b1", "active", cloud_account_id=acc2.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-none", "host-none", "active",
+        )
+
+        acc1_hosts = repo.get_monitoring_hosts_by_account(acc1.id)
+        assert len(acc1_hosts) == 2
+        names = [h.name for h in acc1_hosts]
+        assert "host-a1" in names
+        assert "host-a2" in names
+
+        acc2_hosts = repo.get_monitoring_hosts_by_account(acc2.id)
+        assert len(acc2_hosts) == 1
+        assert acc2_hosts[0].name == "host-b1"
+
+    def test_get_monitoring_hosts_by_account_empty(self, repo):
+        tenant = repo.create_tenant("Empty Mon Tenant")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Empty")
+        assert repo.get_monitoring_hosts_by_account(account.id) == []
+
+    def test_get_monitoring_hosts_by_account_ordered(self, repo):
+        tenant = repo.create_tenant("Ordered Mon Tenant")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Ord")
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-z", "z-host", "active", cloud_account_id=account.id,
+        )
+        repo.upsert_monitoring_host(
+            "zabbix", "zbx-a", "a-host", "active", cloud_account_id=account.id,
+        )
+        hosts = repo.get_monitoring_hosts_by_account(account.id)
+        names = [h.name for h in hosts]
+        assert names == ["a-host", "z-host"]
+
 
 # --- SyncRun operations ---
 

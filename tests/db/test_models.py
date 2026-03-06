@@ -418,6 +418,50 @@ class TestMonitoringHostModel:
         assert "repr-host" in r
         assert "zabbix" in r
 
+    def test_monitoring_host_cloud_account_id_nullable(self, session):
+        host = MonitoringHost(
+            source="zabbix",
+            external_id="zbx-no-account",
+            name="no-account-host",
+        )
+        session.add(host)
+        session.commit()
+        assert host.cloud_account_id is None
+
+    def test_monitoring_host_with_cloud_account(self, session):
+        tenant = Tenant(name="Monitoring Tenant")
+        session.add(tenant)
+        session.flush()
+        account = CloudAccount(
+            tenant_id=tenant.id,
+            provider_type="yandex_cloud",
+            name="YC Monitoring",
+        )
+        session.add(account)
+        session.flush()
+
+        host = MonitoringHost(
+            source="zabbix",
+            external_id="zbx-with-account",
+            name="account-host",
+            cloud_account_id=account.id,
+        )
+        session.add(host)
+        session.commit()
+        assert host.cloud_account_id == account.id
+        assert host.cloud_account.name == "YC Monitoring"
+
+    def test_monitoring_host_invalid_cloud_account_fk(self, session):
+        host = MonitoringHost(
+            source="zabbix",
+            external_id="zbx-bad-fk",
+            name="bad-fk-host",
+            cloud_account_id=99999,
+        )
+        session.add(host)
+        with pytest.raises(IntegrityError):
+            session.commit()
+
 
 # --- SyncRun model tests ---
 
