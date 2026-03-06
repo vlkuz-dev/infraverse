@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from infraverse.config import Config
 from infraverse.db.repository import Repository
 from infraverse.sync.config_sync import sync_config_to_db
 from infraverse.sync.ingest import DataIngestor
@@ -111,6 +112,10 @@ class SchedulerService:
 
             results = ingestor.ingest_all(providers, zabbix_client)
 
+            netbox_stats = self._run_netbox_sync()
+            if netbox_stats is not None:
+                results["netbox_sync"] = netbox_stats
+
             self._last_result = results
             self._last_run_time = datetime.now(timezone.utc)
             logger.info("Scheduled ingestion completed: %s", results)
@@ -216,3 +221,27 @@ class SchedulerService:
         except Exception as exc:
             logger.error("Failed to build Zabbix client: %s", exc)
             return None
+
+    def _run_netbox_sync(self) -> dict | None:
+        """Run NetBox sync if env-var Config is available.
+
+        Only runs when self._config is a real Config instance (which guarantees
+        netbox_url, netbox_token, and yc_token are set).
+
+        Returns:
+            Stats dict from SyncEngine.run(), or None if skipped/failed.
+        """
+        if not isinstance(self._config, Config):
+            return None
+
+        try:
+            from infraverse.sync.engine import SyncEngine
+
+            logger.info("Starting NetBox sync after ingestion")
+            engine = SyncEngine(self._config)
+            stats = engine.run()
+            logger.info("NetBox sync completed: %s", stats)
+            return stats
+        except Exception as exc:
+            logger.error("NetBox sync failed: %s", exc)
+            return {"error": str(exc)}
