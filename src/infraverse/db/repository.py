@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from infraverse.db.models import (
@@ -242,6 +243,14 @@ class Repository:
 
     def get_all_monitoring_hosts(self) -> list[MonitoringHost]:
         return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()
+
+    def get_monitoring_host_by_name(self, name: str) -> MonitoringHost | None:
+        """Find a monitoring host by exact name match (case-insensitive)."""
+        return (
+            self.session.query(MonitoringHost)
+            .filter(func.lower(MonitoringHost.name) == name.lower())
+            .first()
+        )
 
     def mark_monitoring_hosts_stale(
         self, source: str, seen_before: datetime

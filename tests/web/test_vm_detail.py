@@ -239,6 +239,45 @@ def test_vm_detail_no_external_links_when_not_configured():
     assert "External Links" not in resp.text
 
 
+def test_vm_detail_shows_zabbix_link_when_monitoring_host_exists():
+    """VM detail shows Zabbix link when a matching monitoring host is found."""
+    from infraverse.config import Config
+
+    config = Config(
+        yc_token="t",
+        netbox_url="https://netbox.example.com",
+        netbox_token="t",
+        zabbix_url="https://zabbix.example.com",
+        zabbix_host_url="{zabbix_url}/hosts.php?form=update&hostid={host_id}",
+    )
+    app = create_app("sqlite:///:memory:", config=config)
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t = repo.create_tenant("Test")
+        a = repo.create_cloud_account(t.id, "yandex_cloud", "YC")
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=a.id,
+            external_id="vm-zbx-001",
+            name="monitored-vm",
+            status="active",
+        )
+        repo.upsert_monitoring_host(
+            source="zabbix",
+            external_id="12345",
+            name="monitored-vm",
+            status="active",
+        )
+        session.commit()
+        vm_id = vm.id
+
+    client = TestClient(app)
+    resp = client.get(f"/vms/{vm_id}")
+    assert resp.status_code == 200
+    assert "Zabbix" in resp.text
+    # Jinja2 auto-escapes & to &amp; in HTML
+    assert "zabbix.example.com/hosts.php?form=update&amp;hostid=12345" in resp.text
+
+
 # --- Comparison table link tests ---
 
 

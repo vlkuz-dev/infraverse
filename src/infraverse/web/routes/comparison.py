@@ -38,8 +38,12 @@ def _host_to_zabbixhost(host: MonitoringHost) -> ZabbixHost:
     )
 
 
-def _run_comparison(repo: Repository) -> tuple[ComparisonResult, dict[str, int]]:
+def _run_comparison(repo: Repository, app_config=None) -> tuple[ComparisonResult, dict[str, int]]:
     """Load data from DB and run comparison engine.
+
+    Args:
+        repo: Database repository.
+        app_config: Application config (used to check if monitoring is configured).
 
     Returns:
         Tuple of (ComparisonResult, vm_name_to_id mapping).
@@ -47,6 +51,7 @@ def _run_comparison(repo: Repository) -> tuple[ComparisonResult, dict[str, int]]
     db_vms = repo.get_all_vms()
     db_hosts = repo.get_all_monitoring_hosts()
 
+    # NOTE: keeps first ID per name; duplicate names across accounts link to the same detail page
     vm_name_to_id: dict[str, int] = {}
     for vm in db_vms:
         if vm.name not in vm_name_to_id:
@@ -54,7 +59,11 @@ def _run_comparison(repo: Repository) -> tuple[ComparisonResult, dict[str, int]]
     cloud_vms = [_vm_to_vminfo(vm) for vm in db_vms]
     zabbix_hosts = [_host_to_zabbixhost(h) for h in db_hosts]
 
-    monitoring_configured = len(zabbix_hosts) > 0
+    # Use config to determine if monitoring is configured; fall back to data presence
+    if app_config is not None and hasattr(app_config, "zabbix_configured"):
+        monitoring_configured = app_config.zabbix_configured
+    else:
+        monitoring_configured = len(zabbix_hosts) > 0
 
     engine = ComparisonEngine()
     result = engine.compare(
@@ -104,10 +113,11 @@ def _get_providers(repo: Repository) -> list[str]:
 
 def _build_context(request: Request, provider, status, search):
     """Shared logic for comparison and comparison_table routes."""
+    app_config = getattr(request.app.state, "config", None)
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
-        result, vm_name_to_id = _run_comparison(repo)
+        result, vm_name_to_id = _run_comparison(repo, app_config=app_config)
         providers = _get_providers(repo)
 
     result = _filter_results(result, provider=provider, status=status, search=search)

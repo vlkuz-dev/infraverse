@@ -94,11 +94,31 @@ class TestBuildVmLinks:
             netbox_url="https://netbox.example.com",
             netbox_vm_url="{netbox_url}/virtualization/virtual-machines/{vm_id}/",
         )
-        vm_data = {"external_id": "vm-001"}
+        vm_data = {"external_id": "vm-001", "name": "web-server-1"}
         links = build_vm_links(vm_data, None, config)
         assert len(links) == 1
         assert links[0]["label"] == "NetBox"
         assert links[0]["url"] == "https://netbox.example.com/virtualization/virtual-machines/vm-001/"
+
+    def test_netbox_link_with_vm_name_search(self):
+        config = _make_config(
+            netbox_url="https://netbox.example.com",
+            netbox_vm_url="{netbox_url}/virtualization/virtual-machines/?q={vm_name}",
+        )
+        vm_data = {"external_id": "vm-001", "name": "web-server-1"}
+        links = build_vm_links(vm_data, None, config)
+        assert len(links) == 1
+        assert links[0]["url"] == "https://netbox.example.com/virtualization/virtual-machines/?q=web-server-1"
+
+    def test_netbox_link_with_vm_name_url_encoding(self):
+        config = _make_config(
+            netbox_url="https://netbox.example.com",
+            netbox_vm_url="{netbox_url}/virtualization/virtual-machines/?q={vm_name}",
+        )
+        vm_data = {"external_id": "vm-001", "name": "web server&test"}
+        links = build_vm_links(vm_data, None, config)
+        assert len(links) == 1
+        assert links[0]["url"] == "https://netbox.example.com/virtualization/virtual-machines/?q=web%20server%26test"
 
     def test_zabbix_link(self):
         config = _make_config(

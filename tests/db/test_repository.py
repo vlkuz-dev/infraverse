@@ -423,6 +423,28 @@ class TestMonitoringHostOperations:
         session.refresh(host)
         assert host.status == "offline"
 
+    def test_get_monitoring_host_by_name(self, repo):
+        repo.upsert_monitoring_host("zabbix", "zbx-1", "web-server-1", "active")
+        host = repo.get_monitoring_host_by_name("web-server-1")
+        assert host is not None
+        assert host.name == "web-server-1"
+
+    def test_get_monitoring_host_by_name_case_insensitive(self, repo):
+        repo.upsert_monitoring_host("zabbix", "zbx-1", "Web-Server-1", "active")
+        host = repo.get_monitoring_host_by_name("web-server-1")
+        assert host is not None
+        assert host.name == "Web-Server-1"
+
+    def test_get_monitoring_host_by_name_exact_match_ignores_sql_wildcards(self, repo):
+        repo.upsert_monitoring_host("zabbix", "zbx-1", "web_server%1", "active")
+        assert repo.get_monitoring_host_by_name("web_server%1") is not None
+        # _ and % must NOT act as SQL LIKE wildcards
+        assert repo.get_monitoring_host_by_name("webXserverX1") is None
+        assert repo.get_monitoring_host_by_name("web_server1") is None
+
+    def test_get_monitoring_host_by_name_not_found(self, repo):
+        assert repo.get_monitoring_host_by_name("nonexistent") is None
+
     def test_mark_monitoring_hosts_stale_scoped_to_source(self, repo):
         old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
         h1, _ = repo.upsert_monitoring_host("zabbix", "zbx-1", "zbx-host", "active")

@@ -161,6 +161,37 @@ def test_comparison_shows_discrepancies(seeded_client):
     assert "in monitoring but not in cloud" in html
 
 
+def test_comparison_monitoring_discrepancies_with_config():
+    """When Zabbix is configured via config but has zero hosts, monitoring discrepancies still show."""
+    from infraverse.config import Config
+
+    config = Config(
+        yc_token="t",
+        netbox_url="https://netbox.example.com",
+        netbox_token="t",
+        zabbix_url="https://zabbix.example.com",
+        zabbix_user="admin",
+        zabbix_password="secret",
+    )
+    app = create_app("sqlite:///:memory:", config=config)
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        tenant = repo.create_tenant("Test")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC")
+        repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="vm-001",
+            name="unmonitored-vm",
+            status="active",
+        )
+        session.commit()
+
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "in cloud but not in monitoring" in html
+
+
 def test_comparison_no_netbox_discrepancy_when_not_configured(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text

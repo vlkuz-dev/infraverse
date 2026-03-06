@@ -25,6 +25,8 @@ def vm_detail(request: Request, vm_id: int):
             )
 
         # Extract data while session is open (relationships loaded)
+        # Look up matching monitoring host for external link building
+        monitoring_host = repo.get_monitoring_host_by_name(vm.name)
         vm_data = {
             "id": vm.id,
             "name": vm.name,
@@ -38,6 +40,7 @@ def vm_detail(request: Request, vm_id: int):
             "created_at": vm.created_at,
             "updated_at": vm.updated_at,
             "last_seen_at": vm.last_seen_at,
+            "monitoring_host_id": monitoring_host.external_id if monitoring_host else "",
         }
         account_data = None
         tenant_data = None

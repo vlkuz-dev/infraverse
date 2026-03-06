@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 
 def render_url(template: str | None, data: dict) -> str | None:
     """Render a URL template with data.
@@ -60,10 +62,11 @@ def build_vm_links(vm_data: dict, account_data: dict | None, config) -> list[dic
     if zabbix_url:
         links.append({"label": "Zabbix", "url": zabbix_url, "icon": "activity"})
 
-    # NetBox VM
+    # NetBox VM - vm_name allows search-based URLs (e.g. ?q={vm_name})
     netbox_data = {
         "netbox_url": (config.netbox_url or "").rstrip("/"),
         "vm_id": vm_data.get("external_id", ""),
+        "vm_name": quote(vm_data.get("name", ""), safe=""),
     }
     netbox_url = render_url(config.netbox_vm_url, netbox_data)
     if netbox_url:
