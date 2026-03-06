@@ -246,13 +246,13 @@ oidc:
 
 ### Task 13: OIDC login and callback routes
 
-- [ ] write tests for `/auth/login` redirect: builds correct authorize URL
-- [ ] create `src/infraverse/web/routes/auth.py` with `login`, `callback`, `logout` routes
-- [ ] implement OIDC authorization code flow using authlib
-- [ ] on callback: validate ID token, extract user info (name, email, roles)
-- [ ] write tests for callback: valid token with role, valid token without required role (403), invalid token
-- [ ] write tests for logout: clears session, redirects to login
-- [ ] run tests — must pass before next task
+- [x] write tests for `/auth/login` redirect: builds correct authorize URL
+- [x] create `src/infraverse/web/routes/auth.py` with `login`, `callback`, `logout` routes
+- [x] implement OIDC authorization code flow using authlib
+- [x] on callback: validate ID token, extract user info (name, email, roles)
+- [x] write tests for callback: valid token with role, valid token without required role (403), invalid token
+- [x] write tests for logout: clears session, redirects to login
+- [x] run tests — must pass before next task
 
 ### Task 14: Auth middleware and session management
 

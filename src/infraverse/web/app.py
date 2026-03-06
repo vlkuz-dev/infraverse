@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 from infraverse import __version__
 from infraverse.db.engine import create_engine, create_session_factory, init_db
@@ -55,6 +56,16 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.engine = engine
     app.state.config = config
+    app.state.infraverse_config = infraverse_config
+
+    # Set up OIDC auth if configured
+    if infraverse_config is not None and infraverse_config.oidc_configured:
+        from infraverse.web.routes.auth import router as auth_router, setup_oauth
+
+        oidc = infraverse_config.oidc
+        app.state.oauth = setup_oauth(oidc)
+        app.include_router(auth_router)
+        app.add_middleware(SessionMiddleware, secret_key=oidc.client_secret)
 
     if config is not None and config.sync_interval_minutes > 0:
         from infraverse.scheduler import SchedulerService
