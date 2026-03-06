@@ -320,3 +320,141 @@ def test_comparison_search_preserves_value(seeded_client):
     resp = seeded_client.get("/comparison?search=test-query")
     html = resp.text
     assert 'value="test-query"' in html
+
+
+# --- Quick-filter button tests ---
+
+
+def test_quick_filter_buttons_present(seeded_client):
+    resp = seeded_client.get("/comparison")
+    html = resp.text
+    assert 'id="quick-filter-buttons"' in html
+    assert ">All</button>" in html
+    assert ">With Issues</button>" in html
+    assert ">In Sync</button>" in html
+
+
+def test_quick_filter_all_button_active_by_default(seeded_client):
+    resp = seeded_client.get("/comparison")
+    html = resp.text
+    # "All" button should have btn-primary (active) when no status filter
+    assert 'data-status=""\n' in html or ('data-status=""' in html and "btn-primary" in html)
+    import re
+    match = re.search(
+        r'class="btn btn-primary"[^>]*data-status=""',
+        html,
+    )
+    assert match is not None, "All button should be active (btn-primary) by default"
+
+
+def test_quick_filter_with_issues_button_active(seeded_client):
+    resp = seeded_client.get("/comparison?status=with_issues")
+    html = resp.text
+    import re
+    match = re.search(
+        r'class="btn btn-primary"[^>]*data-status="with_issues"',
+        html,
+    )
+    assert match is not None, "With Issues button should be active when status=with_issues"
+    # All button should be outline
+    match_all = re.search(
+        r'class="btn btn-outline-primary"[^>]*data-status=""',
+        html,
+    )
+    assert match_all is not None, "All button should be outline when status=with_issues"
+
+
+def test_quick_filter_in_sync_button_active(seeded_client):
+    resp = seeded_client.get("/comparison?status=in_sync")
+    html = resp.text
+    import re
+    match = re.search(
+        r'class="btn btn-primary"[^>]*data-status="in_sync"',
+        html,
+    )
+    assert match is not None, "In Sync button should be active when status=in_sync"
+
+
+def test_quick_filter_buttons_have_htmx_attrs(seeded_client):
+    resp = seeded_client.get("/comparison")
+    html = resp.text
+    assert 'hx-get="/comparison/table"' in html
+    assert 'hx-target="#comparison-table"' in html
+    assert 'hx-include="[name=provider],[name=search]"' in html
+
+
+# --- Table partial route with status filter tests ---
+
+
+def test_table_partial_filter_status_in_sync(seeded_client):
+    resp = seeded_client.get("/comparison/table?status=in_sync")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "web-server-1" in html
+    assert "db-server-1" in html
+    assert "app-server-1" not in html
+    assert "legacy-host-1" not in html
+
+
+def test_table_partial_filter_status_with_issues(seeded_client):
+    resp = seeded_client.get("/comparison/table?status=with_issues")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "app-server-1" in html
+    assert "legacy-host-1" in html
+    assert "web-server-1" not in html
+    assert "db-server-1" not in html
+
+
+def test_table_partial_filter_status_all(seeded_client):
+    resp = seeded_client.get("/comparison/table?status=")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "web-server-1" in html
+    assert "db-server-1" in html
+    assert "app-server-1" in html
+    assert "legacy-host-1" in html
+
+
+# --- Combined filter tests on table partial ---
+
+
+def test_table_partial_combined_status_and_provider(seeded_client):
+    resp = seeded_client.get("/comparison/table?status=with_issues&provider=vcloud")
+    assert resp.status_code == 200
+    html = resp.text
+    # app-server-1 is vcloud with discrepancy (cloud but not monitoring)
+    assert "app-server-1" in html
+    # legacy-host-1 has no cloud provider, filtered by provider=vcloud
+    assert "legacy-host-1" not in html
+    assert "web-server-1" not in html
+
+
+def test_table_partial_combined_status_and_search(seeded_client):
+    resp = seeded_client.get("/comparison/table?status=in_sync&search=web")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "web-server-1" in html
+    assert "db-server-1" not in html
+
+
+def test_table_partial_combined_all_three_filters(seeded_client):
+    resp = seeded_client.get(
+        "/comparison/table?status=in_sync&provider=yandex_cloud&search=db"
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "db-server-1" in html
+    assert "web-server-1" not in html
+    assert "app-server-1" not in html
+    assert "legacy-host-1" not in html
+
+
+def test_table_partial_combined_filters_no_results(seeded_client):
+    resp = seeded_client.get(
+        "/comparison/table?status=with_issues&provider=yandex_cloud&search=nonexistent"
+    )
+    assert resp.status_code == 200
+    html = resp.text
+    assert "No VMs found" in html
+    assert "0 results" in html

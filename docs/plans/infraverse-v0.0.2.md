@@ -89,13 +89,13 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 4: Quick-filter buttons on comparison page
-- [ ] Update `comparison.html` to add button group above the filter card: "All", "With Issues", "In Sync"
-- [ ] Buttons use HTMX `hx-get="/comparison/table?status=..."` to refresh the table
-- [ ] Active button gets visual highlight (Tabler `btn-primary` vs `btn-outline-primary`)
-- [ ] Wire buttons to work together with existing provider and search filters (include current filter params in HTMX request)
-- [ ] Write tests for comparison table route with each filter value
-- [ ] Write tests for combined filters (status + provider + search)
-- [ ] Run tests - must pass before next task
+- [x] Update `comparison.html` to add button group above the filter card: "All", "With Issues", "In Sync"
+- [x] Buttons use HTMX `hx-get="/comparison/table?status=..."` to refresh the table
+- [x] Active button gets visual highlight (Tabler `btn-primary` vs `btn-outline-primary`)
+- [x] Wire buttons to work together with existing provider and search filters (include current filter params in HTMX request)
+- [x] Write tests for comparison table route with each filter value
+- [x] Write tests for combined filters (status + provider + search)
+- [x] Run tests - must pass before next task
 
 ### Task 5: VM detail page
 - [ ] Add `get_vm_by_id(vm_id)` method to `db/repository.py`
