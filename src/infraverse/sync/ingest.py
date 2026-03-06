@@ -120,6 +120,8 @@ class DataIngestor:
         sync_run = self.repo.create_sync_run(source="zabbix")
         self.session.commit()
 
+        sync_start = datetime.now(timezone.utc)
+
         try:
             hosts: list[ZabbixHost] = zabbix_client.fetch_hosts()
         except Exception as exc:
@@ -147,6 +149,9 @@ class DataIngestor:
                 items_created += 1
             else:
                 items_updated += 1
+
+        # Mark monitoring hosts not seen in this sync as stale
+        self.repo.mark_monitoring_hosts_stale("zabbix", sync_start)
 
         self.repo.update_sync_run(
             sync_run.id,

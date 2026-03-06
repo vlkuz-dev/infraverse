@@ -54,6 +54,7 @@ def _run_comparison(repo: Repository) -> ComparisonResult:
         netbox_vms=[],
         zabbix_hosts=zabbix_hosts,
         monitoring_configured=monitoring_configured,
+        netbox_configured=False,
     )
 
 

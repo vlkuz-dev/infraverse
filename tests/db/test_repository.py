@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from infraverse.db.models import Base, CloudAccount, VM
+from infraverse.db.models import Base, CloudAccount, MonitoringHost, VM
 from infraverse.db.repository import Repository
 
 
@@ -387,6 +387,58 @@ class TestMonitoringHostOperations:
 
     def test_get_all_monitoring_hosts_empty(self, repo):
         assert repo.get_all_monitoring_hosts() == []
+
+    def test_mark_monitoring_hosts_stale(self, repo):
+        old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        host_old, _ = repo.upsert_monitoring_host("zabbix", "zbx-old", "old-host", "active")
+        host_old.last_seen_at = old_time
+        repo.session.flush()
+
+        # Create a fresh host
+        repo.upsert_monitoring_host("zabbix", "zbx-new", "new-host", "active")
+
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=5)
+        count = repo.mark_monitoring_hosts_stale("zabbix", cutoff)
+        assert count == 1
+
+        hosts = repo.get_all_monitoring_hosts()
+        statuses = {h.name: h.status for h in hosts}
+        assert statuses["old-host"] == "offline"
+        assert statuses["new-host"] == "active"
+
+    def test_mark_monitoring_hosts_stale_null_last_seen(self, repo, session):
+        host = MonitoringHost(
+            source="zabbix",
+            external_id="zbx-null",
+            name="null-host",
+            status="active",
+            last_seen_at=None,
+        )
+        session.add(host)
+        session.flush()
+
+        cutoff = datetime.now(timezone.utc)
+        count = repo.mark_monitoring_hosts_stale("zabbix", cutoff)
+        assert count == 1
+        session.refresh(host)
+        assert host.status == "offline"
+
+    def test_mark_monitoring_hosts_stale_scoped_to_source(self, repo):
+        old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        h1, _ = repo.upsert_monitoring_host("zabbix", "zbx-1", "zbx-host", "active")
+        h2, _ = repo.upsert_monitoring_host("prometheus", "prom-1", "prom-host", "active")
+        h1.last_seen_at = old_time
+        h2.last_seen_at = old_time
+        repo.session.flush()
+
+        cutoff = datetime.now(timezone.utc)
+        count = repo.mark_monitoring_hosts_stale("zabbix", cutoff)
+        assert count == 1
+
+        repo.session.refresh(h1)
+        repo.session.refresh(h2)
+        assert h1.status == "offline"
+        assert h2.status == "active"  # not affected (different source)
 
 
 # --- SyncRun operations ---

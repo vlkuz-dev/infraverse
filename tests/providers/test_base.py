@@ -14,7 +14,7 @@ class TestVMInfo:
             ip_addresses=["10.0.0.1", "192.168.1.1"],
             vcpus=4,
             memory_mb=8192,
-            provider="yandex-cloud",
+            provider="yandex_cloud",
             cloud_name="my-cloud",
             folder_name="my-folder",
         )
@@ -24,7 +24,7 @@ class TestVMInfo:
         assert vm.ip_addresses == ["10.0.0.1", "192.168.1.1"]
         assert vm.vcpus == 4
         assert vm.memory_mb == 8192
-        assert vm.provider == "yandex-cloud"
+        assert vm.provider == "yandex_cloud"
         assert vm.cloud_name == "my-cloud"
         assert vm.folder_name == "my-folder"
 

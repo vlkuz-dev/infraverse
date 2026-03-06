@@ -553,7 +553,7 @@ def _make_fetch_all_data_mock(vms, clouds=None, folders=None):
 
 class TestGetProviderName:
     def test_returns_yandex_cloud(self, mock_client):
-        assert mock_client.get_provider_name() == "yandex-cloud"
+        assert mock_client.get_provider_name() == "yandex_cloud"
 
 
 class TestFetchVms:
@@ -590,7 +590,7 @@ class TestFetchVms:
         assert vm.ip_addresses == ["10.0.0.5", "84.201.1.1"]
         assert vm.vcpus == 2
         assert vm.memory_mb == 4096
-        assert vm.provider == "yandex-cloud"
+        assert vm.provider == "yandex_cloud"
         assert vm.cloud_name == "my-cloud"
         assert vm.folder_name == "prod"
 

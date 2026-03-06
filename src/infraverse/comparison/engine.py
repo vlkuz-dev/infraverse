@@ -18,6 +18,7 @@ class ComparisonEngine:
         netbox_vms: list[VMInfo],
         zabbix_hosts: list[ZabbixHost],
         monitoring_configured: bool = True,
+        netbox_configured: bool = True,
     ) -> ComparisonResult:
         """Compare VMs across all three systems.
 
@@ -31,6 +32,8 @@ class ComparisonEngine:
             zabbix_hosts: Hosts from Zabbix.
             monitoring_configured: Whether monitoring (Zabbix) is configured.
                 When False, monitoring-related discrepancies are not reported.
+            netbox_configured: Whether NetBox data is available.
+                When False, NetBox-related discrepancies are not reported.
 
         Returns:
             ComparisonResult with per-VM state and summary.
@@ -184,7 +187,9 @@ class ComparisonEngine:
         # Phase 3: Compute discrepancies
         for state in states:
             state.discrepancies = self._compute_discrepancies(
-                state, monitoring_configured=monitoring_configured,
+                state,
+                monitoring_configured=monitoring_configured,
+                netbox_configured=netbox_configured,
             )
 
         # Build summary
@@ -196,21 +201,23 @@ class ComparisonEngine:
         self,
         state: VMState,
         monitoring_configured: bool = True,
+        netbox_configured: bool = True,
     ) -> list[str]:
         """Determine discrepancy labels for a VM state."""
         discs: list[str] = []
-        if state.in_cloud and not state.in_netbox:
-            discs.append("in cloud but not in NetBox")
-        if state.in_netbox and not state.in_cloud:
-            discs.append("in NetBox but not in cloud")
+        if netbox_configured:
+            if state.in_cloud and not state.in_netbox:
+                discs.append("in cloud but not in NetBox")
+            if state.in_netbox and not state.in_cloud:
+                discs.append("in NetBox but not in cloud")
         if monitoring_configured:
             if state.in_cloud and not state.in_monitoring:
                 discs.append("in cloud but not in monitoring")
             if state.in_monitoring and not state.in_cloud:
                 discs.append("in monitoring but not in cloud")
-            if state.in_netbox and not state.in_monitoring:
+            if netbox_configured and state.in_netbox and not state.in_monitoring:
                 discs.append("in NetBox but not in monitoring")
-            if state.in_monitoring and not state.in_netbox:
+            if netbox_configured and state.in_monitoring and not state.in_netbox:
                 discs.append("in monitoring but not in NetBox")
         return discs
 

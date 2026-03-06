@@ -179,7 +179,7 @@ class VCloudDirectorClient:
 
     def get_provider_name(self) -> str:
         """Return provider identifier."""
-        return "vcloud-director"
+        return "vcloud"
 
     def fetch_vms(self) -> List[VMInfo]:
         """Fetch all VMs and return them as normalized VMInfo objects."""

@@ -5,7 +5,7 @@ from infraverse.providers.zabbix import ZabbixHost
 from infraverse.comparison.engine import ComparisonEngine
 
 
-def _vm(name, ips=None, provider="yandex-cloud"):
+def _vm(name, ips=None, provider="yandex_cloud"):
     return VMInfo(
         name=name,
         id=f"id-{name}",
@@ -349,16 +349,61 @@ class TestEmptyData:
         assert state.discrepancies == []
         assert result.summary["in_sync"] == 1
 
+    def test_cloud_only_netbox_not_configured(self):
+        """When NetBox is not configured, skip NetBox discrepancies."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        zabbix = [_zhost("vm-1")]
+        result = engine.compare(cloud, [], zabbix, netbox_configured=False)
+
+        state = result.all_vms[0]
+        assert state.in_cloud is True
+        assert state.in_netbox is False
+        assert state.in_monitoring is True
+        assert state.discrepancies == []
+        assert result.summary["in_sync"] == 1
+
+    def test_cloud_only_netbox_not_configured_monitoring_not_configured(self):
+        """When both NetBox and monitoring are not configured, no discrepancies."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        result = engine.compare(
+            cloud, [], [], netbox_configured=False, monitoring_configured=False,
+        )
+
+        state = result.all_vms[0]
+        assert state.discrepancies == []
+        assert result.summary["in_sync"] == 1
+
+    def test_netbox_configured_reports_discrepancies(self):
+        """When NetBox is configured, report NetBox discrepancies normally."""
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-1")]
+        result = engine.compare(cloud, [], [], netbox_configured=True)
+
+        state = result.all_vms[0]
+        assert "in cloud but not in NetBox" in state.discrepancies
+
+    def test_monitoring_only_netbox_not_configured(self):
+        """Monitoring-only host with NetBox not configured: only cloud discrepancy."""
+        engine = ComparisonEngine()
+        zabbix = [_zhost("rogue")]
+        result = engine.compare([], [], zabbix, netbox_configured=False)
+
+        state = result.all_vms[0]
+        assert "in monitoring but not in cloud" in state.discrepancies
+        assert "in monitoring but not in NetBox" not in state.discrepancies
+
 
 class TestCloudProvider:
     """Cloud provider field is correctly set."""
 
     def test_cloud_provider_from_cloud_vm(self):
         engine = ComparisonEngine()
-        cloud = [_vm("vm-1", provider="vcloud-director")]
+        cloud = [_vm("vm-1", provider="vcloud")]
         result = engine.compare(cloud, [], [])
 
-        assert result.all_vms[0].cloud_provider == "vcloud-director"
+        assert result.all_vms[0].cloud_provider == "vcloud"
 
     def test_no_cloud_provider_when_not_in_cloud(self):
         engine = ComparisonEngine()
@@ -370,14 +415,14 @@ class TestCloudProvider:
     def test_multiple_providers(self):
         engine = ComparisonEngine()
         cloud = [
-            _vm("yc-vm", provider="yandex-cloud"),
-            _vm("vcd-vm", provider="vcloud-director"),
+            _vm("yc-vm", provider="yandex_cloud"),
+            _vm("vcd-vm", provider="vcloud"),
         ]
         result = engine.compare(cloud, [], [])
 
         by_name = {s.vm_name.lower(): s for s in result.all_vms}
-        assert by_name["yc-vm"].cloud_provider == "yandex-cloud"
-        assert by_name["vcd-vm"].cloud_provider == "vcloud-director"
+        assert by_name["yc-vm"].cloud_provider == "yandex_cloud"
+        assert by_name["vcd-vm"].cloud_provider == "vcloud"
 
 
 class TestDuplicateNameAcrossProviders:
@@ -386,20 +431,20 @@ class TestDuplicateNameAcrossProviders:
     def test_same_name_different_providers_creates_separate_entries(self):
         engine = ComparisonEngine()
         cloud = [
-            _vm("web-01", ["10.0.0.1"], provider="yandex-cloud"),
-            _vm("web-01", ["10.0.0.2"], provider="vcloud-director"),
+            _vm("web-01", ["10.0.0.1"], provider="yandex_cloud"),
+            _vm("web-01", ["10.0.0.2"], provider="vcloud"),
         ]
         result = engine.compare(cloud, [], [])
 
         assert len(result.all_vms) == 2
         providers = {s.cloud_provider for s in result.all_vms}
-        assert providers == {"yandex-cloud", "vcloud-director"}
+        assert providers == {"yandex_cloud", "vcloud"}
 
     def test_same_name_different_providers_with_netbox(self):
         engine = ComparisonEngine()
         cloud = [
-            _vm("web-01", provider="yandex-cloud"),
-            _vm("web-01", provider="vcloud-director"),
+            _vm("web-01", provider="yandex_cloud"),
+            _vm("web-01", provider="vcloud"),
         ]
         netbox = [_vm("web-01")]
         result = engine.compare(cloud, netbox, [])

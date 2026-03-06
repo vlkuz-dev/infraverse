@@ -161,11 +161,11 @@ def test_comparison_shows_discrepancies(seeded_client):
     assert "in monitoring but not in cloud" in html
 
 
-def test_comparison_shows_netbox_discrepancy(seeded_client):
+def test_comparison_no_netbox_discrepancy_when_not_configured(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text
-    # All VMs have "not in NetBox" since netbox_vms is empty
-    assert "not in NetBox" in html
+    # NetBox is not configured, so NetBox discrepancies are suppressed
+    assert "not in NetBox" not in html
 
 
 def test_comparison_summary_counts(seeded_client):
@@ -207,21 +207,26 @@ def test_filter_by_provider_vcloud(seeded_client):
     assert "web-server-1" not in html
 
 
-def test_filter_by_status_in_sync_empty_when_no_netbox(seeded_client):
+def test_filter_by_status_in_sync_shows_matched_vms(seeded_client):
     resp = seeded_client.get("/comparison?status=in_sync")
     html = resp.text
-    # With no NetBox data, all VMs have discrepancies, so in_sync returns none
-    assert "No VMs found" in html
+    # web-server-1 and db-server-1 are in both cloud and monitoring, no discrepancies
+    assert "web-server-1" in html
+    assert "db-server-1" in html
+    # app-server-1 and legacy-host-1 have discrepancies
+    assert "app-server-1" not in html
+    assert "legacy-host-1" not in html
 
 
 def test_filter_by_status_with_issues(seeded_client):
     resp = seeded_client.get("/comparison?status=with_issues")
     html = resp.text
-    # All VMs have issues because NetBox data is empty
+    # Only VMs with cloud/monitoring discrepancies
     assert "app-server-1" in html
     assert "legacy-host-1" in html
-    assert "web-server-1" in html
-    assert "db-server-1" in html
+    # web-server-1 and db-server-1 are in sync (cloud + monitoring)
+    assert "web-server-1" not in html
+    assert "db-server-1" not in html
 
 
 def test_filter_by_search(seeded_client):
@@ -241,8 +246,9 @@ def test_filter_by_search_case_insensitive(seeded_client):
 def test_filter_combined_provider_and_status(seeded_client):
     resp = seeded_client.get("/comparison?provider=yandex_cloud&status=with_issues")
     html = resp.text
-    assert "web-server-1" in html
-    assert "db-server-1" in html
+    # web-server-1 and db-server-1 are in sync (cloud + monitoring), no NetBox issues
+    assert "web-server-1" not in html
+    assert "db-server-1" not in html
     assert "app-server-1" not in html
 
 

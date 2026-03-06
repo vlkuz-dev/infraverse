@@ -414,7 +414,7 @@ class YandexCloudClient:
 
     def get_provider_name(self) -> str:
         """Return provider identifier."""
-        return "yandex-cloud"
+        return "yandex_cloud"
 
     def fetch_vms(self) -> List[VMInfo]:
         """Fetch all VMs and return them as normalized VMInfo objects."""

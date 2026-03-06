@@ -226,7 +226,7 @@ class TestRecordToVminfo:
         assert vm.ip_addresses == ["10.0.0.5"]
         assert vm.vcpus == 4
         assert vm.memory_mb == 8192
-        assert vm.provider == "vcloud-director"
+        assert vm.provider == "vcloud"
         assert vm.cloud_name == "MyOrg"
         assert vm.folder_name == "Production"
 
@@ -309,7 +309,7 @@ class TestFetchVms:
 
 class TestGetProviderName:
     def test_returns_vcloud_director(self, mock_client):
-        assert mock_client.get_provider_name() == "vcloud-director"
+        assert mock_client.get_provider_name() == "vcloud"
 
 
 class TestCloudProviderProtocol:

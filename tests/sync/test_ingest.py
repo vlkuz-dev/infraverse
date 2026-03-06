@@ -53,7 +53,7 @@ def tenant_and_account(repo, session):
 def _make_mock_provider(vms: list[VMInfo] | None = None, error: Exception | None = None):
     """Create a mock CloudProvider."""
     provider = MagicMock()
-    provider.get_provider_name.return_value = "yandex-cloud"
+    provider.get_provider_name.return_value = "yandex_cloud"
     if error:
         provider.fetch_vms.side_effect = error
     else:
@@ -277,6 +277,25 @@ class TestIngestMonitoringHosts:
         assert run.items_found == 1
         assert run.items_created == 0
         assert run.items_updated == 1
+
+    def test_ingest_marks_stale_monitoring_hosts(self, ingestor, repo, session):
+        # Pre-create a host that won't be in the new fetch
+        repo.upsert_monitoring_host(
+            source="zabbix", external_id="old-host", name="stale-host", status="active",
+        )
+        session.commit()
+
+        # Ingest with different host (old one missing)
+        hosts = [ZabbixHost(name="fresh-host", hostid="fresh-1", status="active")]
+        zabbix = _make_mock_zabbix(hosts=hosts)
+
+        ingestor.ingest_monitoring_hosts(zabbix)
+
+        stale = session.query(MonitoringHost).filter_by(external_id="old-host").one()
+        assert stale.status == "offline"
+
+        fresh = session.query(MonitoringHost).filter_by(external_id="fresh-1").one()
+        assert fresh.status == "active"
 
     def test_ingest_zabbix_error_records_failed_run(self, ingestor, session):
         zabbix = _make_mock_zabbix(error=RuntimeError("Zabbix unreachable"))

@@ -209,6 +209,27 @@ class Repository:
     def get_all_monitoring_hosts(self) -> list[MonitoringHost]:
         return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()
 
+    def mark_monitoring_hosts_stale(
+        self, source: str, seen_before: datetime
+    ) -> int:
+        """Mark monitoring hosts as offline if they weren't seen in the latest sync.
+
+        Returns the number of hosts marked stale.
+        """
+        stale_hosts = (
+            self.session.query(MonitoringHost)
+            .filter(
+                MonitoringHost.source == source,
+                (MonitoringHost.last_seen_at < seen_before)
+                | (MonitoringHost.last_seen_at.is_(None)),
+            )
+            .all()
+        )
+        for host in stale_hosts:
+            host.status = "offline"
+        self.session.flush()
+        return len(stale_hosts)
+
     # --- SyncRun operations ---
 
     def create_sync_run(
