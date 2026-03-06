@@ -140,11 +140,11 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 8: Sidebar navigation update
-- [ ] Update `base.html` sidebar to add new navigation items: "Cloud Accounts" section with link to accounts list
-- [ ] Add `GET /accounts` route listing all cloud accounts grouped by tenant
-- [ ] Create `src/infraverse/web/templates/accounts_list.html` - table of all accounts with links to detail pages
-- [ ] Write tests for GET /accounts route
-- [ ] Run tests - must pass before next task
+- [x] Update `base.html` sidebar to add new navigation items: "Cloud Accounts" section with link to accounts list
+- [x] Add `GET /accounts` route listing all cloud accounts grouped by tenant
+- [x] Create `src/infraverse/web/templates/accounts_list.html` - table of all accounts with links to detail pages
+- [x] Write tests for GET /accounts route
+- [x] Run tests - must pass before next task
 
 ### Task 9: Repository migration
 - [ ] Rename local directory reference in documentation (README.md)

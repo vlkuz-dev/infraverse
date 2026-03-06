@@ -78,6 +78,17 @@ class Repository:
     def list_cloud_accounts(self) -> list[CloudAccount]:
         return self.session.query(CloudAccount).order_by(CloudAccount.name).all()
 
+    def list_cloud_accounts_with_tenants(self) -> list[CloudAccount]:
+        """List all cloud accounts with tenant and vms eagerly loaded."""
+        from sqlalchemy.orm import subqueryload
+
+        return (
+            self.session.query(CloudAccount)
+            .options(joinedload(CloudAccount.tenant), subqueryload(CloudAccount.vms))
+            .order_by(CloudAccount.name)
+            .all()
+        )
+
     def list_cloud_accounts_by_tenant(self, tenant_id: int) -> list[CloudAccount]:
         return (
             self.session.query(CloudAccount)
