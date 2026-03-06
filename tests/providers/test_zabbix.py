@@ -526,3 +526,215 @@ class TestJsonRpcRequest:
         calls = mock_client.client.post.call_args_list
         assert calls[0].kwargs["json"]["id"] == 1
         assert calls[1].kwargs["json"]["id"] == 2
+
+
+# --- Per-VM host search tests ---
+
+
+class TestSearchHostByName:
+    def test_found(self, mock_client):
+        """Search by name returns ZabbixHost when host exists."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [
+                {
+                    "hostid": "10001",
+                    "host": "web-server",
+                    "name": "Web Server",
+                    "status": "0",
+                    "interfaces": [{"ip": "10.0.0.1"}],
+                },
+            ],
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        result = mock_client.search_host_by_name("Web Server")
+
+        assert result is not None
+        assert isinstance(result, ZabbixHost)
+        assert result.name == "Web Server"
+        assert result.hostid == "10001"
+        assert result.status == "active"
+        assert result.ip_addresses == ["10.0.0.1"]
+        # Verify correct API call with filter
+        payload = mock_client.client.post.call_args.kwargs["json"]
+        assert payload["method"] == "host.get"
+        assert payload["params"]["filter"] == {"name": "Web Server"}
+
+    def test_not_found(self, mock_client):
+        """Search by name returns None when host doesn't exist."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [],
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        result = mock_client.search_host_by_name("nonexistent-host")
+
+        assert result is None
+
+    def test_api_error(self, mock_client):
+        """Search by name raises RuntimeError on API error."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32600,
+                "message": "Invalid request.",
+                "data": "No permissions to referred object.",
+            },
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        with pytest.raises(RuntimeError, match="No permissions"):
+            mock_client.search_host_by_name("Web Server")
+
+    def test_auto_authenticates_when_no_token(self):
+        """search_host_by_name triggers authenticate when no auth token."""
+        with patch.object(ZabbixClient, "__init__", lambda self, *a, **kw: None):
+            client = ZabbixClient.__new__(ZabbixClient)
+            client.auth_token = None
+            client.api_url = "http://zabbix.test/api_jsonrpc.php"
+            client.client = MagicMock(spec=httpx.Client)
+            client._request_id = 0
+
+            with patch.object(client, "authenticate") as mock_auth:
+                def set_token():
+                    client.auth_token = "test-token"
+                mock_auth.side_effect = set_token
+
+                resp = _mock_response({
+                    "jsonrpc": "2.0",
+                    "result": [],
+                    "id": 1,
+                })
+                client.client.post.return_value = resp
+
+                result = client.search_host_by_name("test-host")
+                mock_auth.assert_called_once()
+                assert result is None
+
+    def test_multiple_matches_returns_first(self, mock_client):
+        """If multiple hosts match (unlikely with exact filter), return first."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [
+                {
+                    "hostid": "10001",
+                    "host": "web-server",
+                    "name": "Web Server",
+                    "status": "0",
+                    "interfaces": [{"ip": "10.0.0.1"}],
+                },
+                {
+                    "hostid": "10002",
+                    "host": "web-server-2",
+                    "name": "Web Server",
+                    "status": "0",
+                    "interfaces": [{"ip": "10.0.0.2"}],
+                },
+            ],
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        result = mock_client.search_host_by_name("Web Server")
+
+        assert result is not None
+        assert result.hostid == "10001"
+
+
+class TestSearchHostByIp:
+    def test_found(self, mock_client):
+        """Search by IP returns ZabbixHost when host exists."""
+        iface_resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [{"hostid": "10001"}],
+            "id": 1,
+        })
+        host_resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [
+                {
+                    "hostid": "10001",
+                    "host": "web-server",
+                    "name": "Web Server",
+                    "status": "0",
+                    "interfaces": [{"ip": "10.0.0.1"}],
+                },
+            ],
+            "id": 2,
+        })
+        mock_client.client.post.side_effect = [iface_resp, host_resp]
+
+        result = mock_client.search_host_by_ip("10.0.0.1")
+
+        assert result is not None
+        assert isinstance(result, ZabbixHost)
+        assert result.name == "Web Server"
+        assert result.ip_addresses == ["10.0.0.1"]
+        # Verify first call is hostinterface.get
+        calls = mock_client.client.post.call_args_list
+        first_payload = calls[0].kwargs["json"]
+        assert first_payload["method"] == "hostinterface.get"
+        assert first_payload["params"]["filter"] == {"ip": "10.0.0.1"}
+        # Verify second call is host.get with hostid
+        second_payload = calls[1].kwargs["json"]
+        assert second_payload["method"] == "host.get"
+        assert second_payload["params"]["hostids"] == ["10001"]
+
+    def test_not_found(self, mock_client):
+        """Search by IP returns None when no host matches."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [],
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        result = mock_client.search_host_by_ip("192.168.1.99")
+
+        assert result is None
+
+    def test_api_error(self, mock_client):
+        """Search by IP raises RuntimeError on API error."""
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32600,
+                "message": "Invalid request.",
+                "data": "No permissions.",
+            },
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        with pytest.raises(RuntimeError, match="No permissions"):
+            mock_client.search_host_by_ip("10.0.0.1")
+
+    def test_auto_authenticates_when_no_token(self):
+        """search_host_by_ip triggers authenticate when no auth token."""
+        with patch.object(ZabbixClient, "__init__", lambda self, *a, **kw: None):
+            client = ZabbixClient.__new__(ZabbixClient)
+            client.auth_token = None
+            client.api_url = "http://zabbix.test/api_jsonrpc.php"
+            client.client = MagicMock(spec=httpx.Client)
+            client._request_id = 0
+
+            with patch.object(client, "authenticate") as mock_auth:
+                def set_token():
+                    client.auth_token = "test-token"
+                mock_auth.side_effect = set_token
+
+                resp = _mock_response({
+                    "jsonrpc": "2.0",
+                    "result": [],
+                    "id": 1,
+                })
+                client.client.post.return_value = resp
+
+                result = client.search_host_by_ip("10.0.0.1")
+                mock_auth.assert_called_once()
+                assert result is None

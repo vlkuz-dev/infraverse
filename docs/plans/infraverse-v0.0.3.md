@@ -185,12 +185,12 @@ oidc:
 
 ### Task 7: ZabbixClient — add per-VM host search
 
-- [ ] write tests for `search_host_by_name(name)`: found, not found, API error
-- [ ] add `search_host_by_name(name: str) -> ZabbixHost | None` to ZabbixClient
-- [ ] use Zabbix `host.get` with `filter: {"name": name}` for exact match
-- [ ] write tests for `search_host_by_ip(ip)`: found, not found
-- [ ] add `search_host_by_ip(ip: str) -> ZabbixHost | None` as fallback lookup
-- [ ] run tests — must pass before next task
+- [x] write tests for `search_host_by_name(name)`: found, not found, API error
+- [x] add `search_host_by_name(name: str) -> ZabbixHost | None` to ZabbixClient
+- [x] use Zabbix `host.get` with `filter: {"name": name}` for exact match
+- [x] write tests for `search_host_by_ip(ip)`: found, not found
+- [x] add `search_host_by_ip(ip: str) -> ZabbixHost | None` as fallback lookup
+- [x] run tests — must pass before next task
 
 ### Task 8: Add cloud_account_id to MonitoringHost
 

@@ -202,6 +202,77 @@ class ZabbixClient:
 
         return all_hosts
 
+    def search_host_by_name(self, name: str) -> ZabbixHost | None:
+        """Search for a Zabbix host by exact name match.
+
+        Args:
+            name: Exact host name to search for.
+
+        Returns:
+            ZabbixHost if found, None otherwise.
+
+        Raises:
+            RuntimeError: On API error.
+        """
+        if not self.auth_token:
+            self.authenticate()
+
+        result = self._jsonrpc_request(
+            "host.get",
+            {
+                "output": ["hostid", "host", "name", "status"],
+                "selectInterfaces": ["ip"],
+                "filter": {"name": name},
+            },
+        )
+        if not result:
+            return None
+        return self._host_to_zabbix_host(result[0])
+
+    def search_host_by_ip(self, ip: str) -> ZabbixHost | None:
+        """Search for a Zabbix host by IP address.
+
+        Uses hostinterface.get to find interfaces matching the IP,
+        then fetches the associated host.
+
+        Args:
+            ip: IP address to search for.
+
+        Returns:
+            ZabbixHost if found, None otherwise.
+
+        Raises:
+            RuntimeError: On API error.
+        """
+        if not self.auth_token:
+            self.authenticate()
+
+        iface_result = self._jsonrpc_request(
+            "hostinterface.get",
+            {
+                "output": ["hostid"],
+                "filter": {"ip": ip},
+            },
+        )
+        if not iface_result:
+            return None
+
+        host_id = iface_result[0].get("hostid")
+        if not host_id:
+            return None
+
+        host_result = self._jsonrpc_request(
+            "host.get",
+            {
+                "output": ["hostid", "host", "name", "status"],
+                "selectInterfaces": ["ip"],
+                "hostids": [host_id],
+            },
+        )
+        if not host_result:
+            return None
+        return self._host_to_zabbix_host(host_result[0])
+
     def fetch_hosts(self) -> list[ZabbixHost]:
         """Fetch all monitored hosts from Zabbix.
 
