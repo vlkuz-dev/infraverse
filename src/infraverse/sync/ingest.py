@@ -241,13 +241,16 @@ class DataIngestor:
                 vm for vm in self.repo.get_all_vms()
                 if vm.cloud_account_id in active_account_ids
             ]
-            try:
-                count = self.ingest_monitoring_hosts(all_vms, zabbix_client)
-                results["zabbix"] = "success"
-                logger.info("Zabbix: checked %d VMs, %d monitored", len(all_vms), count)
-            except Exception as exc:
-                self.session.rollback()
-                results["zabbix"] = f"error: {exc}"
-                logger.error("Zabbix: monitoring check failed: %s", exc)
+            if not all_vms:
+                logger.info("No VMs to check for monitoring, skipping")
+            else:
+                try:
+                    count = self.ingest_monitoring_hosts(all_vms, zabbix_client)
+                    results["zabbix"] = "success"
+                    logger.info("Zabbix: checked %d VMs, %d monitored", len(all_vms), count)
+                except Exception as exc:
+                    self.session.rollback()
+                    results["zabbix"] = f"error: {exc}"
+                    logger.error("Zabbix: monitoring check failed: %s", exc)
 
         return results

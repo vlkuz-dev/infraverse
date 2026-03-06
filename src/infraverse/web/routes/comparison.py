@@ -31,6 +31,7 @@ def _run_comparison(
     repo: Repository,
     app_config=None,
     tenant_id: int | None = None,
+    infraverse_config=None,
 ) -> tuple[ComparisonResult, dict[str, int]]:
     """Load data from DB and run comparison engine.
 
@@ -64,7 +65,9 @@ def _run_comparison(
     monitored_vm_names = {h.name for h in db_hosts}
 
     # Use config to determine if monitoring is configured; fall back to global data presence
-    if app_config is not None and hasattr(app_config, "zabbix_configured"):
+    if infraverse_config is not None and infraverse_config.monitoring_configured:
+        monitoring_configured = True
+    elif app_config is not None and hasattr(app_config, "zabbix_configured"):
         monitoring_configured = app_config.zabbix_configured
     else:
         # Check global monitoring hosts (not tenant-scoped) to detect if monitoring is set up
@@ -120,6 +123,7 @@ def _get_providers(repo: Repository) -> list[str]:
 def _build_context(request: Request, provider, status, search, tenant_id=None):
     """Shared logic for comparison and comparison_table routes."""
     app_config = getattr(request.app.state, "config", None)
+    infraverse_config = getattr(request.app.state, "infraverse_config", None)
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
@@ -134,6 +138,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
 
         result, vm_name_to_id = _run_comparison(
             repo, app_config=app_config, tenant_id=selected_tenant_id,
+            infraverse_config=infraverse_config,
         )
         providers = _get_providers(repo)
 

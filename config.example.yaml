@@ -66,3 +66,27 @@ tenants:
 #   client_id: "infraverse"
 #   client_secret: "${OIDC_CLIENT_SECRET}"
 #   required_role: "infraverse-admin"
+
+# =============================================================================
+# Settings managed via environment variables (not in this config file)
+# =============================================================================
+# The following settings are NOT managed by this YAML config file.
+# Set them as environment variables alongside the config file.
+#
+# Database:
+#   DATABASE_URL=sqlite:///infraverse.db        # Database connection URL
+#
+# NetBox sync (optional — omit if not syncing to NetBox):
+#   NETBOX_URL=https://netbox.example.com/api   # NetBox API URL
+#   NETBOX_TOKEN=your_token                     # NetBox API token
+#
+# Scheduler:
+#   SYNC_INTERVAL_MINUTES=30                    # Background ingestion interval (0=disabled)
+#
+# External link URL templates (optional — for detail page links):
+#   YC_CONSOLE_URL=https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}
+#   ZABBIX_HOST_URL={zabbix_url}/hosts.php?form=update&hostid={host_id}
+#   NETBOX_VM_URL={netbox_url}/virtualization/virtual-machines/{vm_id}/
+#
+# Logging:
+#   LOG_LEVEL=INFO                              # DEBUG, INFO, WARNING, ERROR

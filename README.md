@@ -139,6 +139,16 @@ infraverse serve --config config.yaml
 
 Credentials use `${VAR_NAME}` syntax and are expanded from environment variables at load time. Missing env vars cause an immediate error.
 
+**Note:** The YAML config file manages tenants, cloud accounts, monitoring, and OIDC. The following settings remain environment variables even in YAML config mode:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Database connection (default: `sqlite:///infraverse.db`) |
+| `NETBOX_URL`, `NETBOX_TOKEN` | Required only if syncing to NetBox |
+| `SYNC_INTERVAL_MINUTES` | Background ingestion interval (default: `0` = disabled) |
+| `LOG_LEVEL` | Logging level (default: `INFO`) |
+| `YC_CONSOLE_URL`, `ZABBIX_HOST_URL`, `NETBOX_VM_URL` | External link URL templates for detail pages |
+
 ### Environment Variables (legacy single-tenant)
 
 For single-tenant setups without a YAML config file:

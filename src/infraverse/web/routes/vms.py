@@ -105,11 +105,17 @@ def vm_detail(request: Request, vm_id: int):
         account_data = None
         tenant_data = None
         if vm.cloud_account:
+            SENSITIVE_KEYS = {"token", "password", "client_secret", "secret"}
+            raw_config = vm.cloud_account.config or {}
+            safe_config = {
+                k: "***" if k in SENSITIVE_KEYS else v
+                for k, v in raw_config.items()
+            }
             account_data = {
                 "id": vm.cloud_account.id,
                 "name": vm.cloud_account.name,
                 "provider_type": vm.cloud_account.provider_type,
-                "config": vm.cloud_account.config or {},
+                "config": safe_config,
             }
             if vm.cloud_account.tenant:
                 tenant_data = {
