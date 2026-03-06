@@ -22,11 +22,20 @@ STATIC_DIR = WEB_DIR / "static"
 _templates: Jinja2Templates | None = None
 
 
+def _get_user_from_request(request):
+    """Extract user dict from session, or None if unavailable."""
+    try:
+        return request.session.get("user")
+    except Exception:
+        return None
+
+
 def get_templates() -> Jinja2Templates:
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
         _templates.env.globals["version"] = __version__
+        _templates.env.globals["get_user"] = _get_user_from_request
     return _templates
 
 

@@ -266,11 +266,11 @@ oidc:
 
 ### Task 15: Optional auth mode + UI user display
 
-- [ ] write tests for app behavior when OIDC is not configured: all routes accessible, no login redirect
-- [ ] make auth middleware conditional: if no `oidc` section in config, middleware is not applied
-- [ ] add user info display in web UI header template (name/email when authenticated)
-- [ ] write tests for UI with and without authentication
-- [ ] run tests — must pass before next task
+- [x] write tests for app behavior when OIDC is not configured: all routes accessible, no login redirect
+- [x] make auth middleware conditional: if no `oidc` section in config, middleware is not applied
+- [x] add user info display in web UI header template (name/email when authenticated)
+- [x] write tests for UI with and without authentication
+- [x] run tests — must pass before next task
 
 ---
 

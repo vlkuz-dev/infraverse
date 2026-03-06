@@ -86,6 +86,26 @@
             </div>
         </aside>
         <div class="page-wrapper">
+            <header class="navbar navbar-expand-md d-none d-lg-flex d-print-none">
+                <div class="container-xl">
+                    <div class="navbar-nav flex-row order-md-last">
+                        {% set user = get_user(request) if get_user is defined and request is defined else none %}
+                        {% if user %}
+                        <div class="nav-item dropdown">
+                            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+                                <div class="d-none d-xl-block ps-2">
+                                    <div>{{ user.name }}</div>
+                                    <div class="mt-1 small text-secondary">{{ user.email }}</div>
+                                </div>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" href="/auth/logout">Logout</a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </header>
             <div class="page-header d-print-none">
                 <div class="container-xl">
                     <div class="page-pretitle">{% block pretitle %}{% endblock %}</div>
