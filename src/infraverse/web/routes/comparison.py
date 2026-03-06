@@ -47,7 +47,10 @@ def _run_comparison(repo: Repository) -> tuple[ComparisonResult, dict[str, int]]
     db_vms = repo.get_all_vms()
     db_hosts = repo.get_all_monitoring_hosts()
 
-    vm_name_to_id = {vm.name: vm.id for vm in db_vms}
+    vm_name_to_id: dict[str, int] = {}
+    for vm in db_vms:
+        if vm.name not in vm_name_to_id:
+            vm_name_to_id[vm.name] = vm.id
     cloud_vms = [_vm_to_vminfo(vm) for vm in db_vms]
     zabbix_hosts = [_host_to_zabbixhost(h) for h in db_hosts]
 

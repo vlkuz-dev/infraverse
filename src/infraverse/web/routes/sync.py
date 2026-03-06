@@ -33,8 +33,17 @@ def _status_html(status: dict) -> str:
         parts.append(f'<span class="text-secondary me-3">Last run: {escape(str(status["last_run_time"]))}</span>')
 
     if status["last_result"]:
-        if "error" in status["last_result"]:
-            parts.append(f'<span class="text-danger">Error: {escape(str(status["last_result"]["error"]))}</span>')
+        result = status["last_result"]
+        has_errors = "error" in result or any(
+            isinstance(v, str) and v.startswith("error") for v in result.values()
+        )
+        if has_errors:
+            if "error" in result:
+                error_msg = escape(str(result["error"]))
+            else:
+                failed = [k for k, v in result.items() if isinstance(v, str) and v.startswith("error")]
+                error_msg = escape(", ".join(failed) + " failed")
+            parts.append(f'<span class="text-danger">Error: {error_msg}</span>')
         else:
             parts.append('<span class="text-success">Last sync successful</span>')
 

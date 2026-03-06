@@ -170,7 +170,10 @@ def cmd_serve(args: argparse.Namespace) -> None:
     database_url = _get_database_url()
 
     config = None
-    sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
+    try:
+        sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
+    except ValueError:
+        sync_interval = 0
     if sync_interval > 0:
         from infraverse.config import Config
 
@@ -181,6 +184,19 @@ def cmd_serve(args: argparse.Namespace) -> None:
                 "Scheduler disabled - config incomplete: %s", exc,
             )
             config = None
+
+    # Always provide external link config for detail pages, even without scheduler
+    if config is None:
+        import types
+
+        config = types.SimpleNamespace(
+            yc_console_url=os.getenv("YC_CONSOLE_URL") or None,
+            zabbix_host_url=os.getenv("ZABBIX_HOST_URL") or None,
+            netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
+            zabbix_url=os.getenv("ZABBIX_URL") or None,
+            netbox_url=os.getenv("NETBOX_URL") or None,
+            sync_interval_minutes=0,
+        )
 
     from infraverse.web.app import create_app
 

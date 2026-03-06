@@ -25,6 +25,7 @@ def get_templates() -> Jinja2Templates:
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+        _templates.env.globals["version"] = __version__
     return _templates
 
 
