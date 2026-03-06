@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -47,6 +48,7 @@ class CloudAccount(Base):
     provider_type = Column(String, nullable=False)
     name = Column(String, nullable=False)
     config = Column(JSON, default=dict)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 

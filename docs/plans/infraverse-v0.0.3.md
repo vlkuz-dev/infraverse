@@ -132,14 +132,14 @@ oidc:
 
 ### Task 2: Config-to-DB sync on startup
 
-- [ ] write tests for `sync_config_to_db()`: new tenants created, existing tenants updated, accounts created/updated
-- [ ] write tests for idempotency: running sync twice produces same result
-- [ ] create `src/infraverse/sync/config_sync.py` with `sync_config_to_db(config: InfraverseConfig, session) -> SyncReport`
-- [ ] create/update Tenant records from config tenant names
-- [ ] create/update CloudAccount records from config, storing credentials in `config` JSON field
-- [ ] handle removed tenants/accounts: mark accounts as inactive (add `is_active` field), don't delete data
-- [ ] write tests for removed account handling: account in DB but not in config gets deactivated
-- [ ] run tests — must pass before next task
+- [x] write tests for `sync_config_to_db()`: new tenants created, existing tenants updated, accounts created/updated
+- [x] write tests for idempotency: running sync twice produces same result
+- [x] create `src/infraverse/sync/config_sync.py` with `sync_config_to_db(config: InfraverseConfig, session) -> SyncReport`
+- [x] create/update Tenant records from config tenant names
+- [x] create/update CloudAccount records from config, storing credentials in `config` JSON field
+- [x] handle removed tenants/accounts: mark accounts as inactive (add `is_active` field), don't delete data
+- [x] write tests for removed account handling: account in DB but not in config gets deactivated
+- [x] run tests — must pass before next task
 
 ### Task 3: Update CLI to use config file
 

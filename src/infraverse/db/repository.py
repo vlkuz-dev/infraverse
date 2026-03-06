@@ -98,6 +98,18 @@ class Repository:
             .all()
         )
 
+    def get_cloud_account_by_name(
+        self, tenant_id: int, name: str
+    ) -> CloudAccount | None:
+        return (
+            self.session.query(CloudAccount)
+            .filter(
+                CloudAccount.tenant_id == tenant_id,
+                CloudAccount.name == name,
+            )
+            .first()
+        )
+
     # --- VM operations ---
 
     def upsert_vm(
