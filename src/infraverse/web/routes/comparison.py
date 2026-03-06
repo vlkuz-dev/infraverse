@@ -113,7 +113,7 @@ def _build_context(request: Request, provider, status, search):
 
 
 @router.get("/comparison")
-async def comparison(
+def comparison(
     request: Request,
     provider: str | None = None,
     status: str | None = None,
@@ -131,7 +131,7 @@ async def comparison(
 
 
 @router.get("/comparison/table")
-async def comparison_table(
+def comparison_table(
     request: Request,
     provider: str | None = None,
     status: str | None = None,

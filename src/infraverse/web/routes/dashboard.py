@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.get("/")
-async def dashboard(request: Request):
+def dashboard(request: Request):
     templates = get_templates()
     session_factory = request.app.state.session_factory
     with session_factory() as session:

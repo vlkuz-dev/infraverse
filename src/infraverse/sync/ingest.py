@@ -67,34 +67,48 @@ class DataIngestor:
         items_created = 0
         items_updated = 0
 
-        for vm_info in vms:
-            _, created = self.repo.upsert_vm(
-                cloud_account_id=cloud_account.id,
-                external_id=vm_info.id,
-                name=vm_info.name,
-                status=vm_info.status,
-                ip_addresses=vm_info.ip_addresses,
-                vcpus=vm_info.vcpus,
-                memory_mb=vm_info.memory_mb,
-                cloud_name=vm_info.cloud_name,
-                folder_name=vm_info.folder_name,
+        try:
+            for vm_info in vms:
+                _, created = self.repo.upsert_vm(
+                    cloud_account_id=cloud_account.id,
+                    external_id=vm_info.id,
+                    name=vm_info.name,
+                    status=vm_info.status,
+                    ip_addresses=vm_info.ip_addresses,
+                    vcpus=vm_info.vcpus,
+                    memory_mb=vm_info.memory_mb,
+                    cloud_name=vm_info.cloud_name,
+                    folder_name=vm_info.folder_name,
+                )
+                if created:
+                    items_created += 1
+                else:
+                    items_updated += 1
+
+            # Mark VMs not seen in this sync as stale
+            self.repo.mark_vms_stale(cloud_account.id, sync_start)
+
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="success",
+                items_found=len(vms),
+                items_created=items_created,
+                items_updated=items_updated,
             )
-            if created:
-                items_created += 1
-            else:
-                items_updated += 1
-
-        # Mark VMs not seen in this sync as stale
-        self.repo.mark_vms_stale(cloud_account.id, sync_start)
-
-        self.repo.update_sync_run(
-            sync_run.id,
-            status="success",
-            items_found=len(vms),
-            items_created=items_created,
-            items_updated=items_updated,
-        )
-        self.session.commit()
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="failed",
+                error_message=str(exc),
+            )
+            self.session.commit()
+            logger.error(
+                "Failed to upsert VMs for account %s: %s",
+                cloud_account.name, exc,
+            )
+            raise
 
         logger.info(
             "Ingested %d VMs for account %s (created=%d, updated=%d)",
@@ -137,30 +151,41 @@ class DataIngestor:
         items_created = 0
         items_updated = 0
 
-        for host in hosts:
-            _, created = self.repo.upsert_monitoring_host(
-                source="zabbix",
-                external_id=host.hostid,
-                name=host.name,
-                status=host.status,
-                ip_addresses=host.ip_addresses,
+        try:
+            for host in hosts:
+                _, created = self.repo.upsert_monitoring_host(
+                    source="zabbix",
+                    external_id=host.hostid,
+                    name=host.name,
+                    status=host.status,
+                    ip_addresses=host.ip_addresses,
+                )
+                if created:
+                    items_created += 1
+                else:
+                    items_updated += 1
+
+            # Mark monitoring hosts not seen in this sync as stale
+            self.repo.mark_monitoring_hosts_stale("zabbix", sync_start)
+
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="success",
+                items_found=len(hosts),
+                items_created=items_created,
+                items_updated=items_updated,
             )
-            if created:
-                items_created += 1
-            else:
-                items_updated += 1
-
-        # Mark monitoring hosts not seen in this sync as stale
-        self.repo.mark_monitoring_hosts_stale("zabbix", sync_start)
-
-        self.repo.update_sync_run(
-            sync_run.id,
-            status="success",
-            items_found=len(hosts),
-            items_created=items_created,
-            items_updated=items_updated,
-        )
-        self.session.commit()
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="failed",
+                error_message=str(exc),
+            )
+            self.session.commit()
+            logger.error("Failed to upsert Zabbix hosts: %s", exc)
+            raise
 
         logger.info("Ingested %d monitoring hosts from Zabbix", len(hosts))
         return len(hosts)
@@ -191,6 +216,7 @@ class DataIngestor:
                 results[account.name] = "success"
                 logger.info("Account %s: ingested %d VMs", account.name, count)
             except Exception as exc:
+                self.session.rollback()
                 results[account.name] = f"error: {exc}"
                 logger.error("Account %s: ingestion failed: %s", account.name, exc)
 
@@ -200,6 +226,7 @@ class DataIngestor:
                 results["zabbix"] = "success"
                 logger.info("Zabbix: ingested %d hosts", count)
             except Exception as exc:
+                self.session.rollback()
                 results["zabbix"] = f"error: {exc}"
                 logger.error("Zabbix: ingestion failed: %s", exc)
 
