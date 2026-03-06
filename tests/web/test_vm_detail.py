@@ -266,6 +266,7 @@ def test_vm_detail_shows_zabbix_link_when_monitoring_host_exists():
             external_id="12345",
             name="monitored-vm",
             status="active",
+            cloud_account_id=a.id,
         )
         session.commit()
         vm_id = vm.id

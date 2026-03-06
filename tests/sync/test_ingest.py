@@ -371,6 +371,7 @@ class TestIngestMonitoringHosts:
         _, account = tenant_and_account
         repo.upsert_monitoring_host(
             source="zabbix", external_id="old-host", name="stale-host", status="active",
+            cloud_account_id=account.id,
         )
         session.commit()
 

@@ -295,30 +295,54 @@ class Repository:
             .all()
         )
 
-    def get_monitoring_host_by_name(self, name: str) -> MonitoringHost | None:
-        """Find a monitoring host by exact name match (case-insensitive)."""
-        return (
+    def get_monitoring_host_by_name(
+        self, name: str, cloud_account_id: int | None = None,
+    ) -> MonitoringHost | None:
+        """Find a monitoring host by exact name match (case-insensitive).
+
+        Args:
+            name: Host name to search for.
+            cloud_account_id: If provided, restrict search to this account
+                to avoid cross-tenant/account collisions.
+        """
+        query = (
             self.session.query(MonitoringHost)
             .filter(func.lower(MonitoringHost.name) == name.lower())
-            .first()
         )
+        if cloud_account_id is not None:
+            query = query.filter(
+                MonitoringHost.cloud_account_id == cloud_account_id
+            )
+        return query.first()
 
     def mark_monitoring_hosts_stale(
-        self, source: str, seen_before: datetime
+        self, source: str, seen_before: datetime,
+        cloud_account_ids: set[int] | None = None,
     ) -> int:
         """Mark monitoring hosts as offline if they weren't seen in the latest sync.
 
+        Args:
+            source: Monitoring source (e.g. "zabbix").
+            seen_before: Cutoff time; hosts not seen since this time are stale.
+            cloud_account_ids: If provided, only mark hosts belonging to these
+                accounts. Hosts with NULL cloud_account_id are excluded when
+                this filter is active.
+
         Returns the number of hosts marked stale.
         """
-        stale_hosts = (
+        query = (
             self.session.query(MonitoringHost)
             .filter(
                 MonitoringHost.source == source,
                 (MonitoringHost.last_seen_at < seen_before)
                 | (MonitoringHost.last_seen_at.is_(None)),
             )
-            .all()
         )
+        if cloud_account_ids is not None:
+            query = query.filter(
+                MonitoringHost.cloud_account_id.in_(cloud_account_ids)
+            )
+        stale_hosts = query.all()
         for host in stale_hosts:
             host.status = "offline"
         self.session.flush()
@@ -372,10 +396,22 @@ class Repository:
             .all()
         )
 
-    def get_latest_sync_runs(self, limit: int = 10) -> list[SyncRun]:
-        return (
-            self.session.query(SyncRun)
-            .order_by(SyncRun.started_at.desc())
-            .limit(limit)
-            .all()
-        )
+    def get_latest_sync_runs(
+        self, limit: int = 10, tenant_id: int | None = None,
+    ) -> list[SyncRun]:
+        """Get the most recent sync runs.
+
+        Args:
+            limit: Maximum number of runs to return.
+            tenant_id: If provided, only return runs for this tenant's accounts
+                (plus global runs with no account, e.g. zabbix).
+        """
+        query = self.session.query(SyncRun)
+        if tenant_id is not None:
+            query = query.outerjoin(
+                CloudAccount, SyncRun.cloud_account_id == CloudAccount.id
+            ).filter(
+                (CloudAccount.tenant_id == tenant_id)
+                | (SyncRun.cloud_account_id.is_(None))
+            )
+        return query.order_by(SyncRun.started_at.desc()).limit(limit).all()

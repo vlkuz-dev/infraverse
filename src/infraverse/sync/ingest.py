@@ -176,8 +176,13 @@ class DataIngestor:
                 else:
                     items_updated += 1
 
-            # Mark monitoring hosts not seen in this sync as stale
-            self.repo.mark_monitoring_hosts_stale("zabbix", sync_start)
+            # Mark monitoring hosts not seen in this sync as stale,
+            # scoped to only the accounts whose VMs were actually checked
+            checked_account_ids = {vm.cloud_account_id for vm in vms}
+            self.repo.mark_monitoring_hosts_stale(
+                "zabbix", sync_start,
+                cloud_account_ids=checked_account_ids,
+            )
 
             self.repo.update_sync_run(
                 sync_run.id,

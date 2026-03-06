@@ -85,8 +85,11 @@ def vm_detail(request: Request, vm_id: int):
             )
 
         # Extract data while session is open (relationships loaded)
-        # Look up matching monitoring host for external link building
-        monitoring_host = repo.get_monitoring_host_by_name(vm.name)
+        # Look up matching monitoring host for external link building,
+        # scoped to the VM's account to avoid cross-tenant collisions
+        monitoring_host = repo.get_monitoring_host_by_name(
+            vm.name, cloud_account_id=vm.cloud_account_id,
+        )
         vm_data = {
             "id": vm.id,
             "name": vm.name,
