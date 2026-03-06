@@ -18,9 +18,11 @@ def render_url(template: str | None, data: dict) -> str | None:
     # If any unfilled placeholders remain, return None
     if "{" in url:
         return None
-    # If any placeholder resolved to empty string, return None
-    for value in data.values():
-        if value == "":
+    # If any used placeholder resolved to empty string, return None
+    import re
+    used_keys = set(re.findall(r"\{(\w+)\}", template))
+    for key in used_keys:
+        if data.get(key) == "":
             return None
     return url
 
@@ -86,10 +88,9 @@ def build_account_links(account_data: dict, config) -> list[dict]:
     if account_data.get("provider_type") == "yandex_cloud":
         folder_id = account_config.get("folder_id", "")
         if folder_id and config.yc_console_url:
-            # Derive folder-level URL from the VM URL template
-            # by using only the folder part
+            base = config.yc_console_url.split("/folders/")[0] if "/folders/" in config.yc_console_url else config.yc_console_url.rstrip("/")
             folder_url = render_url(
-                "https://console.yandex.cloud/folders/{folder_id}",
+                base + "/folders/{folder_id}",
                 {"folder_id": folder_id},
             )
             if folder_url:

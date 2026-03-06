@@ -170,7 +170,12 @@ class Repository:
         )
 
     def get_all_vms(self) -> list[VM]:
-        return self.session.query(VM).order_by(VM.name).all()
+        return (
+            self.session.query(VM)
+            .options(joinedload(VM.cloud_account))
+            .order_by(VM.name)
+            .all()
+        )
 
     def mark_vms_stale(
         self, cloud_account_id: int, seen_before: datetime

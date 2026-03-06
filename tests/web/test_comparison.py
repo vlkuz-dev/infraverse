@@ -337,8 +337,6 @@ def test_quick_filter_buttons_present(seeded_client):
 def test_quick_filter_all_button_active_by_default(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text
-    # "All" button should have btn-primary (active) when no status filter
-    assert 'data-status=""\n' in html or ('data-status=""' in html and "btn-primary" in html)
     import re
     match = re.search(
         r'class="btn btn-primary"[^>]*data-status=""',

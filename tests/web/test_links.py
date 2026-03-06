@@ -43,6 +43,10 @@ class TestRenderUrl:
         url = render_url("https://example.com/{id}", {"id": "42", "extra": "ignored"})
         assert url == "https://example.com/42"
 
+    def test_extra_data_empty_string_ignored(self):
+        url = render_url("https://example.com/{id}", {"id": "42", "extra": ""})
+        assert url == "https://example.com/42"
+
     def test_no_placeholders(self):
         url = render_url("https://example.com/static", {})
         assert url == "https://example.com/static"

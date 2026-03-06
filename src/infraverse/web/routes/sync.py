@@ -1,5 +1,7 @@
 """Sync trigger and status routes for Infraverse web UI."""
 
+from html import escape
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -25,14 +27,14 @@ def _status_html(status: dict) -> str:
         parts.append('<span class="badge bg-secondary-lt me-2">Scheduler not active</span>')
 
     if status["next_run_time"]:
-        parts.append(f'<span class="text-secondary me-3">Next run: {status["next_run_time"]}</span>')
+        parts.append(f'<span class="text-secondary me-3">Next run: {escape(str(status["next_run_time"]))}</span>')
 
     if status["last_run_time"]:
-        parts.append(f'<span class="text-secondary me-3">Last run: {status["last_run_time"]}</span>')
+        parts.append(f'<span class="text-secondary me-3">Last run: {escape(str(status["last_run_time"]))}</span>')
 
     if status["last_result"]:
         if "error" in status["last_result"]:
-            parts.append(f'<span class="text-danger">Error: {status["last_result"]["error"]}</span>')
+            parts.append(f'<span class="text-danger">Error: {escape(str(status["last_result"]["error"]))}</span>')
         else:
             parts.append('<span class="text-success">Last sync successful</span>')
 

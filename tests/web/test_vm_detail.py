@@ -78,7 +78,8 @@ def test_vm_detail_shows_resources():
     client = TestClient(app)
     resp = client.get(f"/vms/{vm_id}")
     html = resp.text
-    assert "2" in html  # vcpus
+    import re
+    assert re.search(r"vCPUs</div>\s*<div[^>]*>2</div>", html), "vcpus value should be 2"
     assert "4096 MB" in html  # memory
 
 

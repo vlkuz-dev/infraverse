@@ -93,11 +93,28 @@ class Config:
             zabbix_url=os.getenv("ZABBIX_URL") or None,
             zabbix_user=os.getenv("ZABBIX_USER") or None,
             zabbix_password=os.getenv("ZABBIX_PASSWORD") or None,
-            sync_interval_minutes=int(os.getenv("SYNC_INTERVAL_MINUTES", "0")),
+            sync_interval_minutes=cls._parse_sync_interval(),
             yc_console_url=os.getenv("YC_CONSOLE_URL") or None,
             zabbix_host_url=os.getenv("ZABBIX_HOST_URL") or None,
             netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
         )
+
+    @classmethod
+    def _parse_sync_interval(cls) -> int:
+        raw = os.getenv("SYNC_INTERVAL_MINUTES", "0")
+        try:
+            value = int(raw)
+        except ValueError:
+            logging.getLogger(__name__).warning(
+                "Invalid SYNC_INTERVAL_MINUTES=%r, defaulting to 0 (disabled)", raw
+            )
+            return 0
+        if value < 0:
+            logging.getLogger(__name__).warning(
+                "Negative SYNC_INTERVAL_MINUTES=%d, defaulting to 0 (disabled)", value
+            )
+            return 0
+        return value
 
     @property
     def vcd_configured(self) -> bool:

@@ -119,10 +119,12 @@ def test_dashboard_shows_sync_run(seeded_client):
 
 
 def test_dashboard_active_page(seeded_client):
+    import re
     resp = seeded_client.get("/")
     html = resp.text
-    # Sidebar should mark dashboard as active
-    assert 'nav-item active' in html
+    # Sidebar should mark the dashboard nav item specifically as active
+    pattern = r'<li class="nav-item active">\s*<a class="nav-link" href="/">'
+    assert re.search(pattern, html), "Dashboard nav item should be active"
 
 
 def test_dashboard_extends_base_template(seeded_client):

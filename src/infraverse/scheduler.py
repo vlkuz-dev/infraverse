@@ -127,7 +127,7 @@ class SchedulerService:
                         url=self._config.vcd_url,
                         username=self._config.vcd_user,
                         password=self._config.vcd_password,
-                        org=account.config.get("org", self._config.vcd_org or "System"),
+                        org=(account.config or {}).get("org", self._config.vcd_org or "System"),
                     )
             except Exception as exc:
                 logger.error("Failed to build provider for account %s: %s", account.name, exc)

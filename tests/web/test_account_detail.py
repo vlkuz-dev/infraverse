@@ -76,6 +76,7 @@ def test_account_detail_shows_tenant_name():
 
 
 def test_account_detail_shows_vm_count_and_status():
+    import re
     app, account_id = _create_seeded_app()
     client = TestClient(app)
     resp = client.get(f"/accounts/{account_id}")
@@ -83,6 +84,10 @@ def test_account_detail_shows_vm_count_and_status():
     assert "Total VMs" in html
     assert "Active VMs" in html
     assert "Offline VMs" in html
+    # Verify actual count values (2 VMs: 1 active, 1 offline)
+    assert re.search(r"Total VMs</div>\s*<div[^>]*>2</div>", html), "Total VM count should be 2"
+    assert re.search(r"Active VMs</div>\s*<div[^>]*>1</div>", html), "Active VM count should be 1"
+    assert re.search(r"Offline VMs</div>\s*<div[^>]*>1</div>", html), "Offline VM count should be 1"
 
 
 def test_account_detail_shows_vm_list():

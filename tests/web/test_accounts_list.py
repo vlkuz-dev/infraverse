@@ -95,7 +95,7 @@ def test_accounts_list_links_to_detail_pages():
     app = _create_seeded_app()
     client = TestClient(app)
     resp = client.get("/accounts")
-    assert "/accounts/" in resp.text
+    assert 'href="/accounts/' in resp.text
 
 
 def test_accounts_list_shows_total_count():
@@ -120,11 +120,13 @@ def test_accounts_list_empty():
 
 
 def test_accounts_list_has_active_sidebar():
+    import re
     app = _create_seeded_app()
     client = TestClient(app)
     resp = client.get("/accounts")
-    # The accounts nav item should be active
-    assert "Cloud Accounts" in resp.text
+    # The accounts nav item should be active on the accounts list page
+    pattern = r'<li class="nav-item active">\s*<a class="nav-link" href="/accounts">'
+    assert re.search(pattern, resp.text), "Accounts nav item should be active"
 
 
 def test_sidebar_has_accounts_link():

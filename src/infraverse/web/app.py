@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from infraverse import __version__
 from infraverse.db.engine import create_engine, create_session_factory, init_db
 
 logger = logging.getLogger(__name__)
@@ -34,14 +35,9 @@ async def lifespan(app):
         config = app.state.config
         if config.sync_interval_minutes > 0:
             app.state.scheduler.start(config.sync_interval_minutes)
-            logger.info(
-                "Scheduler started with interval=%d minutes",
-                config.sync_interval_minutes,
-            )
     yield
     if hasattr(app.state, "scheduler") and app.state.scheduler is not None:
         app.state.scheduler.stop()
-        logger.info("Scheduler stopped")
 
 
 def create_app(
@@ -53,7 +49,7 @@ def create_app(
     init_db(engine)
     session_factory = create_session_factory(engine)
 
-    app = FastAPI(title="Infraverse", version="0.0.1", lifespan=lifespan)
+    app = FastAPI(title="Infraverse", version=__version__, lifespan=lifespan)
     app.state.session_factory = session_factory
     app.state.engine = engine
     app.state.config = config

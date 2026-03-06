@@ -361,6 +361,33 @@ class TestSyncIntervalConfig:
         cfg = Config.from_env()
         assert cfg.sync_interval_minutes == 120
 
+    def test_from_env_sync_interval_non_integer_defaults_zero(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("SYNC_INTERVAL_MINUTES", "abc")
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 0
+
+    def test_from_env_sync_interval_negative_defaults_zero(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("SYNC_INTERVAL_MINUTES", "-5")
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 0
+
+    def test_from_env_sync_interval_float_defaults_zero(self, monkeypatch):
+        monkeypatch.setenv("YC_TOKEN", "yc")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.setenv("SYNC_INTERVAL_MINUTES", "30.5")
+
+        cfg = Config.from_env()
+        assert cfg.sync_interval_minutes == 0
+
 
 class TestExternalLinksConfig:
     def _base_cfg(self, **kwargs):
