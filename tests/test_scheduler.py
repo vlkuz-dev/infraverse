@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+from infraverse.config_file import InfraverseConfig, MonitoringConfig, TenantConfig, CloudAccountConfig
 from infraverse.scheduler import SchedulerService
 
 
@@ -385,3 +386,441 @@ class TestBuildZabbixClient:
         )
         svc = SchedulerService(_make_session_factory(), cfg)
         assert svc._build_zabbix_client() is None
+
+
+def _make_infraverse_config(tenants=None, monitoring=None):
+    """Create an InfraverseConfig for testing."""
+    t = {}
+    for tname, accounts in (tenants or {}).items():
+        accs = [
+            CloudAccountConfig(name=a[0], provider=a[1], credentials=a[2] if len(a) > 2 else {})
+            for a in accounts
+        ]
+        t[tname] = TenantConfig(name=tname, cloud_accounts=accs)
+    return InfraverseConfig(tenants=t, monitoring=monitoring)
+
+
+class TestSchedulerWithInfraverseConfig:
+    """Tests for SchedulerService with InfraverseConfig (config-file mode)."""
+
+    def test_stores_infraverse_config(self):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+        assert svc._infraverse_config is ic
+
+    def test_infraverse_config_defaults_to_none(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        assert svc._infraverse_config is None
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_run_ingestion_calls_config_sync(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = []
+        mock_repo_cls.return_value = mock_repo
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        svc._run_ingestion()
+
+        mock_sync_cfg.assert_called_once_with(ic, session)
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_run_ingestion_without_infraverse_config_skips_sync(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = []
+        mock_repo_cls.return_value = mock_repo
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._run_ingestion()
+
+        mock_sync_cfg.assert_not_called()
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_run_ingestion_filters_active_accounts(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud", {"token": "t1"})]})
+
+        active = MagicMock()
+        active.id = 1
+        active.is_active = True
+        active.provider_type = "yandex_cloud"
+        active.config = {"token": "t1"}
+        active.name = "active-yc"
+
+        inactive = MagicMock()
+        inactive.id = 2
+        inactive.is_active = False
+        inactive.provider_type = "yandex_cloud"
+        inactive.config = {"token": "old"}
+        inactive.name = "inactive-yc"
+
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = [active, inactive]
+        mock_repo_cls.return_value = mock_repo
+
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
+             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            mock_yc_cls.return_value = MagicMock()
+            svc._run_ingestion()
+
+        providers = mock_ingestor.ingest_all.call_args[0][0]
+        assert 1 in providers
+        assert 2 not in providers
+
+
+class TestBuildProvidersFromAccountConfig:
+    """Tests for _build_providers reading credentials from account.config dict."""
+
+    @patch("infraverse.providers.yandex.YandexCloudClient")
+    def test_builds_yandex_from_account_config(self, mock_yc_cls):
+        mock_provider = MagicMock()
+        mock_yc_cls.return_value = mock_provider
+
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        account = MagicMock()
+        account.id = 1
+        account.provider_type = "yandex_cloud"
+        account.config = {"token": "from-account-config"}
+        account.name = "yc-acct"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            providers = svc._build_providers([account])
+
+        assert providers == {1: mock_provider}
+        mock_yc_cls.assert_called_once_with(token="from-account-config")
+
+    @patch("infraverse.providers.vcloud.VCloudDirectorClient")
+    def test_builds_vcloud_from_account_config(self, mock_vcd_cls):
+        mock_provider = MagicMock()
+        mock_vcd_cls.return_value = mock_provider
+
+        ic = _make_infraverse_config(tenants={"t": [("a", "vcloud")]})
+        account = MagicMock()
+        account.id = 2
+        account.provider_type = "vcloud"
+        account.config = {
+            "url": "https://vcd.example.com",
+            "username": "admin",
+            "password": "secret",
+            "org": "MyOrg",
+        }
+        account.name = "vcd-acct"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient"):
+            providers = svc._build_providers([account])
+
+        assert providers == {2: mock_provider}
+        mock_vcd_cls.assert_called_once_with(
+            url="https://vcd.example.com",
+            username="admin",
+            password="secret",
+            org="MyOrg",
+        )
+
+    @patch("infraverse.providers.vcloud.VCloudDirectorClient")
+    def test_vcloud_from_account_config_defaults_org(self, mock_vcd_cls):
+        ic = _make_infraverse_config(tenants={"t": [("a", "vcloud")]})
+        account = MagicMock()
+        account.id = 2
+        account.provider_type = "vcloud"
+        account.config = {
+            "url": "https://vcd.example.com",
+            "username": "admin",
+            "password": "secret",
+        }
+        account.name = "vcd-acct"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient"):
+            svc._build_providers([account])
+
+        call_kwargs = mock_vcd_cls.call_args.kwargs
+        assert call_kwargs["org"] == "System"
+
+    @patch("infraverse.providers.vcloud.VCloudDirectorClient")
+    @patch("infraverse.providers.yandex.YandexCloudClient")
+    def test_skips_unknown_provider_with_config(self, mock_yc_cls, mock_vcd_cls):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        account = MagicMock()
+        account.id = 3
+        account.provider_type = "aws"
+        account.config = {}
+        account.name = "aws-acct"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+        providers = svc._build_providers([account])
+        assert providers == {}
+
+    @patch("infraverse.providers.yandex.YandexCloudClient")
+    def test_handles_provider_init_error_with_config(self, mock_yc_cls):
+        mock_yc_cls.side_effect = RuntimeError("auth error")
+
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        account = MagicMock()
+        account.id = 1
+        account.provider_type = "yandex_cloud"
+        account.config = {"token": "bad"}
+        account.name = "broken"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            providers = svc._build_providers([account])
+        assert providers == {}
+
+
+class TestBuildZabbixClientWithMonitoringConfig:
+    """Tests for _build_zabbix_client with monitoring config from InfraverseConfig."""
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_builds_from_infraverse_monitoring(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        monitoring = MonitoringConfig(
+            zabbix_url="https://zabbix.config.com/api",
+            zabbix_username="config-user",
+            zabbix_password="config-pass",
+        )
+        ic = _make_infraverse_config(
+            tenants={"t": [("a", "yandex_cloud")]},
+            monitoring=monitoring,
+        )
+        cfg = _make_config(zabbix_configured=False)
+        svc = SchedulerService(_make_session_factory(), cfg, infraverse_config=ic)
+
+        result = svc._build_zabbix_client()
+
+        assert result is mock_client
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.config.com/api",
+            username="config-user",
+            password="config-pass",
+        )
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_falls_back_to_env_config(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})  # no monitoring
+        cfg = _make_config(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.env.com",
+            zabbix_user="env-user",
+            zabbix_password="env-pass",
+        )
+        svc = SchedulerService(_make_session_factory(), cfg, infraverse_config=ic)
+
+        result = svc._build_zabbix_client()
+
+        assert result is mock_client
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.env.com",
+            username="env-user",
+            password="env-pass",
+        )
+
+    def test_returns_none_when_neither_configured(self):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        cfg = _make_config(zabbix_configured=False)
+        svc = SchedulerService(_make_session_factory(), cfg, infraverse_config=ic)
+        assert svc._build_zabbix_client() is None
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_infraverse_monitoring_takes_precedence(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        monitoring = MonitoringConfig(
+            zabbix_url="https://zabbix.config.com/api",
+            zabbix_username="config-user",
+            zabbix_password="config-pass",
+        )
+        ic = _make_infraverse_config(
+            tenants={"t": [("a", "yandex_cloud")]},
+            monitoring=monitoring,
+        )
+        cfg = _make_config(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.env.com",
+            zabbix_user="env-user",
+            zabbix_password="env-pass",
+        )
+        svc = SchedulerService(_make_session_factory(), cfg, infraverse_config=ic)
+
+        svc._build_zabbix_client()
+
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.config.com/api",
+            username="config-user",
+            password="config-pass",
+        )
+
+
+class TestSchedulerMultiTenant:
+    """Tests for scheduler with multiple tenants and accounts."""
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_multiple_tenants_multiple_providers(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={
+            "acme": [("acme-yc", "yandex_cloud", {"token": "t1"})],
+            "beta": [("beta-yc", "yandex_cloud", {"token": "t2"})],
+        })
+
+        acme_acct = MagicMock()
+        acme_acct.id = 1
+        acme_acct.is_active = True
+        acme_acct.provider_type = "yandex_cloud"
+        acme_acct.config = {"token": "t1"}
+        acme_acct.name = "acme-yc"
+
+        beta_acct = MagicMock()
+        beta_acct.id = 2
+        beta_acct.is_active = True
+        beta_acct.provider_type = "yandex_cloud"
+        beta_acct.config = {"token": "t2"}
+        beta_acct.name = "beta-yc"
+
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = [acme_acct, beta_acct]
+        mock_repo_cls.return_value = mock_repo
+
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
+             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            mock_yc_cls.side_effect = lambda token: MagicMock(token=token)
+            svc._run_ingestion()
+
+        providers = mock_ingestor.ingest_all.call_args[0][0]
+        assert len(providers) == 2
+        assert 1 in providers
+        assert 2 in providers
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_mixed_provider_types(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={
+            "acme": [
+                ("acme-yc", "yandex_cloud", {"token": "t1"}),
+                ("acme-vcd", "vcloud", {"url": "https://vcd.example.com", "username": "admin", "password": "pass", "org": "Org1"}),
+            ],
+        })
+
+        yc_acct = MagicMock()
+        yc_acct.id = 1
+        yc_acct.is_active = True
+        yc_acct.provider_type = "yandex_cloud"
+        yc_acct.config = {"token": "t1"}
+        yc_acct.name = "acme-yc"
+
+        vcd_acct = MagicMock()
+        vcd_acct.id = 2
+        vcd_acct.is_active = True
+        vcd_acct.provider_type = "vcloud"
+        vcd_acct.config = {"url": "https://vcd.example.com", "username": "admin", "password": "pass", "org": "Org1"}
+        vcd_acct.name = "acme-vcd"
+
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = [yc_acct, vcd_acct]
+        mock_repo_cls.return_value = mock_repo
+
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
+             patch("infraverse.providers.vcloud.VCloudDirectorClient") as mock_vcd_cls:
+            mock_yc_cls.return_value = MagicMock()
+            mock_vcd_cls.return_value = MagicMock()
+            svc._run_ingestion()
+
+        providers = mock_ingestor.ingest_all.call_args[0][0]
+        assert len(providers) == 2
+        assert 1 in providers
+        assert 2 in providers
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_active_and_inactive_mixed(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={
+            "acme": [("acme-yc", "yandex_cloud", {"token": "t1"})],
+        })
+
+        active = MagicMock()
+        active.id = 1
+        active.is_active = True
+        active.provider_type = "yandex_cloud"
+        active.config = {"token": "t1"}
+        active.name = "acme-yc"
+
+        inactive1 = MagicMock()
+        inactive1.id = 2
+        inactive1.is_active = False
+        inactive1.provider_type = "yandex_cloud"
+        inactive1.config = {"token": "old1"}
+        inactive1.name = "old-yc"
+
+        inactive2 = MagicMock()
+        inactive2.id = 3
+        inactive2.is_active = False
+        inactive2.provider_type = "vcloud"
+        inactive2.config = {"url": "https://old.vcd.com"}
+        inactive2.name = "old-vcd"
+
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = [active, inactive1, inactive2]
+        mock_repo_cls.return_value = mock_repo
+
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
+             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            mock_yc_cls.return_value = MagicMock()
+            svc._run_ingestion()
+
+        providers = mock_ingestor.ingest_all.call_args[0][0]
+        assert len(providers) == 1
+        assert 1 in providers

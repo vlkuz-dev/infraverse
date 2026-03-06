@@ -267,6 +267,17 @@ def cmd_serve(args: argparse.Namespace) -> None:
     _setup_logging()
     database_url = _get_database_url()
 
+    # Load YAML config file if provided
+    infraverse_config = None
+    if getattr(args, "config", None):
+        from infraverse.config_file import load_config
+
+        try:
+            infraverse_config = load_config(args.config)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Config file error: {exc}", file=sys.stderr)
+            sys.exit(1)
+
     config = None
     try:
         sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
@@ -278,9 +289,10 @@ def cmd_serve(args: argparse.Namespace) -> None:
         try:
             config = Config.from_env()
         except ValueError as exc:
-            logger.warning(
-                "Scheduler disabled - config incomplete: %s", exc,
-            )
+            if not infraverse_config:
+                logger.warning(
+                    "Scheduler disabled - config incomplete: %s", exc,
+                )
             config = None
 
     # Always provide external link config for detail pages, even without scheduler
@@ -293,12 +305,16 @@ def cmd_serve(args: argparse.Namespace) -> None:
             netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
             zabbix_url=os.getenv("ZABBIX_URL") or None,
             netbox_url=os.getenv("NETBOX_URL") or None,
-            sync_interval_minutes=0,
+            sync_interval_minutes=sync_interval if infraverse_config else 0,
         )
 
     from infraverse.web.app import create_app
 
-    app = create_app(database_url=database_url, config=config)
+    app = create_app(
+        database_url=database_url,
+        config=config,
+        infraverse_config=infraverse_config,
+    )
     uvicorn.run(app, host=args.host, port=args.port)
 
 

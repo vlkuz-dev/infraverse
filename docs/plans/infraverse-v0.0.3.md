@@ -152,12 +152,12 @@ oidc:
 
 ### Task 4: Update scheduler to use config-driven accounts
 
-- [ ] write tests for scheduler reading credentials from CloudAccount.config JSON
-- [ ] update `_build_providers()` to read cloud credentials from `account.config` dict
-- [ ] update `_build_zabbix_client()` to accept monitoring config (from config file or env vars)
-- [ ] pass config file path or parsed config to SchedulerService
-- [ ] write tests for scheduler with multiple tenants and accounts
-- [ ] run tests — must pass before next task
+- [x] write tests for scheduler reading credentials from CloudAccount.config JSON
+- [x] update `_build_providers()` to read cloud credentials from `account.config` dict
+- [x] update `_build_zabbix_client()` to accept monitoring config (from config file or env vars)
+- [x] pass config file path or parsed config to SchedulerService
+- [x] write tests for scheduler with multiple tenants and accounts
+- [x] run tests — must pass before next task
 
 ### Task 5: Tenant-scoped web UI — dashboard and accounts
 

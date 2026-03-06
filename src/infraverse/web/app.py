@@ -44,6 +44,7 @@ async def lifespan(app):
 def create_app(
     database_url: str = "sqlite:///infraverse.db",
     config=None,
+    infraverse_config=None,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
     engine = create_engine(database_url)
@@ -58,7 +59,9 @@ def create_app(
     if config is not None and config.sync_interval_minutes > 0:
         from infraverse.scheduler import SchedulerService
 
-        app.state.scheduler = SchedulerService(session_factory, config)
+        app.state.scheduler = SchedulerService(
+            session_factory, config, infraverse_config=infraverse_config,
+        )
     else:
         app.state.scheduler = None
 
