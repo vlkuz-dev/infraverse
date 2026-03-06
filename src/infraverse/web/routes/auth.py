@@ -63,6 +63,12 @@ async def callback(request: Request):
     userinfo = token.get("userinfo", {})
 
     roles = _extract_roles(userinfo)
+    if not roles:
+        # Some OIDC providers (Keycloak, Azure AD) put roles in the ID token
+        # claims rather than in the userinfo endpoint response
+        id_token_claims = token.get("id_token", {})
+        if isinstance(id_token_claims, dict):
+            roles = _extract_roles(id_token_claims)
 
     if oidc_config.required_role not in roles:
         logger.warning(

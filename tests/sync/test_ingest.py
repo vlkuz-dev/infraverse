@@ -389,19 +389,20 @@ class TestIngestMonitoringHosts:
         fresh = session.query(MonitoringHost).filter_by(external_id="fresh-z").one()
         assert fresh.status == "active"
 
-    def test_ingest_zabbix_error_records_failed_run(self, ingestor, tenant_and_account, repo, session):
+    def test_ingest_zabbix_per_vm_error_isolated(self, ingestor, tenant_and_account, repo, session):
+        """Per-VM Zabbix errors are isolated; batch still succeeds with found=0."""
         _, account = tenant_and_account
         vm, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="ext-1", name="vm-1", status="active")
         session.commit()
 
         zabbix = _make_mock_zabbix(error=RuntimeError("Zabbix unreachable"))
 
-        with pytest.raises(RuntimeError, match="Zabbix unreachable"):
-            ingestor.ingest_monitoring_hosts([vm], zabbix)
+        count = ingestor.ingest_monitoring_hosts([vm], zabbix)
 
+        assert count == 0
         run = session.query(SyncRun).one()
-        assert run.status == "failed"
-        assert "Zabbix unreachable" in run.error_message
+        assert run.status == "success"
+        assert run.items_found == 0
 
     def test_sync_run_records_correct_counts(self, ingestor, tenant_and_account, repo, session):
         _, account = tenant_and_account
@@ -487,7 +488,8 @@ class TestIngestAll:
         # Working provider's VMs still got ingested
         assert session.query(VM).count() == 1
 
-    def test_ingest_all_zabbix_failure_continues(self, ingestor, tenant_and_account, session):
+    def test_ingest_all_zabbix_per_vm_error_isolated(self, ingestor, tenant_and_account, session):
+        """Per-VM Zabbix errors are isolated; cloud ingest and zabbix batch both succeed."""
         _, account = tenant_and_account
         provider = _make_mock_provider(vms=[VMInfo(name="vm", id="1", status="active")])
         zabbix = _make_mock_zabbix(error=RuntimeError("auth failed"))
@@ -498,7 +500,7 @@ class TestIngestAll:
         )
 
         assert results["YC Russia"] == "success"
-        assert "error:" in results["zabbix"]
+        assert results["zabbix"] == "success"
         assert session.query(VM).count() == 1
 
     def test_ingest_all_missing_account(self, ingestor, session):
@@ -513,14 +515,9 @@ class TestIngestAll:
 
         assert results == {}
 
-    def test_ingest_all_both_fail(self, ingestor, tenant_and_account, repo, session):
+    def test_ingest_all_cloud_fails_zabbix_skipped(self, ingestor, tenant_and_account, repo, session):
+        """When cloud ingest fails, no VMs are available for monitoring check."""
         _, account = tenant_and_account
-        # Pre-create a VM so zabbix check has something to query
-        repo.upsert_vm(
-            cloud_account_id=account.id, external_id="pre-existing",
-            name="old-vm", status="active",
-        )
-        session.commit()
 
         failing_provider = _make_mock_provider(error=RuntimeError("cloud dead"))
         failing_zabbix = _make_mock_zabbix(error=RuntimeError("zabbix dead"))
@@ -531,11 +528,11 @@ class TestIngestAll:
         )
 
         assert "error:" in results["YC Russia"]
-        assert "error:" in results["zabbix"]
-        # Both SyncRuns should be recorded as failed
+        # Zabbix not in results: no VMs from active accounts -> monitoring skipped
+        assert "zabbix" not in results
         runs = session.query(SyncRun).all()
-        assert len(runs) == 2
-        assert all(r.status == "failed" for r in runs)
+        assert len(runs) == 1
+        assert runs[0].status == "failed"
 
     def test_ingest_all_cloud_then_monitoring(self, ingestor, tenant_and_account, session):
         """Full flow: ingest cloud VMs, then check monitoring for those VMs."""

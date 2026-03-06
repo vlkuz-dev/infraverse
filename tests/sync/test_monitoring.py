@@ -200,6 +200,28 @@ class TestCheckAllVmsMonitoring:
 
         assert results[0].vm_name == "my-special-vm"
 
+    def test_api_error_isolated_per_vm(self):
+        """A Zabbix error for one VM should not abort the batch."""
+        host2 = ZabbixHost(name="vm-2", hostid="102", status="active")
+        vms = [FakeVM(name="vm-1"), FakeVM(name="vm-2"), FakeVM(name="vm-3")]
+        client = MagicMock()
+        client.search_host_by_name.side_effect = [
+            RuntimeError("API error"),
+            host2,
+            None,
+        ]
+        client.search_host_by_ip.return_value = None
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert len(results) == 3
+        assert results[0].found is False
+        assert results[0].vm_name == "vm-1"
+        assert results[1].found is True
+        assert results[1].vm_name == "vm-2"
+        assert results[2].found is False
+        assert results[2].vm_name == "vm-3"
+
     def test_mixed_name_and_ip_matches(self):
         host_by_name = ZabbixHost(name="vm-1", hostid="101", status="active")
         host_by_ip = ZabbixHost(name="vm-2-zabbix", hostid="102", status="active", ip_addresses=["10.0.0.2"])

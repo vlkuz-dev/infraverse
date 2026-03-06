@@ -150,6 +150,58 @@ class TestCallback:
         assert resp.headers["location"] == "/"
 
 
+    def test_roles_from_id_token_when_missing_in_userinfo(self, app, client):
+        """Roles in ID token claims are used when userinfo has no roles."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-idt",
+                "name": "ID Token User",
+                "email": "idt@example.com",
+            },
+            "id_token": {
+                "roles": ["infraverse-admin"],
+            },
+        })
+
+        resp = client.get("/auth/callback", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/"
+
+    def test_roles_from_id_token_keycloak_realm_access(self, app, client):
+        """Keycloak realm_access in ID token is used when userinfo has no roles."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-idt-kc",
+                "name": "KC ID Token User",
+                "email": "idtkc@example.com",
+            },
+            "id_token": {
+                "realm_access": {"roles": ["infraverse-admin"]},
+            },
+        })
+
+        resp = client.get("/auth/callback", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/"
+
+    def test_id_token_roles_not_checked_when_userinfo_has_roles(self, app, client):
+        """When userinfo has roles, ID token roles are not checked (userinfo wins)."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-both",
+                "name": "Both User",
+                "email": "both@example.com",
+                "roles": ["viewer"],
+            },
+            "id_token": {
+                "roles": ["infraverse-admin"],
+            },
+        })
+
+        resp = client.get("/auth/callback")
+        assert resp.status_code == 403
+
+
 class TestLogout:
     """Tests for /auth/logout route."""
 

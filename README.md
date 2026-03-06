@@ -119,7 +119,7 @@ tenants:
 
 monitoring:
   zabbix:
-    url: "https://zabbix.example.com/api_jsonrpc.php"
+    url: "https://zabbix.example.com"
     username: "api_user"
     password: "${ZABBIX_PASSWORD}"
 

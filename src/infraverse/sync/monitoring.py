@@ -70,7 +70,11 @@ def check_all_vms_monitoring(
     """
     results = []
     for vm in vms:
-        result = check_vm_monitoring(vm, zabbix_client)
+        try:
+            result = check_vm_monitoring(vm, zabbix_client)
+        except Exception as exc:
+            logger.warning("Failed to check monitoring for VM %s: %s", vm.name, exc)
+            result = MonitoringResult(vm_name=vm.name, found=False)
         results.append(result)
         if result.found:
             logger.debug(
