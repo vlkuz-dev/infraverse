@@ -10,14 +10,9 @@ logger = logging.getLogger(__name__)
 
 def _setup_logging() -> None:
     """Configure logging from LOG_LEVEL env var."""
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    for name in ("urllib3", "requests", "httpx", "httpcore", "pynetbox"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+    from infraverse.config import setup_logging
+
+    setup_logging()
 
 
 def _get_database_url() -> str:

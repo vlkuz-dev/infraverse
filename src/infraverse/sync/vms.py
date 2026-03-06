@@ -82,6 +82,8 @@ def detect_platform_slug(os_name: str) -> str:
     if not os_name:
         return DEFAULT_PLATFORM_SLUG
 
+    import re
+
     os_name_lower = os_name.lower()
 
     if "windows" in os_name_lower:
@@ -101,22 +103,24 @@ def detect_platform_slug(os_name: str) -> str:
         else:
             return "ubuntu-22-04"
     elif "debian" in os_name_lower:
-        if "11" in os_name_lower or "bullseye" in os_name_lower:
+        if re.search(r'\b12\b', os_name_lower) or "bookworm" in os_name_lower:
+            return "debian-12"
+        elif re.search(r'\b11\b', os_name_lower) or "bullseye" in os_name_lower:
             return "debian-11"
         else:
-            return "debian-11"
+            return "debian-12"
     elif "centos" in os_name_lower:
-        if "7" in os_name_lower:
+        if re.search(r'\b7\b', os_name_lower):
             return "centos-7"
         else:
             return DEFAULT_PLATFORM_SLUG
     elif "alma" in os_name_lower or "almalinux" in os_name_lower:
-        if "9" in os_name_lower:
+        if re.search(r'\b9\b', os_name_lower):
             return "almalinux-9"
         else:
             return DEFAULT_PLATFORM_SLUG
     elif "oracle" in os_name_lower:
-        if "9" in os_name_lower:
+        if re.search(r'\b9\b', os_name_lower):
             return "oracle-linux-9"
         else:
             return DEFAULT_PLATFORM_SLUG

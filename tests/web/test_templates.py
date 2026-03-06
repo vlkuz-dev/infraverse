@@ -87,8 +87,8 @@ def test_base_template_custom_css():
 def test_base_template_version_footer():
     env = _get_env()
     template = env.get_template("base.html")
-    html = template.render(version="0.0.1")
-    assert "0.0.1" in html
+    html = template.render(version="99.88.77")
+    assert "99.88.77" in html
 
 
 def test_base_template_blocks():

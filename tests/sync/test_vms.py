@@ -174,6 +174,16 @@ class TestPrepareVmData:
         assert detect_platform_slug("some-linux-distro") == DEFAULT_PLATFORM_SLUG
         assert detect_platform_slug("") == DEFAULT_PLATFORM_SLUG
         assert detect_platform_slug("FreeBSD") == DEFAULT_PLATFORM_SLUG
+        # Debian version matching uses word boundaries, not substring
+        assert detect_platform_slug("debian-11") == "debian-11"
+        assert detect_platform_slug("debian-12") == "debian-12"
+        assert detect_platform_slug("debian-12-v20241115") == "debian-12"
+        assert detect_platform_slug("debian-bullseye") == "debian-11"
+        assert detect_platform_slug("debian-bookworm") == "debian-12"
+        # CentOS version matching uses word boundaries
+        assert detect_platform_slug("centos-7") == "centos-7"
+        assert detect_platform_slug("centos-7.9") == "centos-7"
+        assert detect_platform_slug("centos-8") == DEFAULT_PLATFORM_SLUG
 
     def test_comments_include_metadata(self):
         """Comments include VM ID, zone, platform, OS, and creation date."""
