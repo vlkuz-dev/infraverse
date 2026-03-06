@@ -212,7 +212,13 @@ class YandexCloudClient:
                 {"id": "ru-central1-d", "name": "ru-central1-d", "regionId": "ru-central1"},
             ]
 
-        clouds = self.fetch_clouds()
+        try:
+            clouds = self.fetch_clouds()
+        except Exception as e:
+            logger.error(f"Failed to fetch clouds: {e}")
+            clouds = []
+            result["_has_fetch_errors"] = True
+
         for cloud in clouds:
             cloud_id = cloud["id"]
             cloud_name = cloud.get("name", cloud_id)

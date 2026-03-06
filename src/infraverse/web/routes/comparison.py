@@ -109,6 +109,7 @@ def _build_context(request: Request, provider, status, search):
         "current_provider": provider or "",
         "current_status": status or "",
         "current_search": search or "",
+        "netbox_configured": False,
     }
 
 

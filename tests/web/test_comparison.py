@@ -180,7 +180,8 @@ def test_comparison_table_headers(seeded_client):
     html = resp.text
     assert "VM Name" in html
     assert "Cloud" in html
-    assert "NetBox" in html
+    # NetBox column hidden when netbox_configured=False
+    assert "<th>NetBox</th>" not in html
     assert "Monitoring" in html
     assert "Provider" in html
     assert "Discrepancies" in html

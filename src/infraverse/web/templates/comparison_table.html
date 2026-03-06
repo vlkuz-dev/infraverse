@@ -8,7 +8,9 @@
                 <tr>
                     <th>VM Name</th>
                     <th>Cloud</th>
+                    {% if netbox_configured %}
                     <th>NetBox</th>
+                    {% endif %}
                     <th>Monitoring</th>
                     <th>Provider</th>
                     <th>Discrepancies</th>
@@ -25,6 +27,7 @@
                         <span class="badge bg-danger-lt">No</span>
                         {% endif %}
                     </td>
+                    {% if netbox_configured %}
                     <td>
                         {% if vm.in_netbox %}
                         <span class="badge bg-success-lt">Yes</span>
@@ -32,6 +35,7 @@
                         <span class="badge bg-danger-lt">No</span>
                         {% endif %}
                     </td>
+                    {% endif %}
                     <td>
                         {% if vm.in_monitoring %}
                         <span class="badge bg-success-lt">Yes</span>
@@ -59,7 +63,7 @@
                 {% endfor %}
                 {% if not result.all_vms %}
                 <tr>
-                    <td colspan="6" class="text-secondary">No VMs found</td>
+                    <td colspan="{% if netbox_configured %}6{% else %}5{% endif %}" class="text-secondary">No VMs found</td>
                 </tr>
                 {% endif %}
             </tbody>
