@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from infraverse.db.models import (
     Tenant,
@@ -131,6 +131,15 @@ class Repository:
             vm.last_seen_at = now
         self.session.flush()
         return vm, created
+
+    def get_vm_by_id(self, vm_id: int) -> VM | None:
+        """Get a single VM by ID with cloud_account and tenant eagerly loaded."""
+        return (
+            self.session.query(VM)
+            .options(joinedload(VM.cloud_account).joinedload(CloudAccount.tenant))
+            .filter(VM.id == vm_id)
+            .first()
+        )
 
     def get_vms_by_account(self, cloud_account_id: int) -> list[VM]:
         return (

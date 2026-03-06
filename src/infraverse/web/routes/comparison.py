@@ -38,24 +38,30 @@ def _host_to_zabbixhost(host: MonitoringHost) -> ZabbixHost:
     )
 
 
-def _run_comparison(repo: Repository) -> ComparisonResult:
-    """Load data from DB and run comparison engine."""
+def _run_comparison(repo: Repository) -> tuple[ComparisonResult, dict[str, int]]:
+    """Load data from DB and run comparison engine.
+
+    Returns:
+        Tuple of (ComparisonResult, vm_name_to_id mapping).
+    """
     db_vms = repo.get_all_vms()
     db_hosts = repo.get_all_monitoring_hosts()
 
+    vm_name_to_id = {vm.name: vm.id for vm in db_vms}
     cloud_vms = [_vm_to_vminfo(vm) for vm in db_vms]
     zabbix_hosts = [_host_to_zabbixhost(h) for h in db_hosts]
 
     monitoring_configured = len(zabbix_hosts) > 0
 
     engine = ComparisonEngine()
-    return engine.compare(
+    result = engine.compare(
         cloud_vms=cloud_vms,
         netbox_vms=[],
         zabbix_hosts=zabbix_hosts,
         monitoring_configured=monitoring_configured,
         netbox_configured=False,
     )
+    return result, vm_name_to_id
 
 
 def _filter_results(
@@ -98,7 +104,7 @@ def _build_context(request: Request, provider, status, search):
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
-        result = _run_comparison(repo)
+        result, vm_name_to_id = _run_comparison(repo)
         providers = _get_providers(repo)
 
     result = _filter_results(result, provider=provider, status=status, search=search)
@@ -110,6 +116,7 @@ def _build_context(request: Request, provider, status, search):
         "current_status": status or "",
         "current_search": search or "",
         "netbox_configured": False,
+        "vm_name_to_id": vm_name_to_id,
     }
 
 

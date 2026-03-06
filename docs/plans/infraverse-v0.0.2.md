@@ -98,9 +98,9 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 5: VM detail page
-- [ ] Add `get_vm_by_id(vm_id)` method to `db/repository.py`
-- [ ] Create `src/infraverse/web/routes/vms.py` with `GET /vms/{vm_id}` route
-- [ ] Create `src/infraverse/web/templates/vm_detail.html` with Tabler card layout:
+- [x] Add `get_vm_by_id(vm_id)` method to `db/repository.py`
+- [x] Create `src/infraverse/web/routes/vms.py` with `GET /vms/{vm_id}` route
+- [x] Create `src/infraverse/web/templates/vm_detail.html` with Tabler card layout:
   - VM name, status badge, external ID
   - IP addresses list
   - Resources (vCPUs, memory)
@@ -108,11 +108,11 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
   - Timestamps (created, updated, last seen)
   - Comparison status (in NetBox?, in monitoring?)
   - External links section (see Task 7)
-- [ ] Register VM routes in `web/routes/__init__.py`
-- [ ] Add link from comparison table VM names to detail page
-- [ ] Write tests for GET /vms/{vm_id} with valid VM
-- [ ] Write tests for GET /vms/{vm_id} with non-existent VM (404)
-- [ ] Run tests - must pass before next task
+- [x] Register VM routes in `web/routes/__init__.py`
+- [x] Add link from comparison table VM names to detail page
+- [x] Write tests for GET /vms/{vm_id} with valid VM
+- [x] Write tests for GET /vms/{vm_id} with non-existent VM (404)
+- [x] Run tests - must pass before next task
 
 ### Task 6: Cloud account detail page
 - [ ] Add `get_cloud_account_with_tenant(account_id)` method to `db/repository.py` (joins tenant)

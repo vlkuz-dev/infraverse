@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}{{ vm.name }} - Infraverse{% endblock %}
+{% block pretitle %}Virtual Machine{% endblock %}
+{% block page_title %}{{ vm.name }}{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">VM Details</h3>
+                <div class="card-actions">
+                    {% if vm.status == "active" %}
+                    <span class="badge bg-success-lt">Active</span>
+                    {% elif vm.status == "offline" %}
+                    <span class="badge bg-danger-lt">Offline</span>
+                    {% else %}
+                    <span class="badge bg-secondary-lt">{{ vm.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Name</div>
+                        <div class="datagrid-content">{{ vm.name }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">External ID</div>
+                        <div class="datagrid-content">{{ vm.external_id }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Status</div>
+                        <div class="datagrid-content">
+                            {% if vm.status == "active" %}
+                            <span class="status status-green">Active</span>
+                            {% elif vm.status == "offline" %}
+                            <span class="status status-red">Offline</span>
+                            {% else %}
+                            <span class="status status-secondary">{{ vm.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">vCPUs</div>
+                        <div class="datagrid-content">{{ vm.vcpus if vm.vcpus is not none else "-" }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Memory</div>
+                        <div class="datagrid-content">
+                            {% if vm.memory_mb is not none %}
+                            {{ vm.memory_mb }} MB
+                            {% else %}
+                            -
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">IP Addresses</div>
+                        <div class="datagrid-content">
+                            {% if vm.ip_addresses %}
+                            {% for ip in vm.ip_addresses %}
+                            <span class="badge bg-azure-lt me-1">{{ ip }}</span>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-secondary">None</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if vm.cloud_name %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Cloud</div>
+                        <div class="datagrid-content">{{ vm.cloud_name }}</div>
+                    </div>
+                    {% endif %}
+                    {% if vm.folder_name %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Folder</div>
+                        <div class="datagrid-content">{{ vm.folder_name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Cloud Account</h3>
+            </div>
+            <div class="card-body">
+                {% if account %}
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Account</div>
+                        <div class="datagrid-content">{{ account.name }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Provider</div>
+                        <div class="datagrid-content">
+                            <span class="badge bg-azure-lt">{{ account.provider_type }}</span>
+                        </div>
+                    </div>
+                    {% if tenant %}
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Tenant</div>
+                        <div class="datagrid-content">{{ tenant.name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <span class="text-secondary">No account linked</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3 class="card-title">Timestamps</h3>
+            </div>
+            <div class="card-body">
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Created</div>
+                        <div class="datagrid-content">{{ vm.created_at.strftime("%Y-%m-%d %H:%M UTC") if vm.created_at else "-" }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Updated</div>
+                        <div class="datagrid-content">{{ vm.updated_at.strftime("%Y-%m-%d %H:%M UTC") if vm.updated_at else "-" }}</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Last Seen</div>
+                        <div class="datagrid-content">{{ vm.last_seen_at.strftime("%Y-%m-%d %H:%M UTC") if vm.last_seen_at else "-" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -19,7 +19,13 @@
             <tbody>
                 {% for vm in result.all_vms %}
                 <tr>
-                    <td>{{ vm.vm_name }}</td>
+                    <td>
+                        {% if vm_name_to_id and vm.vm_name in vm_name_to_id %}
+                        <a href="/vms/{{ vm_name_to_id[vm.vm_name] }}">{{ vm.vm_name }}</a>
+                        {% else %}
+                        {{ vm.vm_name }}
+                        {% endif %}
+                    </td>
                     <td>
                         {% if vm.in_cloud %}
                         <span class="badge bg-success-lt">Yes</span>
