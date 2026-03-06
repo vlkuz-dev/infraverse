@@ -280,13 +280,13 @@ oidc:
 
 ### Task 16: Verify acceptance criteria
 
-- [ ] verify multi-tenant: create config with 2+ tenants, different cloud accounts, run ingest
-- [ ] verify same cloud provider can be used by different tenants (same provider_type, different credentials)
-- [ ] verify OIDC: login flow works when configured, app works without OIDC when not configured
-- [ ] verify monitoring: only known VMs are checked in Zabbix, no bulk fetch
-- [ ] run full test suite (`python3 -m pytest tests/ -v`)
-- [ ] run linter (`ruff check src/ tests/`) — all issues must be fixed
-- [ ] verify test coverage meets project standard
+- [x] verify multi-tenant: create config with 2+ tenants, different cloud accounts, run ingest
+- [x] verify same cloud provider can be used by different tenants (same provider_type, different credentials)
+- [x] verify OIDC: login flow works when configured, app works without OIDC when not configured
+- [x] verify monitoring: only known VMs are checked in Zabbix, no bulk fetch
+- [x] run full test suite (`python3 -m pytest tests/ -v`)
+- [x] run linter (`ruff check src/ tests/`) — all issues must be fixed
+- [x] verify test coverage meets project standard
 
 ### Task 17: [Final] Update documentation
 
