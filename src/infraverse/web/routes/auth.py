@@ -25,7 +25,7 @@ def setup_oauth(oidc_config) -> OAuth:
     return oauth
 
 
-def _extract_roles(userinfo: dict) -> list[str]:
+def _extract_roles(userinfo: dict, client_id: str | None = None) -> list[str]:
     """Extract roles from userinfo, checking common OIDC role claim locations."""
     # Direct roles claim
     roles = userinfo.get("roles", [])
@@ -37,6 +37,15 @@ def _extract_roles(userinfo: dict) -> list[str]:
         roles = realm_access.get("roles", [])
         if roles:
             return roles
+    # Keycloak resource_access.<client_id>.roles (client roles)
+    if client_id:
+        resource_access = userinfo.get("resource_access", {})
+        if isinstance(resource_access, dict):
+            client_access = resource_access.get(client_id, {})
+            if isinstance(client_access, dict):
+                roles = client_access.get("roles", [])
+                if roles:
+                    return roles
     return []
 
 
@@ -62,13 +71,14 @@ async def callback(request: Request):
 
     userinfo = token.get("userinfo", {})
 
-    roles = _extract_roles(userinfo)
+    client_id = oidc_config.client_id
+    roles = _extract_roles(userinfo, client_id)
     if not roles:
         # Some OIDC providers (Keycloak, Azure AD) put roles in the ID token
         # claims rather than in the userinfo endpoint response
         id_token_claims = token.get("id_token", {})
         if isinstance(id_token_claims, dict):
-            roles = _extract_roles(id_token_claims)
+            roles = _extract_roles(id_token_claims, client_id)
 
     if oidc_config.required_role not in roles:
         logger.warning(

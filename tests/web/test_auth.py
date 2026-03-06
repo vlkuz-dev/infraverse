@@ -184,6 +184,58 @@ class TestCallback:
         assert resp.status_code == 302
         assert resp.headers["location"] == "/"
 
+    def test_keycloak_resource_access_client_roles(self, app, client):
+        """Roles extracted from Keycloak resource_access.<client_id>.roles claim."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-cr",
+                "name": "Client Role User",
+                "email": "cr@example.com",
+                "resource_access": {
+                    "infraverse": {"roles": ["infraverse-admin"]},
+                },
+            },
+        })
+
+        resp = client.get("/auth/callback", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/"
+
+    def test_resource_access_wrong_client_id_returns_403(self, app, client):
+        """Roles under a different client_id in resource_access are not used."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-cr2",
+                "name": "Wrong Client User",
+                "email": "cr2@example.com",
+                "resource_access": {
+                    "other-client": {"roles": ["infraverse-admin"]},
+                },
+            },
+        })
+
+        resp = client.get("/auth/callback")
+        assert resp.status_code == 403
+
+    def test_resource_access_in_id_token(self, app, client):
+        """Client roles in ID token resource_access are used as fallback."""
+        _mock_oauth(app, authorize_access_token_rv={
+            "userinfo": {
+                "sub": "user-cr3",
+                "name": "ID Token Client Role User",
+                "email": "cr3@example.com",
+            },
+            "id_token": {
+                "resource_access": {
+                    "infraverse": {"roles": ["infraverse-admin"]},
+                },
+            },
+        })
+
+        resp = client.get("/auth/callback", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "/"
+
     def test_id_token_roles_not_checked_when_userinfo_has_roles(self, app, client):
         """When userinfo has roles, ID token roles are not checked (userinfo wins)."""
         _mock_oauth(app, authorize_access_token_rv={
