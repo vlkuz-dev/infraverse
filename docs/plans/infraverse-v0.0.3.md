@@ -143,12 +143,12 @@ oidc:
 
 ### Task 3: Update CLI to use config file
 
-- [ ] write tests for CLI `--config` flag: loads config, builds providers from DB accounts
-- [ ] add `--config` / `-c` option to `sync` and `serve` CLI commands
-- [ ] update `_ingest_to_db()` to call `sync_config_to_db()` then build providers from all active CloudAccounts
-- [ ] write tests for backward compatibility: CLI works without `--config` using current env var behavior
-- [ ] keep current env var fallback (no config file = existing single-tenant "Default" behavior)
-- [ ] run tests — must pass before next task
+- [x] write tests for CLI `--config` flag: loads config, builds providers from DB accounts
+- [x] add `--config` / `-c` option to `sync` and `serve` CLI commands
+- [x] update `_ingest_to_db()` to call `sync_config_to_db()` then build providers from all active CloudAccounts
+- [x] write tests for backward compatibility: CLI works without `--config` using current env var behavior
+- [x] keep current env var fallback (no config file = existing single-tenant "Default" behavior)
+- [x] run tests — must pass before next task
 
 ### Task 4: Update scheduler to use config-driven accounts
 

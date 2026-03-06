@@ -31,6 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
     # sync command
     sync_parser = subparsers.add_parser("sync", help="Sync cloud data to NetBox")
     sync_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file for multi-tenant setup",
+    )
+    sync_parser.add_argument(
         "--dry-run", action="store_true", help="Preview changes without applying"
     )
     sync_parser.add_argument(
@@ -47,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     # serve command
     serve_parser = subparsers.add_parser("serve", help="Start the web UI")
     serve_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file for multi-tenant setup",
+    )
+    serve_parser.add_argument(
         "--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
     )
     serve_parser.add_argument(
@@ -60,6 +68,26 @@ def build_parser() -> argparse.ArgumentParser:
     db_sub.add_parser("seed", help="Create default tenant")
 
     return parser
+
+
+def _build_provider_from_account(account):
+    """Build a CloudProvider instance from a CloudAccount's stored credentials."""
+    creds = account.config or {}
+    if account.provider_type == "yandex_cloud":
+        from infraverse.providers.yandex import YandexCloudClient
+
+        return YandexCloudClient(token=creds.get("token", ""))
+    elif account.provider_type == "vcloud":
+        from infraverse.providers.vcloud import VCloudDirectorClient
+
+        return VCloudDirectorClient(
+            url=creds.get("url", ""),
+            username=creds.get("username", ""),
+            password=creds.get("password", ""),
+            org=creds.get("org", "System"),
+        )
+    else:
+        raise ValueError(f"Unknown provider type: {account.provider_type}")
 
 
 def _ensure_cloud_account(repo, session, tenant_id, provider_type, name):
@@ -132,34 +160,104 @@ def _ingest_to_db(config) -> None:
         ingestor.ingest_all(providers, zabbix_client)
 
 
+def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
+    """Populate database from YAML config-file-driven providers."""
+    from infraverse.db.engine import create_engine, create_session_factory, init_db
+    from infraverse.db.repository import Repository
+    from infraverse.sync.config_sync import sync_config_to_db
+    from infraverse.sync.ingest import DataIngestor
+
+    if database_url is None:
+        database_url = _get_database_url()
+
+    engine = create_engine(database_url)
+    init_db(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_factory() as session:
+        sync_config_to_db(infraverse_config, session)
+        session.commit()
+
+        repo = Repository(session)
+        accounts = repo.list_cloud_accounts()
+
+        providers = {}
+        for account in accounts:
+            if not account.is_active:
+                continue
+            try:
+                providers[account.id] = _build_provider_from_account(account)
+            except Exception as exc:
+                logger.error(
+                    "Failed to build provider for account %s: %s",
+                    account.name, exc,
+                )
+
+        zabbix_client = None
+        if infraverse_config.monitoring_configured:
+            from infraverse.providers.zabbix import ZabbixClient
+
+            zabbix_client = ZabbixClient(
+                url=infraverse_config.monitoring.zabbix_url,
+                username=infraverse_config.monitoring.zabbix_username,
+                password=infraverse_config.monitoring.zabbix_password,
+            )
+
+        ingestor = DataIngestor(session)
+        ingestor.ingest_all(providers, zabbix_client)
+
+
 def cmd_sync(args: argparse.Namespace) -> None:
     """Execute sync command: fetch from providers, store in DB, sync to NetBox."""
+    _setup_logging()
+
+    # Load YAML config file if provided
+    infraverse_config = None
+    if getattr(args, "config", None):
+        from infraverse.config_file import load_config
+
+        try:
+            infraverse_config = load_config(args.config)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Config file error: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    # Try to load env-var config (needed for NetBox sync)
+    config = None
     from infraverse.config import Config
 
     try:
         config = Config.from_env(dry_run=args.dry_run)
     except ValueError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
-        sys.exit(1)
-    config.setup_logging()
+        if not infraverse_config:
+            print(f"Configuration error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        logger.info("NetBox env vars not configured, skipping NetBox sync")
+
+    if config:
+        config.setup_logging()
 
     # Populate database with provider data
     try:
-        _ingest_to_db(config)
+        if infraverse_config:
+            _ingest_to_db_with_config(infraverse_config)
+        elif config:
+            _ingest_to_db(config)
         logger.info("Database ingestion complete")
     except Exception:
         logger.exception("Database ingestion had errors, continuing with NetBox sync")
 
-    # Sync to NetBox
-    from infraverse.sync.engine import SyncEngine
+    # Sync to NetBox (only if env var config available)
+    if config:
+        from infraverse.sync.engine import SyncEngine
 
-    try:
-        engine = SyncEngine(config)
-        stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
-        logger.info("Sync complete: %s", stats)
-    except Exception:
-        logger.exception("Sync failed")
-        sys.exit(1)
+        try:
+            engine = SyncEngine(config)
+            stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
+            logger.info("Sync complete: %s", stats)
+        except Exception:
+            logger.exception("Sync failed")
+            sys.exit(1)
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
