@@ -487,3 +487,124 @@ def test_table_partial_combined_filters_no_results(seeded_client):
     html = resp.text
     assert "No VMs found" in html
     assert "0 results" in html
+
+
+# --- Tenant-scoped comparison tests ---
+
+
+def _create_multi_tenant_comparison_app():
+    """Create app with two tenants, VMs, and monitoring data for comparison."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t1 = repo.create_tenant("Acme Corp")
+        t2 = repo.create_tenant("Beta Inc")
+
+        a1 = repo.create_cloud_account(t1.id, "yandex_cloud", "Acme YC")
+        a2 = repo.create_cloud_account(t2.id, "vcloud", "Beta vCloud")
+
+        # Acme VMs
+        repo.upsert_vm(a1.id, "vm-001", "acme-web", status="active", ip_addresses=["10.0.0.1"])
+        repo.upsert_vm(a1.id, "vm-002", "acme-db", status="active", ip_addresses=["10.0.0.2"])
+
+        # Beta VMs
+        repo.upsert_vm(a2.id, "vm-010", "beta-app", status="active", ip_addresses=["10.1.0.1"])
+
+        # Monitoring: only acme-web is monitored
+        repo.upsert_monitoring_host("zabbix", "z-001", "acme-web", status="active", ip_addresses=["10.0.0.1"])
+        # Monitoring: beta-app is monitored
+        repo.upsert_monitoring_host("zabbix", "z-010", "beta-app", status="active", ip_addresses=["10.1.0.1"])
+        # Monitoring: orphan host not matching any cloud VM
+        repo.upsert_monitoring_host("zabbix", "z-099", "orphan-host", status="active", ip_addresses=["10.9.0.1"])
+
+        session.commit()
+        ids = {"t1": t1.id, "t2": t2.id, "a1": a1.id, "a2": a2.id}
+    return app, ids
+
+
+def test_comparison_with_tenant_filter_shows_only_tenant_vms():
+    """Comparison scoped to tenant only shows that tenant's VMs."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    assert resp.status_code == 200
+    assert "acme-web" in html
+    assert "acme-db" in html
+    assert "beta-app" not in html
+
+
+def test_comparison_with_tenant_filter_second_tenant():
+    """Comparison scoped to second tenant shows only its VMs."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t2']}")
+    html = resp.text
+    assert "beta-app" in html
+    assert "acme-web" not in html
+    assert "acme-db" not in html
+
+
+def test_comparison_without_tenant_filter_shows_all():
+    """Comparison without tenant filter shows all VMs."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "acme-web" in html
+    assert "acme-db" in html
+    assert "beta-app" in html
+    assert "orphan-host" in html
+
+
+def test_comparison_tenant_filter_invalid_shows_all():
+    """Invalid tenant_id falls back to showing all VMs."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?tenant_id=9999")
+    html = resp.text
+    assert "acme-web" in html
+    assert "beta-app" in html
+
+
+def test_comparison_tenant_filter_discrepancies():
+    """Tenant-scoped comparison correctly identifies discrepancies within tenant."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    # acme-db has no monitoring -> discrepancy
+    assert "in cloud but not in monitoring" in html
+
+
+def test_comparison_table_partial_with_tenant():
+    """HTMX table partial respects tenant_id filter."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison/table?tenant_id={ids['t1']}")
+    html = resp.text
+    assert resp.status_code == 200
+    assert "acme-web" in html
+    assert "beta-app" not in html
+
+
+def test_comparison_tenant_filter_combined_with_provider():
+    """Tenant filter works with provider filter."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}&provider=yandex_cloud")
+    html = resp.text
+    assert "acme-web" in html
+    assert "acme-db" in html
+    assert "beta-app" not in html
+
+
+def test_comparison_has_tenant_selector():
+    """Comparison page shows tenant selector when tenants exist."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "All Tenants" in html
+    assert "Acme Corp" in html
+    assert "Beta Inc" in html

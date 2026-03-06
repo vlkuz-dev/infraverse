@@ -188,12 +188,18 @@ class Repository:
             .all()
         )
 
-    def get_all_vms(self, tenant_id: int | None = None) -> list[VM]:
+    def get_all_vms(
+        self,
+        tenant_id: int | None = None,
+        account_id: int | None = None,
+    ) -> list[VM]:
         query = (
             self.session.query(VM)
             .options(joinedload(VM.cloud_account))
         )
-        if tenant_id is not None:
+        if account_id is not None:
+            query = query.filter(VM.cloud_account_id == account_id)
+        elif tenant_id is not None:
             query = query.join(CloudAccount).filter(
                 CloudAccount.tenant_id == tenant_id
             )

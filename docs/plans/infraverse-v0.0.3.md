@@ -170,12 +170,12 @@ oidc:
 
 ### Task 6: Tenant-scoped web UI — VMs and comparison
 
-- [ ] write tests for VM list with tenant/account filtering
-- [ ] add tenant/account filter to VM list page
-- [ ] update comparison route to support `?tenant_id=` scoping
-- [ ] update `_run_comparison()` to filter VMs by tenant when `tenant_id` is provided
-- [ ] write tests for comparison scoped to tenant vs global comparison
-- [ ] run tests — must pass before next task
+- [x] write tests for VM list with tenant/account filtering
+- [x] add tenant/account filter to VM list page
+- [x] update comparison route to support `?tenant_id=` scoping
+- [x] update `_run_comparison()` to filter VMs by tenant when `tenant_id` is provided
+- [x] write tests for comparison scoped to tenant vs global comparison
+- [x] run tests — must pass before next task
 
 ---
 

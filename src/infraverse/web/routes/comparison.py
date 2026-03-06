@@ -1,6 +1,6 @@
 """Comparison route for Infraverse web UI."""
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from infraverse.comparison.engine import ComparisonEngine
 from infraverse.comparison.models import ComparisonResult
@@ -38,17 +38,22 @@ def _host_to_zabbixhost(host: MonitoringHost) -> ZabbixHost:
     )
 
 
-def _run_comparison(repo: Repository, app_config=None) -> tuple[ComparisonResult, dict[str, int]]:
+def _run_comparison(
+    repo: Repository,
+    app_config=None,
+    tenant_id: int | None = None,
+) -> tuple[ComparisonResult, dict[str, int]]:
     """Load data from DB and run comparison engine.
 
     Args:
         repo: Database repository.
         app_config: Application config (used to check if monitoring is configured).
+        tenant_id: Optional tenant ID to scope comparison to.
 
     Returns:
         Tuple of (ComparisonResult, vm_name_to_id mapping).
     """
-    db_vms = repo.get_all_vms()
+    db_vms = repo.get_all_vms(tenant_id=tenant_id)
     db_hosts = repo.get_all_monitoring_hosts()
 
     # NOTE: keeps first ID per name; duplicate names across accounts link to the same detail page
@@ -57,6 +62,12 @@ def _run_comparison(repo: Repository, app_config=None) -> tuple[ComparisonResult
         if vm.name not in vm_name_to_id:
             vm_name_to_id[vm.name] = vm.id
     cloud_vms = [_vm_to_vminfo(vm) for vm in db_vms]
+
+    # When tenant-scoped, only include monitoring hosts matching tenant's VM names
+    if tenant_id is not None:
+        vm_names = {vm.name.lower() for vm in db_vms}
+        db_hosts = [h for h in db_hosts if h.name.lower() in vm_names]
+
     zabbix_hosts = [_host_to_zabbixhost(h) for h in db_hosts]
 
     # Use config to determine if monitoring is configured; fall back to data presence
@@ -111,13 +122,24 @@ def _get_providers(repo: Repository) -> list[str]:
     return sorted({a.provider_type for a in accounts})
 
 
-def _build_context(request: Request, provider, status, search):
+def _build_context(request: Request, provider, status, search, tenant_id=None):
     """Shared logic for comparison and comparison_table routes."""
     app_config = getattr(request.app.state, "config", None)
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
-        result, vm_name_to_id = _run_comparison(repo, app_config=app_config)
+        tenants = repo.list_tenants()
+
+        # Validate tenant_id
+        selected_tenant_id = None
+        if tenant_id is not None:
+            tenant = repo.get_tenant(tenant_id)
+            if tenant is not None:
+                selected_tenant_id = tenant_id
+
+        result, vm_name_to_id = _run_comparison(
+            repo, app_config=app_config, tenant_id=selected_tenant_id,
+        )
         providers = _get_providers(repo)
 
     result = _filter_results(result, provider=provider, status=status, search=search)
@@ -130,6 +152,8 @@ def _build_context(request: Request, provider, status, search):
         "current_search": search or "",
         "netbox_configured": False,
         "vm_name_to_id": vm_name_to_id,
+        "tenants": tenants,
+        "selected_tenant_id": selected_tenant_id,
     }
 
 
@@ -139,9 +163,10 @@ def comparison(
     provider: str | None = None,
     status: str | None = None,
     search: str | None = None,
+    tenant_id: int | None = Query(default=None),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search)
+    context = _build_context(request, provider, status, search, tenant_id=tenant_id)
     context["active_page"] = "comparison"
 
     return templates.TemplateResponse(
@@ -157,9 +182,10 @@ def comparison_table(
     provider: str | None = None,
     status: str | None = None,
     search: str | None = None,
+    tenant_id: int | None = Query(default=None),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search)
+    context = _build_context(request, provider, status, search, tenant_id=tenant_id)
 
     return templates.TemplateResponse(
         request,

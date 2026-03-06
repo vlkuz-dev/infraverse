@@ -1,12 +1,72 @@
-"""VM detail route for Infraverse web UI."""
+"""VM list and detail routes for Infraverse web UI."""
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
 from infraverse.web.links import build_vm_links
 
 router = APIRouter()
+
+
+@router.get("/vms")
+def vm_list(
+    request: Request,
+    tenant_id: int | None = Query(default=None),
+    account_id: int | None = Query(default=None),
+):
+    templates = get_templates()
+    session_factory = request.app.state.session_factory
+    with session_factory() as session:
+        repo = Repository(session)
+        tenants = repo.list_tenants()
+
+        # Validate tenant_id
+        selected_tenant_id = None
+        if tenant_id is not None:
+            tenant = repo.get_tenant(tenant_id)
+            if tenant is not None:
+                selected_tenant_id = tenant_id
+
+        # Validate account_id
+        selected_account_id = None
+        if account_id is not None:
+            account = repo.get_cloud_account(account_id)
+            if account is not None:
+                selected_account_id = account_id
+
+        vms = repo.get_all_vms(
+            tenant_id=selected_tenant_id,
+            account_id=selected_account_id,
+        )
+
+        vm_list_data = []
+        for vm in vms:
+            account_name = ""
+            if vm.cloud_account:
+                account_name = vm.cloud_account.name
+            vm_list_data.append({
+                "id": vm.id,
+                "name": vm.name,
+                "status": vm.status,
+                "ip_addresses": vm.ip_addresses or [],
+                "vcpus": vm.vcpus,
+                "memory_mb": vm.memory_mb,
+                "account_name": account_name,
+            })
+
+    return templates.TemplateResponse(
+        request,
+        "vm_list.html",
+        {
+            "active_page": "vms",
+            "vms": vm_list_data,
+            "vm_count": len(vm_list_data),
+            "tenants": tenants,
+            "selected_tenant_id": selected_tenant_id,
+            "selected_account_id": selected_account_id,
+        },
+    )
 
 
 @router.get("/vms/{vm_id}")

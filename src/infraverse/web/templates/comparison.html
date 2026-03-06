@@ -6,6 +6,21 @@
 
 {% block content %}
 <div class="row row-deck row-cards">
+    {% if tenants | length > 0 %}
+    <!-- Tenant selector -->
+    <div class="col-12">
+        <div class="d-flex align-items-center mb-2">
+            <label class="form-label me-2 mb-0">Tenant:</label>
+            <select class="form-select form-select-sm" style="width: auto;" onchange="window.location.href = this.value ? '/comparison?tenant_id=' + this.value : '/comparison'">
+                <option value="">All Tenants</option>
+                {% for tenant in tenants %}
+                <option value="{{ tenant.id }}"{% if selected_tenant_id == tenant.id %} selected{% endif %}>{{ tenant.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Summary cards -->
     <div class="col-sm-6 col-lg-3">
         <div class="card">
