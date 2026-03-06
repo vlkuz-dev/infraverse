@@ -204,12 +204,12 @@ oidc:
 
 ### Task 9: Monitoring check per VM
 
-- [ ] write tests for `check_vm_monitoring(vm, zabbix_client)`: VM found by name, by IP, not found
-- [ ] create `src/infraverse/sync/monitoring.py` with `check_vm_monitoring()` function
-- [ ] query Zabbix by VM name first, fallback to IP addresses
-- [ ] return monitoring status (found/not found) with host details
-- [ ] write tests for batch `check_all_vms_monitoring(vms, zabbix_client)`: mixed results
-- [ ] run tests — must pass before next task
+- [x] write tests for `check_vm_monitoring(vm, zabbix_client)`: VM found by name, by IP, not found
+- [x] create `src/infraverse/sync/monitoring.py` with `check_vm_monitoring()` function
+- [x] query Zabbix by VM name first, fallback to IP addresses
+- [x] return monitoring status (found/not found) with host details
+- [x] write tests for batch `check_all_vms_monitoring(vms, zabbix_client)`: mixed results
+- [x] run tests — must pass before next task
 
 ### Task 10: Refactor DataIngestor for new monitoring flow
 
