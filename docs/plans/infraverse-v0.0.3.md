@@ -238,11 +238,11 @@ oidc:
 
 ### Task 12: OIDC dependencies and config
 
-- [ ] add `authlib` and `itsdangerous` to project dependencies (pyproject.toml)
-- [ ] write tests for OIDC config parsing from YAML: all fields present, missing fields
-- [ ] extend `InfraverseConfig` / `OidcConfig` dataclass with validation
-- [ ] write tests for `oidc_configured` property: True when section present, False when absent
-- [ ] run tests — must pass before next task
+- [x] add `authlib` and `itsdangerous` to project dependencies (pyproject.toml)
+- [x] write tests for OIDC config parsing from YAML: all fields present, missing fields
+- [x] extend `InfraverseConfig` / `OidcConfig` dataclass with validation
+- [x] write tests for `oidc_configured` property: True when section present, False when absent
+- [x] run tests — must pass before next task
 
 ### Task 13: OIDC login and callback routes
 

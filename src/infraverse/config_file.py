@@ -140,7 +140,15 @@ def _parse_monitoring(raw: dict) -> MonitoringConfig:
     )
 
 
+_OIDC_REQUIRED_FIELDS = ("provider_url", "client_id", "client_secret", "required_role")
+
+
 def _parse_oidc(raw: dict) -> OidcConfig:
+    for field_name in _OIDC_REQUIRED_FIELDS:
+        if field_name not in raw:
+            raise ValueError(
+                f"OIDC config is missing required field '{field_name}'"
+            )
     return OidcConfig(
         provider_url=raw["provider_url"],
         client_id=raw["client_id"],

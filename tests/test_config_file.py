@@ -434,6 +434,90 @@ class TestEdgeCases:
         assert acc.provider == "vcloud"
 
 
+# ── OIDC config validation ───────────────────────────────────────────
+
+
+def _minimal_with_oidc(oidc_data):
+    """Helper: minimal valid config with an oidc section."""
+    return {
+        "tenants": {
+            "t1": {
+                "cloud_accounts": [
+                    {"name": "a", "provider": "yandex_cloud", "token": "tok"},
+                ],
+            },
+        },
+        "oidc": oidc_data,
+    }
+
+
+class TestOidcConfigParsing:
+    def test_full_oidc_fields_parsed(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com/realms/test",
+            "client_id": "my-app",
+            "client_secret": "secret-123",
+            "required_role": "app-admin",
+        })
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.oidc.provider_url == "https://idp.example.com/realms/test"
+        assert cfg.oidc.client_id == "my-app"
+        assert cfg.oidc.client_secret == "secret-123"
+        assert cfg.oidc.required_role == "app-admin"
+
+    def test_missing_provider_url_raises(self, tmp_path):
+        data = _minimal_with_oidc({
+            "client_id": "app",
+            "client_secret": "sec",
+            "required_role": "admin",
+        })
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="provider_url"):
+            load_config(path)
+
+    def test_missing_client_id_raises(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com",
+            "client_secret": "sec",
+            "required_role": "admin",
+        })
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="client_id"):
+            load_config(path)
+
+    def test_missing_client_secret_raises(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com",
+            "client_id": "app",
+            "required_role": "admin",
+        })
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="client_secret"):
+            load_config(path)
+
+    def test_missing_required_role_raises(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com",
+            "client_id": "app",
+            "client_secret": "sec",
+        })
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="required_role"):
+            load_config(path)
+
+    def test_empty_oidc_section_raises(self, tmp_path):
+        data = _minimal_with_oidc({})
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="provider_url"):
+            load_config(path)
+
+    def test_no_oidc_section_returns_none(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.oidc is None
+
+
 # ── dataclass properties ────────────────────────────────────────────
 
 
