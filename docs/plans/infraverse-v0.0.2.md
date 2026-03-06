@@ -154,10 +154,10 @@ These features close the gap between "data is in DB" (v0.0.1) and "data stays fr
 - [x] Run tests - must pass before next task
 
 ### Task 10: Version bump
-- [ ] Update version to `0.0.2` in `src/infraverse/__init__.py`
-- [ ] Update version to `0.0.2` in `pyproject.toml`
-- [ ] Write test verifying version string is `0.0.2`
-- [ ] Run tests - must pass before next task
+- [x] Update version to `0.0.2` in `src/infraverse/__init__.py`
+- [x] Update version to `0.0.2` in `pyproject.toml`
+- [x] Write test verifying version string is `0.0.2`
+- [x] Run tests - must pass before next task
 
 ### Task 11: Verify acceptance criteria
 - [ ] Verify scheduler starts with `infraverse serve` when SYNC_INTERVAL_MINUTES > 0

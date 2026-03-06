@@ -2,7 +2,17 @@ import infraverse
 
 
 def test_version():
-    assert infraverse.__version__ == "0.0.1"
+    assert infraverse.__version__ == "0.0.2"
+
+
+def test_version_matches_pyproject():
+    import tomllib
+    from pathlib import Path
+
+    pyproject = Path(__file__).parent.parent / "pyproject.toml"
+    with open(pyproject, "rb") as f:
+        data = tomllib.load(f)
+    assert data["project"]["version"] == infraverse.__version__
 
 
 def test_version_is_string():
