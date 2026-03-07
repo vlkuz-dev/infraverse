@@ -55,7 +55,10 @@ class TestSyncEngineInit:
     def test_creates_clients(self, mock_yc_cls, mock_nb_cls, config):
         engine = SyncEngine(config)
 
-        mock_yc_cls.assert_called_once_with("test-yc-token")
+        mock_yc_cls.assert_called_once()
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        assert "token_provider" in call_kwargs
+        assert call_kwargs["token_provider"].get_token() == "test-yc-token"
         mock_nb_cls.assert_called_once_with(
             url="https://netbox.test",
             token="test-nb-token",
@@ -71,6 +74,29 @@ class TestSyncEngineInit:
         )
         SyncEngine(cfg)
         mock_nb_cls.assert_called_once_with(url="u", token="n", dry_run=True)
+
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
+    def test_uses_sa_key_file_when_configured(self, mock_yc_cls, mock_nb_cls, tmp_path):
+        import json
+
+        sa_key = {
+            "id": "key-id",
+            "service_account_id": "sa-id",
+            "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+        }
+        key_file = tmp_path / "sa-key.json"
+        key_file.write_text(json.dumps(sa_key))
+
+        cfg = Config(
+            yc_token="", netbox_url="u", netbox_token="n",
+            yc_sa_key_file=str(key_file),
+        )
+        SyncEngine(cfg)
+
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        from infraverse.providers.yc_auth import ServiceAccountKeyProvider
+        assert isinstance(call_kwargs["token_provider"], ServiceAccountKeyProvider)
 
 
 class TestSyncEngineRunBatch:

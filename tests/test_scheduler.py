@@ -264,14 +264,46 @@ class TestBuildProviders:
         account.provider_type = "yandex_cloud"
         account.config = {}
 
-        cfg = _make_config(yc_token="test-token")
+        cfg = _make_config(yc_token="test-token", yc_sa_key_file=None)
         svc = SchedulerService(_make_session_factory(), cfg)
 
         with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
             providers = svc._build_providers([account])
 
         assert providers == {1: mock_provider}
-        mock_yc_cls.assert_called_once_with(token="test-token")
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        assert call_kwargs["token_provider"].get_token() == "test-token"
+
+    @patch("infraverse.providers.yandex.YandexCloudClient")
+    def test_builds_yandex_with_sa_key_file(self, mock_yc_cls, tmp_path):
+        import json
+
+        sa_key = {
+            "id": "key-id",
+            "service_account_id": "sa-id",
+            "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+        }
+        key_file = tmp_path / "sa-key.json"
+        key_file.write_text(json.dumps(sa_key))
+
+        mock_provider = MagicMock()
+        mock_yc_cls.return_value = mock_provider
+
+        account = MagicMock()
+        account.id = 1
+        account.provider_type = "yandex_cloud"
+        account.config = {}
+
+        cfg = _make_config(yc_token="", yc_sa_key_file=str(key_file))
+        svc = SchedulerService(_make_session_factory(), cfg)
+
+        with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            providers = svc._build_providers([account])
+
+        assert providers == {1: mock_provider}
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        from infraverse.providers.yc_auth import ServiceAccountKeyProvider
+        assert isinstance(call_kwargs["token_provider"], ServiceAccountKeyProvider)
 
     @patch("infraverse.providers.vcloud.VCloudDirectorClient")
     def test_builds_vcloud_provider(self, mock_vcd_cls):
@@ -510,7 +542,40 @@ class TestBuildProvidersFromAccountConfig:
             providers = svc._build_providers([account])
 
         assert providers == {1: mock_provider}
-        mock_yc_cls.assert_called_once_with(token="from-account-config")
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        assert call_kwargs["token_provider"].get_token() == "from-account-config"
+
+    @patch("infraverse.providers.yandex.YandexCloudClient")
+    def test_builds_yandex_from_sa_key_file_in_account(self, mock_yc_cls, tmp_path):
+        import json
+
+        sa_key = {
+            "id": "key-id",
+            "service_account_id": "sa-id",
+            "private_key": "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+        }
+        key_file = tmp_path / "sa-key.json"
+        key_file.write_text(json.dumps(sa_key))
+
+        mock_provider = MagicMock()
+        mock_yc_cls.return_value = mock_provider
+
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        account = MagicMock()
+        account.id = 1
+        account.provider_type = "yandex_cloud"
+        account.config = {"sa_key_file": str(key_file)}
+        account.name = "yc-sa"
+
+        svc = SchedulerService(_make_session_factory(), _make_config(), infraverse_config=ic)
+
+        with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            providers = svc._build_providers([account])
+
+        assert providers == {1: mock_provider}
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        from infraverse.providers.yc_auth import ServiceAccountKeyProvider
+        assert isinstance(call_kwargs["token_provider"], ServiceAccountKeyProvider)
 
     @patch("infraverse.providers.vcloud.VCloudDirectorClient")
     def test_builds_vcloud_from_account_config(self, mock_vcd_cls):
@@ -715,7 +780,7 @@ class TestSchedulerMultiTenant:
 
         with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
              patch("infraverse.providers.vcloud.VCloudDirectorClient"):
-            mock_yc_cls.side_effect = lambda token: MagicMock(token=token)
+            mock_yc_cls.side_effect = lambda token_provider=None, **kw: MagicMock()
             svc._run_ingestion()
 
         providers = mock_ingestor.ingest_all.call_args[0][0]

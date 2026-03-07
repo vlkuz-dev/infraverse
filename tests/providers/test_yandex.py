@@ -534,14 +534,27 @@ class TestFetchAllData:
 
 
 class TestInit:
-    def test_init_sets_token_and_headers(self):
+    def test_init_with_token_string(self):
         with patch('infraverse.providers.yandex.httpx.Client') as mock_httpx:
             client = YandexCloudClient("my-token")
-            assert client.token == "my-token"
-            assert client.headers == {"Authorization": "Bearer my-token"}
-            mock_httpx.assert_called_once_with(
-                timeout=30.0, headers={"Authorization": "Bearer my-token"}
-            )
+            assert client._token_provider.get_token() == "my-token"
+            mock_httpx.assert_called_once()
+
+    def test_init_with_token_provider(self):
+        from infraverse.providers.yc_auth import StaticTokenProvider
+
+        provider = StaticTokenProvider("provider-token")
+        with patch('infraverse.providers.yandex.httpx.Client'):
+            client = YandexCloudClient(token_provider=provider)
+            assert client._token_provider is provider
+
+    def test_token_provider_takes_precedence(self):
+        from infraverse.providers.yc_auth import StaticTokenProvider
+
+        provider = StaticTokenProvider("provider-token")
+        with patch('infraverse.providers.yandex.httpx.Client'):
+            client = YandexCloudClient("plain-token", token_provider=provider)
+            assert client._token_provider is provider
 
 
 class TestImports:

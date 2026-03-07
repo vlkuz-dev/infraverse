@@ -451,6 +451,60 @@ class TestExternalLinksConfig:
         assert cfg.netbox_vm_url is None
 
 
+class TestSaKeyFileConfig:
+    def _base_cfg(self, **kwargs):
+        defaults = dict(yc_token="a", netbox_url="b", netbox_token="c")
+        defaults.update(kwargs)
+        return Config(**defaults)
+
+    def test_sa_key_file_defaults_none(self):
+        cfg = self._base_cfg()
+        assert cfg.yc_sa_key_file is None
+
+    def test_sa_key_file_custom_value(self):
+        cfg = self._base_cfg(yc_sa_key_file="/path/to/key.json")
+        assert cfg.yc_sa_key_file == "/path/to/key.json"
+
+    def test_from_env_reads_sa_key_file(self, monkeypatch):
+        monkeypatch.setenv("YC_SA_KEY_FILE", "/secrets/sa-key.json")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+        monkeypatch.delenv("YC_TOKEN", raising=False)
+
+        cfg = Config.from_env()
+        assert cfg.yc_sa_key_file == "/secrets/sa-key.json"
+        assert cfg.yc_token == ""
+
+    def test_from_env_sa_key_file_takes_precedence(self, monkeypatch):
+        """When both YC_SA_KEY_FILE and YC_TOKEN are set, sa_key_file is stored."""
+        monkeypatch.setenv("YC_SA_KEY_FILE", "/secrets/sa-key.json")
+        monkeypatch.setenv("YC_TOKEN", "plain-token")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+
+        cfg = Config.from_env()
+        assert cfg.yc_sa_key_file == "/secrets/sa-key.json"
+        assert cfg.yc_token == "plain-token"
+
+    def test_from_env_no_sa_key_no_token_raises(self, monkeypatch):
+        monkeypatch.delenv("YC_SA_KEY_FILE", raising=False)
+        monkeypatch.delenv("YC_TOKEN", raising=False)
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+
+        with pytest.raises(ValueError, match="YC_TOKEN"):
+            Config.from_env()
+
+    def test_from_env_empty_sa_key_file_treated_as_none(self, monkeypatch):
+        monkeypatch.setenv("YC_SA_KEY_FILE", "")
+        monkeypatch.setenv("YC_TOKEN", "token")
+        monkeypatch.setenv("NETBOX_URL", "nb")
+        monkeypatch.setenv("NETBOX_TOKEN", "nbt")
+
+        cfg = Config.from_env()
+        assert cfg.yc_sa_key_file is None
+
+
 class TestAllProvidersConfig:
     def test_from_env_all_providers(self, monkeypatch):
         monkeypatch.setenv("YC_TOKEN", "yc")

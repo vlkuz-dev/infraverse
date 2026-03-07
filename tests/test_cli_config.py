@@ -85,7 +85,9 @@ class TestBuildProviderFromAccount:
 
         result = _build_provider_from_account(account)
 
-        mock_yc_cls.assert_called_once_with(token="yc-secret-token")
+        mock_yc_cls.assert_called_once()
+        call_kwargs = mock_yc_cls.call_args.kwargs
+        assert call_kwargs["token_provider"].get_token() == "yc-secret-token"
         assert result is mock_yc
 
     @patch("infraverse.providers.vcloud.VCloudDirectorClient")

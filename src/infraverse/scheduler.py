@@ -149,8 +149,16 @@ class SchedulerService:
                 else:
                     # Env-var mode: read credentials from self._config
                     if account.provider_type == "yandex_cloud":
+                        from infraverse.providers.yc_auth import resolve_token_provider as _resolve
+
+                        yc_creds = {}
+                        if getattr(self._config, "yc_sa_key_file", None):
+                            yc_creds["sa_key_file"] = self._config.yc_sa_key_file
+                        else:
+                            yc_creds["token"] = self._config.yc_token
+                        provider = _resolve(yc_creds)
                         providers[account.id] = YandexCloudClient(
-                            token=self._config.yc_token,
+                            token_provider=provider,
                         )
                     elif account.provider_type == "vcloud" and self._config.vcd_configured:
                         providers[account.id] = VCloudDirectorClient(
@@ -167,10 +175,12 @@ class SchedulerService:
         """Build a CloudProvider instance from account.config credentials."""
         from infraverse.providers.yandex import YandexCloudClient
         from infraverse.providers.vcloud import VCloudDirectorClient
+        from infraverse.providers.yc_auth import resolve_token_provider
 
         creds = account.config or {}
         if account.provider_type == "yandex_cloud":
-            return YandexCloudClient(token=creds.get("token", ""))
+            provider = resolve_token_provider(creds)
+            return YandexCloudClient(token_provider=provider)
         elif account.provider_type == "vcloud":
             return VCloudDirectorClient(
                 url=creds.get("url", ""),

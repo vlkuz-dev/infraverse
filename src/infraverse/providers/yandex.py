@@ -2,12 +2,15 @@
 Yandex Cloud API client using httpx for fetching cloud resources.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List
 
 import httpx
 
 from infraverse.providers.base import VMInfo
+from infraverse.providers.yc_auth import StaticTokenProvider, TokenProvider
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +28,32 @@ _YC_STATUS_MAP: Dict[str, str] = {
 }
 
 
+class _TokenAuth(httpx.Auth):
+    """httpx Auth class that injects a Bearer token from a TokenProvider."""
+
+    def __init__(self, provider: TokenProvider):
+        self._provider = provider
+
+    def auth_flow(self, request):
+        request.headers["Authorization"] = f"Bearer {self._provider.get_token()}"
+        yield request
+
+
 class YandexCloudClient:
     """Collects VM, disk, network data from Yandex Cloud for all clouds/folders."""
 
-    def __init__(self, token: str):
-        """Initialize Yandex Cloud client with OAuth token."""
-        self.token = token
-        self.headers = {"Authorization": f"Bearer {self.token}"}
-        self.client = httpx.Client(timeout=30.0, headers=self.headers)
+    def __init__(self, token: str = "", *, token_provider: TokenProvider | None = None):
+        """Initialize Yandex Cloud client.
+
+        Args:
+            token: Plain OAuth/IAM token string (backward compat).
+            token_provider: TokenProvider instance (takes precedence over token).
+        """
+        if token_provider is not None:
+            self._token_provider = token_provider
+        else:
+            self._token_provider = StaticTokenProvider(token)
+        self.client = httpx.Client(timeout=30.0, auth=_TokenAuth(self._token_provider))
 
     def __del__(self):
         """Close httpx client on deletion."""

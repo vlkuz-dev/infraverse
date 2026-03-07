@@ -18,7 +18,14 @@ class SyncEngine:
 
     def __init__(self, config: Config):
         self.config = config
-        self.yc = YandexCloudClient(config.yc_token)
+        from infraverse.providers.yc_auth import resolve_token_provider
+
+        yc_creds: dict = {}
+        if config.yc_sa_key_file:
+            yc_creds["sa_key_file"] = config.yc_sa_key_file
+        else:
+            yc_creds["token"] = config.yc_token
+        self.yc = YandexCloudClient(token_provider=resolve_token_provider(yc_creds))
         self.nb = NetBoxClient(
             url=config.netbox_url,
             token=config.netbox_token,

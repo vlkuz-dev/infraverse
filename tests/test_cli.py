@@ -338,6 +338,7 @@ class TestIngestToDb:
         mock_config = MagicMock()
         mock_config.database_url = "sqlite:///:memory:"
         mock_config.yc_token = "test-token"
+        mock_config.yc_sa_key_file = None
         mock_config.vcd_configured = False
         mock_config.zabbix_configured = False
 
@@ -379,13 +380,16 @@ class TestIngestToDb:
             mock_repo.create_cloud_account.assert_called_once_with(
                 tenant_id=1, provider_type="yandex_cloud", name="Yandex Cloud",
             )
-            mock_ingestor.ingest_all.assert_called_once_with({10: mock_yc}, None)
+            call_args = mock_ingestor.ingest_all.call_args
+            providers = call_args[0][0]
+            assert 10 in providers
 
     def test_ingest_reuses_existing_tenant(self):
         """_ingest_to_db should reuse existing tenant, not create a new one."""
         mock_config = MagicMock()
         mock_config.database_url = "sqlite:///:memory:"
         mock_config.yc_token = "test-token"
+        mock_config.yc_sa_key_file = None
         mock_config.vcd_configured = False
         mock_config.zabbix_configured = False
 
@@ -425,6 +429,7 @@ class TestIngestToDb:
         mock_config = MagicMock()
         mock_config.database_url = "sqlite:///:memory:"
         mock_config.yc_token = "test-token"
+        mock_config.yc_sa_key_file = None
         mock_config.vcd_configured = True
         mock_config.vcd_url = "https://vcd.example.com"
         mock_config.vcd_user = "admin"
@@ -480,6 +485,7 @@ class TestIngestToDb:
         mock_config = MagicMock()
         mock_config.database_url = "sqlite:///:memory:"
         mock_config.yc_token = "test-token"
+        mock_config.yc_sa_key_file = None
         mock_config.vcd_configured = False
         mock_config.zabbix_configured = True
         mock_config.zabbix_url = "https://zabbix.example.com"

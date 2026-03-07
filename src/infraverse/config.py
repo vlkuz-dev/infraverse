@@ -37,8 +37,10 @@ class Config:
         yc_console_url: str | None = None,
         zabbix_host_url: str | None = None,
         netbox_vm_url: str | None = None,
+        yc_sa_key_file: str | None = None,
     ):
         self.yc_token = yc_token
+        self.yc_sa_key_file = yc_sa_key_file
         self.netbox_url = netbox_url
         self.netbox_token = netbox_token
         self.dry_run = dry_run
@@ -62,12 +64,13 @@ class Config:
         Raises:
             ValueError: If required environment variables are missing.
         """
+        yc_sa_key_file = os.getenv("YC_SA_KEY_FILE") or None
         yc_token = os.getenv("YC_TOKEN")
         netbox_url = os.getenv("NETBOX_URL")
         netbox_token = os.getenv("NETBOX_TOKEN")
 
         missing = []
-        if not yc_token:
+        if not yc_token and not yc_sa_key_file:
             missing.append("YC_TOKEN")
         if not netbox_url:
             missing.append("NETBOX_URL")
@@ -81,7 +84,7 @@ class Config:
             )
 
         return cls(
-            yc_token=yc_token,
+            yc_token=yc_token or "",
             netbox_url=netbox_url,
             netbox_token=netbox_token,
             dry_run=dry_run,
@@ -97,6 +100,7 @@ class Config:
             yc_console_url=os.getenv("YC_CONSOLE_URL") or None,
             zabbix_host_url=os.getenv("ZABBIX_HOST_URL") or None,
             netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
+            yc_sa_key_file=yc_sa_key_file,
         )
 
     @classmethod

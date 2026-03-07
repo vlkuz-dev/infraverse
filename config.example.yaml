@@ -18,10 +18,16 @@ tenants:
   acme-corp:
     description: "ACME Corporation"
     cloud_accounts:
-      # Yandex Cloud account — requires only a token
+      # Yandex Cloud account — service account key (recommended for long-lived auth)
+      # Generate with: yc iam key create --service-account-name my-sa --output sa-key.json
       - name: "acme-yandex-prod"
         provider: yandex_cloud
-        token: "${YC_TOKEN_ACME}"
+        sa_key_file: "${YC_SA_KEY_FILE_ACME}"
+
+      # Yandex Cloud account — plain OAuth/IAM token (shorter-lived alternative)
+      # - name: "acme-yandex-dev"
+      #   provider: yandex_cloud
+      #   token: "${YC_TOKEN_ACME}"
 
       # vCloud Director account — requires url, username, password, org
       - name: "acme-vcloud"
@@ -36,7 +42,7 @@ tenants:
     cloud_accounts:
       - name: "beta-yandex"
         provider: yandex_cloud
-        token: "${YC_TOKEN_BETA}"
+        sa_key_file: "${YC_SA_KEY_FILE_BETA}"
 
 # =============================================================================
 # Monitoring (optional)
@@ -72,6 +78,10 @@ tenants:
 # =============================================================================
 # The following settings are NOT managed by this YAML config file.
 # Set them as environment variables alongside the config file.
+#
+# Yandex Cloud (env-var mode, single-tenant):
+#   YC_TOKEN=ya-oauth-token-here                # Plain OAuth/IAM token
+#   YC_SA_KEY_FILE=/path/to/sa-key.json         # SA key file (takes precedence over YC_TOKEN)
 #
 # Database:
 #   DATABASE_URL=sqlite:///infraverse.db        # Database connection URL

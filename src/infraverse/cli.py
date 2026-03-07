@@ -75,8 +75,10 @@ def _build_provider_from_account(account):
     creds = account.config or {}
     if account.provider_type == "yandex_cloud":
         from infraverse.providers.yandex import YandexCloudClient
+        from infraverse.providers.yc_auth import resolve_token_provider
 
-        return YandexCloudClient(token=creds.get("token", ""))
+        provider = resolve_token_provider(creds)
+        return YandexCloudClient(token_provider=provider)
     elif account.provider_type == "vcloud":
         from infraverse.providers.vcloud import VCloudDirectorClient
 
@@ -130,7 +132,14 @@ def _ingest_to_db(config) -> None:
         yc_account = _ensure_cloud_account(
             repo, session, tenant.id, "yandex_cloud", "Yandex Cloud",
         )
-        yc_client = YandexCloudClient(config.yc_token)
+        from infraverse.providers.yc_auth import resolve_token_provider
+
+        yc_creds: dict = {}
+        if config.yc_sa_key_file:
+            yc_creds["sa_key_file"] = config.yc_sa_key_file
+        else:
+            yc_creds["token"] = config.yc_token
+        yc_client = YandexCloudClient(token_provider=resolve_token_provider(yc_creds))
         providers[yc_account.id] = yc_client
 
         if config.vcd_configured:
