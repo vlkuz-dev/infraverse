@@ -205,3 +205,83 @@ class TestIngestNetBoxHosts:
         assert len(hosts) == 1
         assert hosts[0].name == "vm-1-renamed"
         assert hosts[0].status == "offline"
+
+    def test_resolves_tenant_name_to_tenant_id(self, session):
+        """ingest_netbox_hosts maps VMInfo.tenant_name to NetBoxHost.tenant_id."""
+        repo = Repository(session)
+        tenant = repo.create_tenant("Acme Corp")
+        session.commit()
+
+        ingestor = DataIngestor(session)
+        mock_client = MagicMock()
+        mock_client.fetch_all_vms.return_value = [
+            VMInfo(name="nb-vm-1", id="200", status="active", tenant_name="Acme Corp"),
+            VMInfo(name="nb-vm-2", id="201", status="active", tenant_name="Unknown Corp"),
+            VMInfo(name="nb-vm-3", id="202", status="active", tenant_name=""),
+        ]
+        ingestor.ingest_netbox_hosts(mock_client)
+
+        hosts = {h.name: h for h in repo.get_all_netbox_hosts()}
+        assert hosts["nb-vm-1"].tenant_id == tenant.id
+        assert hosts["nb-vm-2"].tenant_id is None
+        assert hosts["nb-vm-3"].tenant_id is None
+
+
+# --- Repository: upsert_netbox_host with tenant_id ---
+
+
+class TestUpsertNetBoxHostTenant:
+    def test_create_with_tenant_id(self, repo, session):
+        tenant = repo.create_tenant("Test Tenant")
+        session.flush()
+        host, created = repo.upsert_netbox_host(
+            external_id="50",
+            name="tenant-host",
+            status="active",
+            tenant_id=tenant.id,
+        )
+        session.commit()
+
+        assert created is True
+        assert host.tenant_id == tenant.id
+
+    def test_update_sets_tenant_id(self, repo, session):
+        repo.upsert_netbox_host(external_id="50", name="host-1")
+        session.commit()
+
+        tenant = repo.create_tenant("New Tenant")
+        session.flush()
+        host, created = repo.upsert_netbox_host(
+            external_id="50",
+            name="host-1",
+            tenant_id=tenant.id,
+        )
+        session.commit()
+
+        assert created is False
+        assert host.tenant_id == tenant.id
+
+
+# --- Repository: get_netbox_hosts_by_tenant ---
+
+
+class TestGetNetBoxHostsByTenant:
+    def test_returns_only_tenant_hosts(self, repo, session):
+        t1 = repo.create_tenant("Tenant A")
+        t2 = repo.create_tenant("Tenant B")
+        session.flush()
+
+        repo.upsert_netbox_host(external_id="1", name="a-host", tenant_id=t1.id)
+        repo.upsert_netbox_host(external_id="2", name="b-host", tenant_id=t2.id)
+        repo.upsert_netbox_host(external_id="3", name="no-tenant-host")
+        session.commit()
+
+        hosts = repo.get_netbox_hosts_by_tenant(t1.id)
+        assert len(hosts) == 1
+        assert hosts[0].name == "a-host"
+
+    def test_returns_empty_for_unknown_tenant(self, repo, session):
+        repo.upsert_netbox_host(external_id="1", name="some-host")
+        session.commit()
+
+        assert repo.get_netbox_hosts_by_tenant(9999) == []

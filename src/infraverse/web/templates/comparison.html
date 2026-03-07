@@ -111,21 +111,21 @@
                     data-status=""
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search]"
+                    hx-include="[name=provider],[name=search],[name=tenant_id]"
                     hx-vals='{"status": ""}'>All</button>
             <button type="button"
                     class="btn {% if current_status == 'with_issues' %}btn-primary{% else %}btn-outline-primary{% endif %}"
                     data-status="with_issues"
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search]"
+                    hx-include="[name=provider],[name=search],[name=tenant_id]"
                     hx-vals='{"status": "with_issues"}'>With Issues</button>
             <button type="button"
                     class="btn {% if current_status == 'in_sync' %}btn-primary{% else %}btn-outline-primary{% endif %}"
                     data-status="in_sync"
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search]"
+                    hx-include="[name=provider],[name=search],[name=tenant_id]"
                     hx-vals='{"status": "in_sync"}'>Matched</button>
             {% if netbox_configured %}
             <button type="button"
@@ -133,14 +133,14 @@
                     data-status="missing_from_netbox"
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search]"
+                    hx-include="[name=provider],[name=search],[name=tenant_id]"
                     hx-vals='{"status": "missing_from_netbox"}'>Missing from NetBox</button>
             <button type="button"
                     class="btn {% if current_status == 'missing_from_cloud' %}btn-primary{% else %}btn-outline-primary{% endif %}"
                     data-status="missing_from_cloud"
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search]"
+                    hx-include="[name=provider],[name=search],[name=tenant_id]"
                     hx-vals='{"status": "missing_from_cloud"}'>Missing from Cloud</button>
             {% endif %}
         </div>
@@ -151,6 +151,7 @@
         <div class="card">
             <div class="card-body">
                 <form id="filter-form" hx-get="/comparison/table" hx-target="#comparison-table" hx-trigger="change, keyup changed delay:300ms from:#search-input" class="row g-3 align-items-end">
+                    <input type="hidden" name="tenant_id" value="{{ selected_tenant_id or '' }}">
                     <div class="col-12 col-md-4">
                         <label class="form-label">Provider</label>
                         <select name="provider" class="form-select">

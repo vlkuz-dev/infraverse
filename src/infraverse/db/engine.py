@@ -1,10 +1,14 @@
 """Database engine and session management."""
 
-from sqlalchemy import create_engine as sa_create_engine
+import logging
+
+from sqlalchemy import create_engine as sa_create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from infraverse.db.models import Base
+
+logger = logging.getLogger(__name__)
 
 
 def create_engine(database_url: str = "sqlite:///infraverse.db"):
@@ -23,6 +27,20 @@ def create_session_factory(engine) -> sessionmaker:
     return sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
 
 
+def _migrate_schema(engine) -> None:
+    """Apply lightweight schema migrations for columns added after initial release."""
+    insp = inspect(engine)
+    if "netbox_hosts" in insp.get_table_names():
+        columns = {c["name"] for c in insp.get_columns("netbox_hosts")}
+        if "tenant_id" not in columns:
+            logger.info("Migrating netbox_hosts: adding tenant_id column")
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE netbox_hosts ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
+                )
+
+
 def init_db(engine) -> None:
-    """Create all database tables."""
+    """Create all database tables and apply pending migrations."""
     Base.metadata.create_all(bind=engine)
+    _migrate_schema(engine)

@@ -116,10 +116,10 @@ def test_accounts_list_empty():
     assert "No cloud accounts found" in resp.text
 
 
-# --- Sidebar navigation tests ---
+# --- Top navigation tests ---
 
 
-def test_accounts_list_has_active_sidebar():
+def test_accounts_list_has_active_nav():
     import re
     app = _create_seeded_app()
     client = TestClient(app)
@@ -129,8 +129,8 @@ def test_accounts_list_has_active_sidebar():
     assert re.search(pattern, resp.text), "Accounts nav item should be active"
 
 
-def test_sidebar_has_accounts_link():
-    """All pages should show the Cloud Accounts link in sidebar."""
+def test_nav_has_accounts_link():
+    """All pages should show the Cloud Accounts link in top nav."""
     app = _create_seeded_app()
     client = TestClient(app)
     # Check from the dashboard
@@ -139,15 +139,12 @@ def test_sidebar_has_accounts_link():
     assert "Cloud Accounts" in resp.text
 
 
-def test_sidebar_accounts_active_on_list_page():
+def test_nav_accounts_active_on_list_page():
     """Cloud Accounts nav should be active when on the accounts list page."""
     app = _create_seeded_app()
     client = TestClient(app)
     resp = client.get("/accounts")
     html = resp.text
-    # The Jinja2 template renders "nav-item active" for the accounts nav item
-    # when active_page == 'accounts'. Check the rendered pattern.
-    # The sidebar should contain a nav-item with both active class and /accounts href
     import re
     # Match the li.nav-item.active that contains href="/accounts"
     pattern = r'<li class="nav-item active">\s*<a class="nav-link" href="/accounts">'

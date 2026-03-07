@@ -47,7 +47,7 @@ def test_base_template_has_htmx():
     assert "htmx.org" in html
 
 
-def test_base_template_has_sidebar_nav():
+def test_base_template_has_top_nav():
     env = _get_env()
     template = env.get_template("base.html")
     html = template.render()

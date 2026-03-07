@@ -17,6 +17,7 @@ class VMInfo:
     provider: str = ""
     cloud_name: str = ""
     folder_name: str = ""
+    tenant_name: str = ""
 
 
 @runtime_checkable

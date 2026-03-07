@@ -399,7 +399,7 @@ def test_quick_filter_buttons_have_htmx_attrs(seeded_client):
     html = resp.text
     assert 'hx-get="/comparison/table"' in html
     assert 'hx-target="#comparison-table"' in html
-    assert 'hx-include="[name=provider],[name=search]"' in html
+    assert 'hx-include="[name=provider],[name=search],[name=tenant_id]"' in html
 
 
 # --- Table partial route with status filter tests ---
@@ -851,3 +851,87 @@ def test_missing_from_netbox_button_active():
         html,
     )
     assert match is not None
+
+
+# --- Multi-tenant NetBox comparison tests ---
+
+
+def _create_multi_tenant_netbox_app():
+    """Create app with two tenants, cloud VMs, and NetBox hosts linked to each tenant."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        t1 = repo.create_tenant("Acme Corp")
+        t2 = repo.create_tenant("Beta Inc")
+
+        a1 = repo.create_cloud_account(t1.id, "yandex_cloud", "Acme YC")
+        a2 = repo.create_cloud_account(t2.id, "vcloud", "Beta vCloud")
+
+        # Acme cloud VMs
+        repo.upsert_vm(a1.id, "vm-001", "acme-web", status="active")
+        repo.upsert_vm(a1.id, "vm-002", "acme-db", status="active")
+
+        # Beta cloud VMs
+        repo.upsert_vm(a2.id, "vm-010", "beta-app", status="active")
+
+        # NetBox hosts linked to tenants
+        repo.upsert_netbox_host(external_id="nb-1", name="acme-web", status="active", tenant_id=t1.id)
+        repo.upsert_netbox_host(external_id="nb-2", name="acme-db", status="active", tenant_id=t1.id)
+        repo.upsert_netbox_host(external_id="nb-10", name="beta-app", status="active", tenant_id=t2.id)
+        # Orphan in NetBox for Beta tenant
+        repo.upsert_netbox_host(external_id="nb-11", name="beta-orphan", status="active", tenant_id=t2.id)
+
+        session.commit()
+        ids = {"t1": t1.id, "t2": t2.id}
+    return app, ids
+
+
+def test_netbox_tenant_filter_excludes_other_tenants_netbox_hosts():
+    """Tenant-scoped comparison only shows that tenant's NetBox hosts, not others."""
+    app, ids = _create_multi_tenant_netbox_app()
+    client = TestClient(app)
+
+    # Acme tenant: should see acme-web, acme-db matched; should NOT see beta-app or beta-orphan
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    assert "acme-web" in html
+    assert "acme-db" in html
+    assert "beta-app" not in html
+    assert "beta-orphan" not in html
+
+
+def test_netbox_tenant_filter_second_tenant():
+    """Second tenant sees its own NetBox hosts and orphan, not the first tenant's."""
+    app, ids = _create_multi_tenant_netbox_app()
+    client = TestClient(app)
+
+    resp = client.get(f"/comparison?tenant_id={ids['t2']}")
+    html = resp.text
+    assert "beta-app" in html
+    assert "beta-orphan" in html
+    assert "acme-web" not in html
+    assert "acme-db" not in html
+
+
+def test_netbox_no_tenant_filter_shows_all():
+    """Without tenant filter, all NetBox hosts from all tenants are shown."""
+    app, ids = _create_multi_tenant_netbox_app()
+    client = TestClient(app)
+
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "acme-web" in html
+    assert "acme-db" in html
+    assert "beta-app" in html
+    assert "beta-orphan" in html
+
+
+def test_netbox_tenant_filter_no_false_missing_in_cloud():
+    """Tenant-scoped comparison doesn't show other tenant's NetBox VMs as 'missing in cloud'."""
+    app, ids = _create_multi_tenant_netbox_app()
+    client = TestClient(app)
+
+    # For Acme, both NetBox hosts match cloud VMs -> no "in NetBox but not in cloud"
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    assert "in NetBox but not in cloud" not in html

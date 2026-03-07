@@ -128,9 +128,12 @@ class NetBoxHost(Base):
     cluster_name = Column(String, nullable=True)
     vcpus = Column(Integer, nullable=True)
     memory_mb = Column(Integer, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    tenant = relationship("Tenant")
 
     def __repr__(self):
         return f"<NetBoxHost(id={self.id}, name={self.name!r}, external_id={self.external_id!r})>"

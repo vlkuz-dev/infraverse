@@ -914,6 +914,10 @@ class NetBoxClient:
             if hasattr(vm, 'cluster') and vm.cluster:
                 cluster_name = str(vm.cluster)
 
+            tenant_name = ""
+            if hasattr(vm, 'tenant') and vm.tenant:
+                tenant_name = str(vm.tenant)
+
             result.append(VMInfo(
                 name=vm.name,
                 id=str(vm.id),
@@ -924,6 +928,7 @@ class NetBoxClient:
                 provider="netbox",
                 cloud_name="",
                 folder_name=cluster_name,
+                tenant_name=tenant_name,
             ))
         logger.info(f"Fetched {len(result)} VMs from NetBox as VMInfo")
         return result

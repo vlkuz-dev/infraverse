@@ -69,8 +69,11 @@ def _run_comparison(
     else:
         db_hosts = repo.get_all_monitoring_hosts()
 
-    # Load NetBox hosts from DB
-    db_netbox_hosts = repo.get_all_netbox_hosts()
+    # Load NetBox hosts scoped by tenant or globally
+    if tenant_id is not None:
+        db_netbox_hosts = repo.get_netbox_hosts_by_tenant(tenant_id)
+    else:
+        db_netbox_hosts = repo.get_all_netbox_hosts()
 
     # NOTE: keeps first ID per name; duplicate names across accounts link to the same detail page
     vm_name_to_id: dict[str, int] = {}
@@ -183,16 +186,26 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
     }
 
 
+def _parse_tenant_id(raw: str | None) -> int | None:
+    """Parse tenant_id from query param, treating empty string as None."""
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return None
+
+
 @router.get("/comparison")
 def comparison(
     request: Request,
     provider: str | None = None,
     status: str | None = None,
     search: str | None = None,
-    tenant_id: int | None = Query(default=None),
+    tenant_id: str | None = Query(default=None),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search, tenant_id=tenant_id)
+    context = _build_context(request, provider, status, search, tenant_id=_parse_tenant_id(tenant_id))
     context["active_page"] = "comparison"
 
     return templates.TemplateResponse(
@@ -208,10 +221,10 @@ def comparison_table(
     provider: str | None = None,
     status: str | None = None,
     search: str | None = None,
-    tenant_id: int | None = Query(default=None),
+    tenant_id: str | None = Query(default=None),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search, tenant_id=tenant_id)
+    context = _build_context(request, provider, status, search, tenant_id=_parse_tenant_id(tenant_id))
 
     return templates.TemplateResponse(
         request,

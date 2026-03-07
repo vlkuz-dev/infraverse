@@ -241,8 +241,13 @@ class DataIngestor:
         items_created = 0
         items_updated = 0
 
+        # Build tenant name -> tenant_id mapping for resolving NetBox tenant names
+        all_tenants = self.repo.list_tenants()
+        tenant_name_to_id = {t.name: t.id for t in all_tenants}
+
         try:
             for vm_info in vms:
+                tenant_id = tenant_name_to_id.get(vm_info.tenant_name)
                 _, created = self.repo.upsert_netbox_host(
                     external_id=vm_info.id,
                     name=vm_info.name,
@@ -251,6 +256,7 @@ class DataIngestor:
                     cluster_name=vm_info.folder_name,
                     vcpus=vm_info.vcpus,
                     memory_mb=vm_info.memory_mb,
+                    tenant_id=tenant_id,
                 )
                 if created:
                     items_created += 1

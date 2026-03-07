@@ -360,6 +360,7 @@ class Repository:
         cluster_name: str | None = None,
         vcpus: int | None = None,
         memory_mb: int | None = None,
+        tenant_id: int | None = None,
     ) -> tuple[NetBoxHost, bool]:
         """Upsert a NetBox host record by external_id.
 
@@ -382,6 +383,7 @@ class Repository:
                 cluster_name=cluster_name,
                 vcpus=vcpus,
                 memory_mb=memory_mb,
+                tenant_id=tenant_id,
                 last_seen_at=now,
             )
             self.session.add(host)
@@ -392,12 +394,21 @@ class Repository:
             host.cluster_name = cluster_name
             host.vcpus = vcpus
             host.memory_mb = memory_mb
+            host.tenant_id = tenant_id
             host.last_seen_at = now
         self.session.flush()
         return host, created
 
     def get_all_netbox_hosts(self) -> list[NetBoxHost]:
         return self.session.query(NetBoxHost).order_by(NetBoxHost.name).all()
+
+    def get_netbox_hosts_by_tenant(self, tenant_id: int) -> list[NetBoxHost]:
+        return (
+            self.session.query(NetBoxHost)
+            .filter(NetBoxHost.tenant_id == tenant_id)
+            .order_by(NetBoxHost.name)
+            .all()
+        )
 
     def mark_netbox_hosts_stale(self, seen_before: datetime) -> int:
         """Mark NetBox hosts as offline if they weren't seen in the latest sync.
