@@ -126,6 +126,10 @@ def _filter_results(
         filtered = [s for s in filtered if not s.discrepancies]
     elif status == "with_issues":
         filtered = [s for s in filtered if s.discrepancies]
+    elif status == "missing_from_netbox":
+        filtered = [s for s in filtered if s.in_cloud and not s.in_netbox]
+    elif status == "missing_from_cloud":
+        filtered = [s for s in filtered if s.in_netbox and not s.in_cloud]
 
     if search:
         search_lower = search.lower()

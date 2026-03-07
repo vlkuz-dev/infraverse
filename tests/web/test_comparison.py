@@ -103,7 +103,7 @@ def test_comparison_empty_summary(client):
     resp = client.get("/comparison")
     html = resp.text
     assert "Total" in html
-    assert "In Sync" in html
+    assert "Matched" in html
     assert "With Issues" in html
 
 
@@ -352,7 +352,7 @@ def test_quick_filter_buttons_present(seeded_client):
     assert 'id="quick-filter-buttons"' in html
     assert ">All</button>" in html
     assert ">With Issues</button>" in html
-    assert ">In Sync</button>" in html
+    assert ">Matched</button>" in html
 
 
 def test_quick_filter_all_button_active_by_default(seeded_client):
@@ -383,7 +383,7 @@ def test_quick_filter_with_issues_button_active(seeded_client):
     assert match_all is not None, "All button should be outline when status=with_issues"
 
 
-def test_quick_filter_in_sync_button_active(seeded_client):
+def test_quick_filter_matched_button_active(seeded_client):
     resp = seeded_client.get("/comparison?status=in_sync")
     html = resp.text
     import re
@@ -391,7 +391,7 @@ def test_quick_filter_in_sync_button_active(seeded_client):
         r'class="btn btn-primary"[^>]*data-status="in_sync"',
         html,
     )
-    assert match is not None, "In Sync button should be active when status=in_sync"
+    assert match is not None, "Matched button should be active when status=in_sync"
 
 
 def test_quick_filter_buttons_have_htmx_attrs(seeded_client):
@@ -774,3 +774,80 @@ def test_netbox_comparison_htmx_partial():
     html = resp.text
     assert "<th>NetBox</th>" in html
     assert "web-01" in html
+
+
+def test_netbox_filter_buttons_shown():
+    """NetBox filter buttons appear when NetBox hosts exist."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert ">Missing from NetBox</button>" in html
+    assert ">Missing from Cloud</button>" in html
+
+
+def test_netbox_filter_buttons_hidden_without_netbox(client):
+    """NetBox filter buttons do not appear when no NetBox hosts."""
+    resp = client.get("/comparison")
+    html = resp.text
+    assert ">Missing from NetBox</button>" not in html
+    assert ">Missing from Cloud</button>" not in html
+
+
+def test_filter_missing_from_netbox():
+    """Status filter missing_from_netbox shows only VMs in cloud but not in NetBox."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_netbox")
+    html = resp.text
+    # app-01 is in cloud but not in NetBox
+    assert "app-01" in html
+    # web-01 and db-01 are in both cloud and NetBox
+    assert "web-01" not in html
+    assert "db-01" not in html
+
+
+def test_filter_missing_from_cloud():
+    """Status filter missing_from_cloud shows only VMs in NetBox but not in cloud."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_cloud")
+    html = resp.text
+    # orphan-nb is in NetBox but not in cloud
+    assert "orphan-nb" in html
+    # cloud VMs should not appear
+    assert "web-01" not in html
+    assert "db-01" not in html
+    assert "app-01" not in html
+
+
+def test_netbox_dropdown_options_shown():
+    """Status dropdown includes NetBox filter options when NetBox hosts exist."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert 'value="missing_from_netbox"' in html
+    assert 'value="missing_from_cloud"' in html
+
+
+def test_netbox_dropdown_options_hidden_without_netbox(client):
+    """Status dropdown does not include NetBox options when no NetBox hosts."""
+    resp = client.get("/comparison")
+    html = resp.text
+    assert 'value="missing_from_netbox"' not in html
+    assert 'value="missing_from_cloud"' not in html
+
+
+def test_missing_from_netbox_button_active():
+    """Missing from NetBox button is active when status=missing_from_netbox."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_netbox")
+    html = resp.text
+    import re
+    match = re.search(
+        r'class="btn btn-primary"[^>]*data-status="missing_from_netbox"',
+        html,
+    )
+    assert match is not None

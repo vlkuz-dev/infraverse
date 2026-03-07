@@ -33,7 +33,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card">
             <div class="card-body">
-                <div class="subheader">In Sync</div>
+                <div class="subheader">Matched</div>
                 <div class="h1 mb-0 text-success">{{ result.summary.get('in_sync', 0) }}</div>
             </div>
         </div>
@@ -96,7 +96,23 @@
                     hx-get="/comparison/table"
                     hx-target="#comparison-table"
                     hx-include="[name=provider],[name=search]"
-                    hx-vals='{"status": "in_sync"}'>In Sync</button>
+                    hx-vals='{"status": "in_sync"}'>Matched</button>
+            {% if netbox_configured %}
+            <button type="button"
+                    class="btn {% if current_status == 'missing_from_netbox' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                    data-status="missing_from_netbox"
+                    hx-get="/comparison/table"
+                    hx-target="#comparison-table"
+                    hx-include="[name=provider],[name=search]"
+                    hx-vals='{"status": "missing_from_netbox"}'>Missing from NetBox</button>
+            <button type="button"
+                    class="btn {% if current_status == 'missing_from_cloud' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                    data-status="missing_from_cloud"
+                    hx-get="/comparison/table"
+                    hx-target="#comparison-table"
+                    hx-include="[name=provider],[name=search]"
+                    hx-vals='{"status": "missing_from_cloud"}'>Missing from Cloud</button>
+            {% endif %}
         </div>
     </div>
 
@@ -118,8 +134,12 @@
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
-                            <option value="in_sync" {% if current_status == 'in_sync' %}selected{% endif %}>In Sync</option>
+                            <option value="in_sync" {% if current_status == 'in_sync' %}selected{% endif %}>Matched</option>
                             <option value="with_issues" {% if current_status == 'with_issues' %}selected{% endif %}>With Issues</option>
+                            {% if netbox_configured %}
+                            <option value="missing_from_netbox" {% if current_status == 'missing_from_netbox' %}selected{% endif %}>Missing from NetBox</option>
+                            <option value="missing_from_cloud" {% if current_status == 'missing_from_cloud' %}selected{% endif %}>Missing from Cloud</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="col-auto">
