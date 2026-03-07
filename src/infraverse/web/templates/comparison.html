@@ -9,14 +9,24 @@
     {% if tenants | length > 0 %}
     <!-- Tenant selector -->
     <div class="col-12">
-        <div class="d-flex align-items-center mb-2">
-            <label class="form-label me-2 mb-0">Tenant:</label>
-            <select class="form-select form-select-sm" style="width: auto;" onchange="window.location.href = this.value ? '/comparison?tenant_id=' + this.value : '/comparison'">
-                <option value="">All Tenants</option>
-                {% for tenant in tenants %}
-                <option value="{{ tenant.id }}"{% if selected_tenant_id == tenant.id %} selected{% endif %}>{{ tenant.name }}</option>
-                {% endfor %}
-            </select>
+        <div class="subheader mb-2">Tenant</div>
+        <div class="row row-cards g-2 mb-2">
+            <div class="col-auto">
+                <a href="/comparison" class="card card-tenant card-sm mb-0{% if not selected_tenant_id %} card-tenant-active{% endif %}" style="text-decoration:none;color:inherit;">
+                    <div class="card-body py-2 px-3">
+                        <div class="fw-bold">All Tenants</div>
+                    </div>
+                </a>
+            </div>
+            {% for tenant in tenants %}
+            <div class="col-auto">
+                <a href="/comparison?tenant_id={{ tenant.id }}" class="card card-tenant card-sm mb-0{% if selected_tenant_id == tenant.id %} card-tenant-active{% endif %}" style="text-decoration:none;color:inherit;">
+                    <div class="card-body py-2 px-3">
+                        <div class="fw-bold">{{ tenant.name }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
         </div>
     </div>
     {% endif %}
@@ -126,6 +136,25 @@
         </div>
     </div>
     {% endif %}
+    {% if monitoring_configured %}
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-stat-purple card-filter{% if current_status == 'missing_from_monitoring' %} card-filter-active{% endif %}"
+             role="button" data-status="missing_from_monitoring"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "missing_from_monitoring"}'>
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-purple">
+                    <i class="ti ti-broadcast-off"></i>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Missing from Monitoring</div>
+                <div class="h1 mb-0 text-purple">{{ result.summary.get('missing_from_monitoring', 0) }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Filters -->
     <div class="col-12">
@@ -148,9 +177,13 @@
                             <option value="">All</option>
                             <option value="in_sync" {% if current_status == 'in_sync' %}selected{% endif %}>Matched</option>
                             <option value="with_issues" {% if current_status == 'with_issues' %}selected{% endif %}>With Issues</option>
+                            <option value="in_cloud_only" {% if current_status == 'in_cloud_only' %}selected{% endif %}>Cloud Only</option>
                             {% if netbox_configured %}
                             <option value="missing_from_netbox" {% if current_status == 'missing_from_netbox' %}selected{% endif %}>Missing from NetBox</option>
                             <option value="missing_from_cloud" {% if current_status == 'missing_from_cloud' %}selected{% endif %}>Missing from Cloud</option>
+                            {% endif %}
+                            {% if monitoring_configured %}
+                            <option value="missing_from_monitoring" {% if current_status == 'missing_from_monitoring' %}selected{% endif %}>Missing from Monitoring</option>
                             {% endif %}
                         </select>
                     </div>

@@ -57,6 +57,21 @@
     transform: rotate(90deg);
 }
 
+/* Tenant filter cards — left accent border instead of top */
+.card-tenant {
+    border-left: 3px solid var(--tblr-indigo);
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.card-tenant:hover {
+    background-color: rgba(var(--tblr-indigo-rgb), 0.04);
+}
+.card-tenant-active {
+    background-color: rgba(var(--tblr-indigo-rgb), 0.08);
+    outline: 2px solid var(--tblr-indigo);
+    outline-offset: -2px;
+}
+
 /* HTMX loading transitions */
 .htmx-settling {
     opacity: 0.8;

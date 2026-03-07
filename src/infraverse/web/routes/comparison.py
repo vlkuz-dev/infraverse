@@ -47,7 +47,7 @@ def _run_comparison(
     app_config=None,
     tenant_id: int | None = None,
     infraverse_config=None,
-) -> tuple[ComparisonResult, dict[str, int]]:
+) -> tuple[ComparisonResult, dict[str, int], bool, bool]:
     """Load data from DB and run comparison engine.
 
     Monitoring presence is determined from MonitoringHost records in the DB,
@@ -59,7 +59,7 @@ def _run_comparison(
         tenant_id: Optional tenant ID to scope comparison to.
 
     Returns:
-        Tuple of (ComparisonResult, vm_name_to_id mapping).
+        Tuple of (ComparisonResult, vm_name_to_id mapping, netbox_configured, monitoring_configured).
     """
     db_vms = repo.get_all_vms(tenant_id=tenant_id)
 
@@ -107,7 +107,7 @@ def _run_comparison(
         netbox_configured=netbox_configured,
         monitored_vm_names=monitored_vm_names,
     )
-    return result, vm_name_to_id, netbox_configured
+    return result, vm_name_to_id, netbox_configured, monitoring_configured
 
 
 def _filter_results(
@@ -133,6 +133,10 @@ def _filter_results(
         filtered = [s for s in filtered if s.in_cloud and not s.in_netbox]
     elif status == "missing_from_cloud":
         filtered = [s for s in filtered if s.in_netbox and not s.in_cloud]
+    elif status == "missing_from_monitoring":
+        filtered = [s for s in filtered if s.in_cloud and not s.in_monitoring]
+    elif status == "in_cloud_only":
+        filtered = [s for s in filtered if s.in_cloud and not s.in_netbox and not s.in_monitoring]
 
     if search:
         search_lower = search.lower()
@@ -165,7 +169,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
             if tenant is not None:
                 selected_tenant_id = tenant_id
 
-        result, vm_name_to_id, netbox_configured = _run_comparison(
+        result, vm_name_to_id, netbox_configured, monitoring_configured = _run_comparison(
             repo, app_config=app_config, tenant_id=selected_tenant_id,
             infraverse_config=infraverse_config,
         )
@@ -180,6 +184,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
         "current_status": status or "",
         "current_search": search or "",
         "netbox_configured": netbox_configured,
+        "monitoring_configured": monitoring_configured,
         "vm_name_to_id": vm_name_to_id,
         "tenants": tenants,
         "selected_tenant_id": selected_tenant_id,

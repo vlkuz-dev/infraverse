@@ -926,6 +926,85 @@ def test_netbox_no_tenant_filter_shows_all():
     assert "beta-orphan" in html
 
 
+def test_missing_from_monitoring_filter():
+    """Status filter missing_from_monitoring returns only unmonitored cloud VMs."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_monitoring")
+    html = resp.text
+    # b-web and b-api are in cloud but not monitored
+    assert "b-web" in html
+    assert "b-api" in html
+    # a-web and a-db are monitored
+    assert "a-web" not in html
+    assert "a-db" not in html
+
+
+def test_missing_from_monitoring_card_shown():
+    """Missing from Monitoring card appears when monitoring is configured."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Missing from Monitoring" in html
+    assert 'data-status="missing_from_monitoring"' in html
+
+
+def test_missing_from_monitoring_card_active():
+    """Missing from Monitoring card gets active class when selected."""
+    app, ids = _create_partial_monitoring_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_monitoring")
+    html = resp.text
+    import re
+    match = re.search(
+        r'card-filter card-filter-active"[^>]*data-status="missing_from_monitoring"',
+        html,
+    )
+    assert match is not None, "Missing from Monitoring card should be active"
+
+
+def test_tenant_buttons_shown():
+    """Tenant buttons appear (not dropdown) when tenants exist."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    # Should have card-tenant buttons, not a <select> for tenants
+    assert "card-tenant" in html
+    assert "All Tenants" in html
+    assert "Acme Corp" in html
+    assert "Beta Inc" in html
+
+
+def test_tenant_button_active_state():
+    """Correct tenant button has active class when selected."""
+    app, ids = _create_multi_tenant_comparison_app()
+    client = TestClient(app)
+    resp = client.get(f"/comparison?tenant_id={ids['t1']}")
+    html = resp.text
+    assert "card-tenant-active" in html
+    # The "All Tenants" link should not have active class
+    import re
+    all_btn = re.search(r'href="/comparison"[^>]*card-tenant-active', html)
+    assert all_btn is None, "All Tenants button should not be active when a tenant is selected"
+
+
+def test_in_cloud_only_filter():
+    """Status filter in_cloud_only returns VMs in cloud but not in netbox or monitoring."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=in_cloud_only")
+    html = resp.text
+    # app-01 is in cloud only (no NetBox, no monitoring)
+    assert "app-01" in html
+    # web-01 and db-01 are in both cloud and NetBox
+    assert "web-01" not in html
+    assert "db-01" not in html
+    # orphan-nb is NetBox only
+    assert "orphan-nb" not in html
+
+
 def test_netbox_tenant_filter_no_false_missing_in_cloud():
     """Tenant-scoped comparison doesn't show other tenant's NetBox VMs as 'missing in cloud'."""
     app, ids = _create_multi_tenant_netbox_app()
