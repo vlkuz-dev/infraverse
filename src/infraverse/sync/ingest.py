@@ -209,6 +209,81 @@ class DataIngestor:
         )
         return found_count
 
+    def ingest_netbox_hosts(self, netbox_client) -> int:
+        """Fetch VMs from NetBox and upsert as NetBoxHost records in DB.
+
+        Args:
+            netbox_client: A NetBoxClient with fetch_all_vms() method.
+
+        Returns:
+            Number of VMs found.
+
+        Raises:
+            Exception: Re-raises NetBox errors after recording them in SyncRun.
+        """
+        sync_run = self.repo.create_sync_run(source="netbox")
+        self.session.commit()
+
+        sync_start = datetime.now(timezone.utc)
+
+        try:
+            vms = netbox_client.fetch_all_vms()
+        except Exception as exc:
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="failed",
+                error_message=str(exc),
+            )
+            self.session.commit()
+            logger.error("Failed to fetch VMs from NetBox: %s", exc)
+            raise
+
+        items_created = 0
+        items_updated = 0
+
+        try:
+            for vm_info in vms:
+                _, created = self.repo.upsert_netbox_host(
+                    external_id=vm_info.id,
+                    name=vm_info.name,
+                    status=vm_info.status,
+                    ip_addresses=vm_info.ip_addresses,
+                    cluster_name=vm_info.folder_name,
+                    vcpus=vm_info.vcpus,
+                    memory_mb=vm_info.memory_mb,
+                )
+                if created:
+                    items_created += 1
+                else:
+                    items_updated += 1
+
+            self.repo.mark_netbox_hosts_stale(sync_start)
+
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="success",
+                items_found=len(vms),
+                items_created=items_created,
+                items_updated=items_updated,
+            )
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            self.repo.update_sync_run(
+                sync_run.id,
+                status="failed",
+                error_message=str(exc),
+            )
+            self.session.commit()
+            logger.error("Failed to store NetBox hosts: %s", exc)
+            raise
+
+        logger.info(
+            "Ingested %d VMs from NetBox (created=%d, updated=%d)",
+            len(vms), items_created, items_updated,
+        )
+        return len(vms)
+
     def ingest_all(
         self,
         providers: dict[int, CloudProvider],

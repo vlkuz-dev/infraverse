@@ -687,3 +687,90 @@ def test_partial_monitoring_global_with_issues_filter():
     assert "b-api" in html
     assert "a-web" not in html
     assert "a-db" not in html
+
+
+# --- NetBox comparison tests ---
+
+
+def _create_netbox_comparison_app():
+    """Create app with cloud VMs and NetBox hosts for comparison."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        tenant = repo.create_tenant("Acme Corp")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC")
+
+        # Cloud VMs
+        repo.upsert_vm(account.id, "vm-001", "web-01", status="active", ip_addresses=["10.0.0.1"])
+        repo.upsert_vm(account.id, "vm-002", "db-01", status="active", ip_addresses=["10.0.0.2"])
+        repo.upsert_vm(account.id, "vm-003", "app-01", status="active", ip_addresses=["10.0.0.3"])
+
+        # NetBox hosts: web-01 and db-01 exist, app-01 does not; orphan-nb only in NetBox
+        repo.upsert_netbox_host(external_id="nb-1", name="web-01", status="active", ip_addresses=["10.0.0.1"])
+        repo.upsert_netbox_host(external_id="nb-2", name="db-01", status="active", ip_addresses=["10.0.0.2"])
+        repo.upsert_netbox_host(external_id="nb-4", name="orphan-nb", status="active", ip_addresses=["10.0.0.99"])
+
+        session.commit()
+    return app
+
+
+def test_netbox_column_shown_when_netbox_hosts_exist():
+    """When NetBox hosts exist in DB, the NetBox column appears."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "<th>NetBox</th>" in html
+
+
+def test_netbox_column_hidden_when_no_netbox_hosts(client):
+    """When no NetBox hosts exist, the NetBox column is hidden."""
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "<th>NetBox</th>" not in html
+
+
+def test_missing_from_netbox_card_shown():
+    """Missing from NetBox summary card appears when NetBox hosts exist."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Missing from NetBox" in html
+    assert "Missing from Cloud" in html
+
+
+def test_missing_from_netbox_card_hidden_without_netbox(client):
+    """Missing from NetBox card does not appear when no NetBox hosts."""
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Missing from NetBox" not in html
+    assert "Missing from Cloud" not in html
+
+
+def test_vm_in_cloud_not_in_netbox_discrepancy():
+    """VM in cloud but not in NetBox shows discrepancy."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "in cloud but not in NetBox" in html
+
+
+def test_vm_in_netbox_not_in_cloud_discrepancy():
+    """VM in NetBox but not in cloud shows discrepancy."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "in NetBox but not in cloud" in html
+
+
+def test_netbox_comparison_htmx_partial():
+    """HTMX table partial includes NetBox column when NetBox hosts exist."""
+    app = _create_netbox_comparison_app()
+    client = TestClient(app)
+    resp = client.get("/comparison/table")
+    html = resp.text
+    assert "<th>NetBox</th>" in html
+    assert "web-01" in html

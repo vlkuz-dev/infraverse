@@ -16,6 +16,8 @@ def _make_config(**overrides):
     config.yc_token = "test-token"
     config.vcd_configured = False
     config.zabbix_configured = False
+    config.netbox_url = None
+    config.netbox_token = None
     for k, v in overrides.items():
         setattr(config, k, v)
     return config
@@ -970,7 +972,9 @@ class TestRunNetboxSync:
         svc = SchedulerService(_make_session_factory(), cfg)
         svc._run_ingestion()
 
-        assert svc._last_result == {"yc": "ok", "netbox_sync": {"vms_synced": 3}}
+        assert svc._last_result["yc"] == "ok"
+        assert svc._last_result["netbox_sync"] == {"vms_synced": 3}
+        assert svc._last_result["netbox_ingestion"] == "success"
 
     @patch("infraverse.sync.engine.SyncEngine")
     @patch("infraverse.scheduler.DataIngestor")

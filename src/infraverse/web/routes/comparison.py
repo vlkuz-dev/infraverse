@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request
 
 from infraverse.comparison.engine import ComparisonEngine
 from infraverse.comparison.models import ComparisonResult
-from infraverse.db.models import VM
+from infraverse.db.models import VM, NetBoxHost
 from infraverse.db.repository import Repository
 from infraverse.providers.base import VMInfo
 from infraverse.web.app import get_templates
@@ -24,6 +24,21 @@ def _vm_to_vminfo(vm: VM) -> VMInfo:
         provider=vm.cloud_account.provider_type if vm.cloud_account else "",
         cloud_name=vm.cloud_name or "",
         folder_name=vm.folder_name or "",
+    )
+
+
+def _netbox_host_to_vminfo(host: NetBoxHost) -> VMInfo:
+    """Convert a DB NetBoxHost record to a VMInfo dataclass."""
+    return VMInfo(
+        name=host.name,
+        id=host.external_id,
+        status=host.status,
+        ip_addresses=host.ip_addresses or [],
+        vcpus=host.vcpus or 0,
+        memory_mb=host.memory_mb or 0,
+        provider="netbox",
+        cloud_name="",
+        folder_name=host.cluster_name or "",
     )
 
 
@@ -54,6 +69,9 @@ def _run_comparison(
     else:
         db_hosts = repo.get_all_monitoring_hosts()
 
+    # Load NetBox hosts from DB
+    db_netbox_hosts = repo.get_all_netbox_hosts()
+
     # NOTE: keeps first ID per name; duplicate names across accounts link to the same detail page
     vm_name_to_id: dict[str, int] = {}
     for vm in db_vms:
@@ -63,6 +81,10 @@ def _run_comparison(
 
     # Build set of monitored VM names from MonitoringHost records
     monitored_vm_names = {h.name for h in db_hosts}
+
+    # Build NetBox VM list from NetBoxHost records
+    netbox_vms = [_netbox_host_to_vminfo(h) for h in db_netbox_hosts]
+    netbox_configured = len(db_netbox_hosts) > 0
 
     # Use config to determine if monitoring is configured; fall back to global data presence
     if infraverse_config is not None and infraverse_config.monitoring_configured:
@@ -77,12 +99,12 @@ def _run_comparison(
     engine = ComparisonEngine()
     result = engine.compare(
         cloud_vms=cloud_vms,
-        netbox_vms=[],
+        netbox_vms=netbox_vms,
         monitoring_configured=monitoring_configured,
-        netbox_configured=False,
+        netbox_configured=netbox_configured,
         monitored_vm_names=monitored_vm_names,
     )
-    return result, vm_name_to_id
+    return result, vm_name_to_id, netbox_configured
 
 
 def _filter_results(
@@ -136,7 +158,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
             if tenant is not None:
                 selected_tenant_id = tenant_id
 
-        result, vm_name_to_id = _run_comparison(
+        result, vm_name_to_id, netbox_configured = _run_comparison(
             repo, app_config=app_config, tenant_id=selected_tenant_id,
             infraverse_config=infraverse_config,
         )
@@ -150,7 +172,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
         "current_provider": provider or "",
         "current_status": status or "",
         "current_search": search or "",
-        "netbox_configured": False,
+        "netbox_configured": netbox_configured,
         "vm_name_to_id": vm_name_to_id,
         "tenants": tenants,
         "selected_tenant_id": selected_tenant_id,

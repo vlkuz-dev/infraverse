@@ -399,5 +399,11 @@ class ComparisonEngine:
                 1 for s in states
                 if s.in_monitoring and not s.in_cloud and not s.in_netbox
             ),
+            "missing_from_netbox": sum(
+                1 for s in states if s.in_cloud and not s.in_netbox
+            ),
+            "missing_from_cloud": sum(
+                1 for s in states if s.in_netbox and not s.in_cloud
+            ),
         }
         return summary

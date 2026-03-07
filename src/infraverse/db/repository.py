@@ -10,6 +10,7 @@ from infraverse.db.models import (
     CloudAccount,
     VM,
     MonitoringHost,
+    NetBoxHost,
     SyncRun,
 )
 
@@ -343,6 +344,74 @@ class Repository:
                 MonitoringHost.cloud_account_id.in_(cloud_account_ids)
             )
         stale_hosts = query.all()
+        for host in stale_hosts:
+            host.status = "offline"
+        self.session.flush()
+        return len(stale_hosts)
+
+    # --- NetBoxHost operations ---
+
+    def upsert_netbox_host(
+        self,
+        external_id: str,
+        name: str,
+        status: str = "unknown",
+        ip_addresses: list[str] | None = None,
+        cluster_name: str | None = None,
+        vcpus: int | None = None,
+        memory_mb: int | None = None,
+    ) -> tuple[NetBoxHost, bool]:
+        """Upsert a NetBox host record by external_id.
+
+        Returns:
+            Tuple of (NetBoxHost, created) where created is True if new.
+        """
+        host = (
+            self.session.query(NetBoxHost)
+            .filter(NetBoxHost.external_id == external_id)
+            .first()
+        )
+        now = datetime.now(timezone.utc)
+        created = host is None
+        if created:
+            host = NetBoxHost(
+                external_id=external_id,
+                name=name,
+                status=status,
+                ip_addresses=ip_addresses or [],
+                cluster_name=cluster_name,
+                vcpus=vcpus,
+                memory_mb=memory_mb,
+                last_seen_at=now,
+            )
+            self.session.add(host)
+        else:
+            host.name = name
+            host.status = status
+            host.ip_addresses = ip_addresses or []
+            host.cluster_name = cluster_name
+            host.vcpus = vcpus
+            host.memory_mb = memory_mb
+            host.last_seen_at = now
+        self.session.flush()
+        return host, created
+
+    def get_all_netbox_hosts(self) -> list[NetBoxHost]:
+        return self.session.query(NetBoxHost).order_by(NetBoxHost.name).all()
+
+    def mark_netbox_hosts_stale(self, seen_before: datetime) -> int:
+        """Mark NetBox hosts as offline if they weren't seen in the latest sync.
+
+        Returns the number of hosts marked stale.
+        """
+        stale_hosts = (
+            self.session.query(NetBoxHost)
+            .filter(
+                (NetBoxHost.last_seen_at < seen_before)
+                | (NetBoxHost.last_seen_at.is_(None)),
+            )
+            .all()
+        )
         for host in stale_hosts:
             host.status = "offline"
         self.session.flush()

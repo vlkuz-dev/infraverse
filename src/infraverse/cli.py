@@ -314,6 +314,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
             netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
             zabbix_url=os.getenv("ZABBIX_URL") or None,
             netbox_url=os.getenv("NETBOX_URL") or None,
+            netbox_token=os.getenv("NETBOX_TOKEN") or None,
             sync_interval_minutes=sync_interval if infraverse_config else 0,
         )
 

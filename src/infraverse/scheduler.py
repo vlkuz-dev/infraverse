@@ -112,6 +112,8 @@ class SchedulerService:
 
             results = ingestor.ingest_all(providers, zabbix_client)
 
+            self._run_netbox_ingestion(ingestor, results)
+
             netbox_stats = self._run_netbox_sync()
             if netbox_stats is not None:
                 results["netbox_sync"] = netbox_stats
@@ -231,6 +233,35 @@ class SchedulerService:
         except Exception as exc:
             logger.error("Failed to build Zabbix client: %s", exc)
             return None
+
+    def _run_netbox_ingestion(self, ingestor, results: dict) -> None:
+        """Ingest NetBox VMs into local DB if NetBox is configured."""
+        netbox_url = None
+        netbox_token = None
+
+        if self._infraverse_config is not None:
+            # Config-file mode: check for netbox settings in config
+            netbox_url = getattr(self._infraverse_config, "netbox_url", None)
+            netbox_token = getattr(self._infraverse_config, "netbox_token", None)
+
+        if not netbox_url:
+            # Env-var / SimpleNamespace mode
+            netbox_url = getattr(self._config, "netbox_url", None)
+            netbox_token = getattr(self._config, "netbox_token", None)
+
+        if not netbox_url or not netbox_token:
+            return
+
+        try:
+            from infraverse.providers.netbox import NetBoxClient
+
+            client = NetBoxClient(url=netbox_url, token=netbox_token)
+            count = ingestor.ingest_netbox_hosts(client)
+            results["netbox_ingestion"] = "success"
+            logger.info("NetBox ingestion: %d VMs ingested", count)
+        except Exception as exc:
+            results["netbox_ingestion"] = f"error: {exc}"
+            logger.error("NetBox ingestion failed: %s", exc)
 
     def _run_netbox_sync(self) -> dict | None:
         """Run NetBox sync if env-var Config is available.

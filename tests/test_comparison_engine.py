@@ -509,6 +509,66 @@ class TestSummary:
         assert result.summary["in_monitoring_only"] == 1
 
 
+class TestMissingFromNetboxAndCloud:
+    """Tests for missing_from_netbox and missing_from_cloud summary keys."""
+
+    def test_missing_from_netbox_count(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b"), _vm("vm-c")]
+        netbox = [_vm("vm-a")]
+        result = engine.compare(cloud, netbox, [])
+
+        assert result.summary["missing_from_netbox"] == 2  # vm-b, vm-c
+        assert result.summary["missing_from_cloud"] == 0
+
+    def test_missing_from_cloud_count(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a")]
+        netbox = [_vm("vm-a"), _vm("vm-b"), _vm("vm-c")]
+        result = engine.compare(cloud, netbox, [])
+
+        assert result.summary["missing_from_netbox"] == 0
+        assert result.summary["missing_from_cloud"] == 2  # vm-b, vm-c
+
+    def test_both_missing_counts(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b")]
+        netbox = [_vm("vm-a"), _vm("vm-c")]
+        result = engine.compare(cloud, netbox, [])
+
+        assert result.summary["missing_from_netbox"] == 1  # vm-b
+        assert result.summary["missing_from_cloud"] == 1  # vm-c
+
+    def test_all_matching_zero_missing(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b")]
+        netbox = [_vm("vm-a"), _vm("vm-b")]
+        result = engine.compare(cloud, netbox, [])
+
+        assert result.summary["missing_from_netbox"] == 0
+        assert result.summary["missing_from_cloud"] == 0
+
+    def test_empty_data_zero_missing(self):
+        engine = ComparisonEngine()
+        result = engine.compare([], [], [])
+
+        assert result.summary["missing_from_netbox"] == 0
+        assert result.summary["missing_from_cloud"] == 0
+
+    def test_with_monitored_names_path(self):
+        engine = ComparisonEngine()
+        cloud = [_vm("vm-a"), _vm("vm-b")]
+        netbox = [_vm("vm-a")]
+        result = engine.compare(
+            cloud, netbox,
+            monitored_vm_names={"vm-a"},
+            monitoring_configured=True,
+        )
+
+        assert result.summary["missing_from_netbox"] == 1  # vm-b
+        assert result.summary["missing_from_cloud"] == 0
+
+
 class TestMonitoredVMNames:
     """ComparisonEngine with monitored_vm_names (DB-driven monitoring)."""
 

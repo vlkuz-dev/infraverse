@@ -117,6 +117,25 @@ class MonitoringHost(Base):
         return f"<MonitoringHost(id={self.id}, name={self.name!r}, source={self.source!r})>"
 
 
+class NetBoxHost(Base):
+    __tablename__ = "netbox_hosts"
+
+    id = Column(Integer, primary_key=True)
+    external_id = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="unknown")
+    ip_addresses = Column(JSON, default=list)
+    cluster_name = Column(String, nullable=True)
+    vcpus = Column(Integer, nullable=True)
+    memory_mb = Column(Integer, nullable=True)
+    last_seen_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<NetBoxHost(id={self.id}, name={self.name!r}, external_id={self.external_id!r})>"
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
 
