@@ -46,11 +46,11 @@
                     </div>
                     <div class="datagrid-item">
                         <div class="datagrid-title">Created</div>
-                        <div class="datagrid-content">{{ account.created_at.strftime("%Y-%m-%d %H:%M UTC") if account.created_at else "-" }}</div>
+                        <div class="datagrid-content">{{ account.created_at|localtime }}</div>
                     </div>
                     <div class="datagrid-item">
                         <div class="datagrid-title">Updated</div>
-                        <div class="datagrid-content">{{ account.updated_at.strftime("%Y-%m-%d %H:%M UTC") if account.updated_at else "-" }}</div>
+                        <div class="datagrid-content">{{ account.updated_at|localtime }}</div>
                     </div>
                 </div>
             </div>
@@ -168,8 +168,8 @@
                                 <span class="badge bg-warning-lt">{{ run.status }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '-' }}</td>
-                            <td>{{ run.finished_at.strftime('%Y-%m-%d %H:%M') if run.finished_at else '-' }}</td>
+                            <td>{{ run.started_at|localtime }}</td>
+                            <td>{{ run.finished_at|localtime }}</td>
                             <td>{{ run.items_found }}</td>
                             <td>{{ run.items_created }}</td>
                             <td>{{ run.items_updated }}</td>

@@ -191,8 +191,8 @@
                                 <span class="badge bg-warning-lt">{{ run.status }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ run.started_at.strftime('%Y-%m-%d %H:%M') if run.started_at else '-' }}</td>
-                            <td>{{ run.finished_at.strftime('%Y-%m-%d %H:%M') if run.finished_at else '-' }}</td>
+                            <td>{{ run.started_at|localtime }}</td>
+                            <td>{{ run.finished_at|localtime }}</td>
                             <td>{{ run.items_found }}</td>
                             <td>{{ run.items_created }}</td>
                             <td>{{ run.items_updated }}</td>

@@ -139,15 +139,15 @@
                 <div class="datagrid">
                     <div class="datagrid-item">
                         <div class="datagrid-title">Created</div>
-                        <div class="datagrid-content">{{ vm.created_at.strftime("%Y-%m-%d %H:%M UTC") if vm.created_at else "-" }}</div>
+                        <div class="datagrid-content">{{ vm.created_at|localtime }}</div>
                     </div>
                     <div class="datagrid-item">
                         <div class="datagrid-title">Updated</div>
-                        <div class="datagrid-content">{{ vm.updated_at.strftime("%Y-%m-%d %H:%M UTC") if vm.updated_at else "-" }}</div>
+                        <div class="datagrid-content">{{ vm.updated_at|localtime }}</div>
                     </div>
                     <div class="datagrid-item">
                         <div class="datagrid-title">Last Seen</div>
-                        <div class="datagrid-content">{{ vm.last_seen_at.strftime("%Y-%m-%d %H:%M UTC") if vm.last_seen_at else "-" }}</div>
+                        <div class="datagrid-content">{{ vm.last_seen_at|localtime }}</div>
                     </div>
                 </div>
             </div>

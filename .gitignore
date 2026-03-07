@@ -40,8 +40,9 @@ env/
 .pytest_cache/
 .ruff_cache/
 
-# Environment variables
+# Environment variables and local config
 .env
+config.yaml
 
 # Examples and test files
 examples/

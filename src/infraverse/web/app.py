@@ -2,7 +2,9 @@
 
 import hashlib
 import logging
+import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -31,12 +33,26 @@ def _get_user_from_request(request):
         return None
 
 
+def _make_localtime_filter():
+    offset_hours = int(os.getenv("TZ_OFFSET_HOURS", "0"))
+    tz_label = os.getenv("TZ_LABEL", f"UTC{offset_hours:+d}" if offset_hours else "UTC")
+    offset = timedelta(hours=offset_hours)
+
+    def localtime(dt: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
+        if dt is None:
+            return "-"
+        return f"{(dt + offset).strftime(fmt)} {tz_label}"
+
+    return localtime
+
+
 def get_templates() -> Jinja2Templates:
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
         _templates.env.globals["version"] = __version__
         _templates.env.globals["get_user"] = _get_user_from_request
+        _templates.env.filters["localtime"] = _make_localtime_filter()
     return _templates
 
 
