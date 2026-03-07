@@ -19,7 +19,7 @@
                 <div class="mb-4">
                     <h4 class="mb-3">{{ tenant_name }}</h4>
                     <div class="table-responsive">
-                        <table class="table table-vcenter card-table">
+                        <table class="table table-vcenter table-hover card-table">
                             <thead>
                                 <tr>
                                     <th>Account Name</th>
@@ -52,8 +52,14 @@
                 {% endfor %}
                 {% if not grouped_accounts %}
                 <div class="empty">
+                    <div class="empty-icon">
+                        <i class="ti ti-cloud-off" style="font-size: 3rem; color: var(--tblr-secondary);"></i>
+                    </div>
                     <p class="empty-title">No cloud accounts found</p>
                     <p class="empty-subtitle text-secondary">Add cloud accounts to start syncing infrastructure data.</p>
+                    <div class="empty-action">
+                        <a href="/" class="btn btn-primary"><i class="ti ti-arrow-left me-1"></i>Go to Dashboard</a>
+                    </div>
                 </div>
                 {% endif %}
             </div>

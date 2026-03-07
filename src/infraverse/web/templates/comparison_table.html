@@ -3,7 +3,7 @@
         <h3 class="card-title">VM Comparison ({{ result.all_vms | length }} results)</h3>
     </div>
     <div class="table-responsive">
-        <table class="table table-vcenter card-table">
+        <table class="table table-vcenter table-hover card-table">
             <thead>
                 <tr>
                     <th>VM Name</th>
@@ -28,25 +28,25 @@
                     </td>
                     <td>
                         {% if vm.in_cloud %}
-                        <span class="badge bg-success-lt">Yes</span>
+                        <span class="badge bg-success-lt"><i class="ti ti-check"></i></span>
                         {% else %}
-                        <span class="badge bg-danger-lt">No</span>
+                        <span class="badge bg-danger-lt"><i class="ti ti-x"></i></span>
                         {% endif %}
                     </td>
                     {% if netbox_configured %}
                     <td>
                         {% if vm.in_netbox %}
-                        <span class="badge bg-success-lt">Yes</span>
+                        <span class="badge bg-success-lt"><i class="ti ti-check"></i></span>
                         {% else %}
-                        <span class="badge bg-danger-lt">No</span>
+                        <span class="badge bg-danger-lt"><i class="ti ti-x"></i></span>
                         {% endif %}
                     </td>
                     {% endif %}
                     <td>
                         {% if vm.in_monitoring %}
-                        <span class="badge bg-success-lt">Yes</span>
+                        <span class="badge bg-success-lt"><i class="ti ti-check"></i></span>
                         {% else %}
-                        <span class="badge bg-danger-lt">No</span>
+                        <span class="badge bg-danger-lt"><i class="ti ti-x"></i></span>
                         {% endif %}
                     </td>
                     <td>
@@ -59,10 +59,10 @@
                     <td>
                         {% if vm.discrepancies %}
                         {% for d in vm.discrepancies %}
-                        <span class="badge bg-warning-lt">{{ d }}</span>
+                        <span class="badge badge-outline text-warning"><i class="ti ti-alert-triangle me-1"></i>{{ d }}</span>
                         {% endfor %}
                         {% else %}
-                        <span class="text-success">OK</span>
+                        <span class="text-success"><i class="ti ti-circle-check me-1"></i>OK</span>
                         {% endif %}
                     </td>
                 </tr>

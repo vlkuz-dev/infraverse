@@ -23,7 +23,12 @@
 
     <!-- Summary cards -->
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-primary">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-primary">
+                    <i class="ti ti-list-check"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">Total</div>
                 <div class="h1 mb-0">{{ result.summary.get('total', 0) }}</div>
@@ -31,7 +36,12 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-success">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-success">
+                    <i class="ti ti-circle-check"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">Matched</div>
                 <div class="h1 mb-0 text-success">{{ result.summary.get('in_sync', 0) }}</div>
@@ -39,7 +49,12 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-danger">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-danger">
+                    <i class="ti ti-alert-triangle"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">With Issues</div>
                 <div class="h1 mb-0 text-danger">{{ result.summary.get('with_discrepancies', 0) }}</div>
@@ -47,7 +62,12 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-warning">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-warning">
+                    <i class="ti ti-cloud"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">Cloud Only</div>
                 <div class="h1 mb-0 text-warning">{{ result.summary.get('in_cloud_only', 0) }}</div>
@@ -56,7 +76,12 @@
     </div>
     {% if netbox_configured %}
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-warning">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-warning">
+                    <i class="ti ti-server-off"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">Missing from NetBox</div>
                 <div class="h1 mb-0 text-warning">{{ result.summary.get('missing_from_netbox', 0) }}</div>
@@ -64,7 +89,12 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
+        <div class="card card-stat-info">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-info">
+                    <i class="ti ti-cloud-off"></i>
+                </div>
+            </div>
             <div class="card-body">
                 <div class="subheader">Missing from Cloud</div>
                 <div class="h1 mb-0 text-info">{{ result.summary.get('missing_from_cloud', 0) }}</div>
@@ -121,7 +151,7 @@
         <div class="card">
             <div class="card-body">
                 <form id="filter-form" hx-get="/comparison/table" hx-target="#comparison-table" hx-trigger="change, keyup changed delay:300ms from:#search-input" class="row g-3 align-items-end">
-                    <div class="col-auto">
+                    <div class="col-12 col-md-4">
                         <label class="form-label">Provider</label>
                         <select name="provider" class="form-select">
                             <option value="">All providers</option>
@@ -130,7 +160,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-4">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
@@ -142,7 +172,7 @@
                             {% endif %}
                         </select>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-4">
                         <label class="form-label">Search</label>
                         <input type="text" id="search-input" name="search" class="form-control" placeholder="VM name..." value="{{ current_search }}"/>
                     </div>

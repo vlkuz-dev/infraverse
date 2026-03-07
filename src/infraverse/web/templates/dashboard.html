@@ -23,41 +23,53 @@
 
     <!-- Summary cards -->
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="subheader">Total VMs</div>
+        <div class="card card-stat-primary">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-primary">
+                    <i class="ti ti-server-2"></i>
                 </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Total VMs</div>
                 <div class="h1 mb-0">{{ total_vms }}</div>
             </div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="subheader">Active VMs</div>
+        <div class="card card-stat-success">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-success">
+                    <i class="ti ti-circle-check"></i>
                 </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Active VMs</div>
                 <div class="h1 mb-0 text-success">{{ active_vms }}</div>
             </div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="subheader">Offline VMs</div>
+        <div class="card card-stat-danger">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-danger">
+                    <i class="ti ti-power"></i>
                 </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Offline VMs</div>
                 <div class="h1 mb-0 text-danger">{{ offline_vms }}</div>
             </div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="subheader">Tenants</div>
+        <div class="card card-stat-info">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-info">
+                    <i class="ti ti-building"></i>
                 </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Tenants</div>
                 <div class="h1 mb-0">{{ tenants | length }}</div>
             </div>
         </div>
@@ -95,7 +107,7 @@
                 <h3 class="card-title">Providers</h3>
             </div>
             <div class="table-responsive">
-                <table class="table table-vcenter card-table">
+                <table class="table table-vcenter table-hover card-table">
                     <thead>
                         <tr>
                             <th>Type</th>
@@ -133,7 +145,7 @@
                 <h3 class="card-title">Tenants</h3>
             </div>
             <div class="table-responsive">
-                <table class="table table-vcenter card-table">
+                <table class="table table-vcenter table-hover card-table">
                     <thead>
                         <tr>
                             <th>Name</th>
@@ -165,7 +177,7 @@
                 <h3 class="card-title">Recent Sync Runs</h3>
             </div>
             <div class="table-responsive">
-                <table class="table table-vcenter card-table">
+                <table class="table table-vcenter table-hover card-table">
                     <thead>
                         <tr>
                             <th>Source</th>
