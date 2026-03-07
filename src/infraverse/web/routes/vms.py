@@ -14,6 +14,7 @@ def vm_list(
     request: Request,
     tenant_id: int | None = Query(default=None),
     account_id: int | None = Query(default=None),
+    status: str | None = Query(default=None),
 ):
     templates = get_templates()
     session_factory = request.app.state.session_factory
@@ -35,9 +36,12 @@ def vm_list(
             if account is not None:
                 selected_account_id = account_id
 
+        selected_status = status if status in ("active", "offline") else None
+
         vms = repo.get_all_vms(
             tenant_id=selected_tenant_id,
             account_id=selected_account_id,
+            status=selected_status,
         )
 
         vm_list_data = []
@@ -65,6 +69,7 @@ def vm_list(
             "tenants": tenants,
             "selected_tenant_id": selected_tenant_id,
             "selected_account_id": selected_account_id,
+            "selected_status": selected_status or "",
         },
     )
 

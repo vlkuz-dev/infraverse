@@ -193,6 +193,7 @@ class Repository:
         self,
         tenant_id: int | None = None,
         account_id: int | None = None,
+        status: str | None = None,
     ) -> list[VM]:
         query = (
             self.session.query(VM)
@@ -204,6 +205,8 @@ class Repository:
             query = query.join(CloudAccount).filter(
                 CloudAccount.tenant_id == tenant_id
             )
+        if status:
+            query = query.filter(VM.status == status)
         return query.order_by(VM.name).all()
 
     def mark_vms_stale(

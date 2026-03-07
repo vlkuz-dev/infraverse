@@ -21,9 +21,15 @@
     </div>
     {% endif %}
 
+    <input type="hidden" name="tenant_id" value="{{ selected_tenant_id or '' }}">
+
     <!-- Summary cards -->
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-primary">
+        <div class="card card-stat-primary card-filter card-filter-active"
+             role="button" data-status=""
+             hx-get="/dashboard/vm-table" hx-target="#dashboard-vm-table"
+             hx-include="[name=tenant_id]"
+             hx-vals='{"status": ""}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-primary">
                     <i class="ti ti-server-2"></i>
@@ -36,7 +42,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-success">
+        <div class="card card-stat-success card-filter"
+             role="button" data-status="active"
+             hx-get="/dashboard/vm-table" hx-target="#dashboard-vm-table"
+             hx-include="[name=tenant_id]"
+             hx-vals='{"status": "active"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-success">
                     <i class="ti ti-circle-check"></i>
@@ -49,7 +59,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-danger">
+        <div class="card card-stat-danger card-filter"
+             role="button" data-status="offline"
+             hx-get="/dashboard/vm-table" hx-target="#dashboard-vm-table"
+             hx-include="[name=tenant_id]"
+             hx-vals='{"status": "offline"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-danger">
                     <i class="ti ti-power"></i>
@@ -75,27 +89,37 @@
         </div>
     </div>
 
-    <!-- Scheduler status and Fetch Now -->
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Data Sync</h3>
-                <div class="card-actions">
-                    <button class="btn btn-primary"
-                            hx-post="/sync/trigger"
-                            hx-target="#sync-status"
-                            hx-swap="innerHTML"
-                            hx-indicator="#sync-spinner">
-                        <span id="sync-spinner" class="spinner-border spinner-border-sm htmx-indicator me-1" role="status"></span>
-                        Fetch Now
-                    </button>
+    <!-- Fetch Now card -->
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-stat-purple"
+             role="button"
+             hx-post="/sync/trigger"
+             hx-target="#sync-status"
+             hx-swap="innerHTML"
+             hx-indicator="#sync-spinner">
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-purple">
+                    <i class="ti ti-refresh"></i>
                 </div>
             </div>
+            <div class="card-body">
+                <div class="subheader">Data Sync</div>
+                <div class="h3 mb-0">
+                    <span id="sync-spinner" class="spinner-border spinner-border-sm htmx-indicator me-1" role="status"></span>
+                    Fetch Now
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduler status (inline) -->
+    <div class="col-sm-6 col-lg-3">
+        <div class="card">
             <div class="card-body" id="sync-status"
                  hx-get="/sync/status"
                  hx-trigger="load, every 30s"
                  hx-swap="innerHTML">
-                <div class="text-secondary">Loading scheduler status...</div>
+                <div class="text-secondary">Loading status...</div>
             </div>
         </div>
     </div>
@@ -170,6 +194,30 @@
         </div>
     </div>
 
+    <!-- Collapsible VM table -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" role="button" data-bs-toggle="collapse" data-bs-target="#vm-table-collapse" aria-expanded="false">
+                <h3 class="card-title">
+                    <i class="ti ti-chevron-right me-1 collapse-icon"></i>
+                    Virtual Machines
+                </h3>
+                <div class="card-actions">
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary vm-filter active" data-status="">All</button>
+                        <button class="btn btn-sm btn-outline-success vm-filter" data-status="active">Active</button>
+                        <button class="btn btn-sm btn-outline-danger vm-filter" data-status="offline">Offline</button>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse" id="vm-table-collapse">
+                <div id="dashboard-vm-table">
+                    <div class="card-body text-secondary">Click to expand...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Recent sync runs -->
     <div class="col-12">
         <div class="card">
@@ -222,4 +270,43 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var collapseEl = document.getElementById('vm-table-collapse');
+    var target = document.getElementById('dashboard-vm-table');
+    var loaded = false;
+    var currentStatus = '';
+
+    function loadVmTable(status) {
+        currentStatus = status;
+        var tenantId = document.querySelector('[name=tenant_id]').value;
+        var url = '/dashboard/vm-table?status=' + encodeURIComponent(status) + '&tenant_id=' + encodeURIComponent(tenantId);
+        htmx.ajax('GET', url, {target: target, swap: 'innerHTML'});
+    }
+
+    collapseEl.addEventListener('show.bs.collapse', function() {
+        if (!loaded) {
+            loaded = true;
+            loadVmTable(currentStatus);
+        }
+    });
+
+    document.querySelectorAll('.vm-filter').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.querySelectorAll('.vm-filter').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            var status = btn.getAttribute('data-status');
+            // Expand if collapsed
+            var bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, {toggle: false});
+            bsCollapse.show();
+            loaded = true;
+            loadVmTable(status);
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -21,9 +21,13 @@
     </div>
     {% endif %}
 
-    <!-- Summary cards -->
+    <!-- Summary cards (clickable filters) -->
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-primary">
+        <div class="card card-stat-primary card-filter{% if current_status == '' %} card-filter-active{% endif %}"
+             role="button" data-status=""
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": ""}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-primary">
                     <i class="ti ti-list-check"></i>
@@ -36,7 +40,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-success">
+        <div class="card card-stat-success card-filter{% if current_status == 'in_sync' %} card-filter-active{% endif %}"
+             role="button" data-status="in_sync"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "in_sync"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-success">
                     <i class="ti ti-circle-check"></i>
@@ -49,7 +57,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-danger">
+        <div class="card card-stat-danger card-filter{% if current_status == 'with_issues' %} card-filter-active{% endif %}"
+             role="button" data-status="with_issues"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "with_issues"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-danger">
                     <i class="ti ti-alert-triangle"></i>
@@ -62,7 +74,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-warning">
+        <div class="card card-stat-warning card-filter{% if current_status == 'in_cloud_only' %} card-filter-active{% endif %}"
+             role="button" data-status="in_cloud_only"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "in_cloud_only"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-warning">
                     <i class="ti ti-cloud"></i>
@@ -76,7 +92,11 @@
     </div>
     {% if netbox_configured %}
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-warning">
+        <div class="card card-stat-warning card-filter{% if current_status == 'missing_from_netbox' %} card-filter-active{% endif %}"
+             role="button" data-status="missing_from_netbox"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "missing_from_netbox"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-warning">
                     <i class="ti ti-server-off"></i>
@@ -89,7 +109,11 @@
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
-        <div class="card card-stat-info">
+        <div class="card card-stat-info card-filter{% if current_status == 'missing_from_cloud' %} card-filter-active{% endif %}"
+             role="button" data-status="missing_from_cloud"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "missing_from_cloud"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-info">
                     <i class="ti ti-cloud-off"></i>
@@ -102,49 +126,6 @@
         </div>
     </div>
     {% endif %}
-
-    <!-- Quick-filter buttons -->
-    <div class="col-12">
-        <div class="btn-group" id="quick-filter-buttons" role="group">
-            <button type="button"
-                    class="btn {% if current_status == '' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                    data-status=""
-                    hx-get="/comparison/table"
-                    hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search],[name=tenant_id]"
-                    hx-vals='{"status": ""}'>All</button>
-            <button type="button"
-                    class="btn {% if current_status == 'with_issues' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                    data-status="with_issues"
-                    hx-get="/comparison/table"
-                    hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search],[name=tenant_id]"
-                    hx-vals='{"status": "with_issues"}'>With Issues</button>
-            <button type="button"
-                    class="btn {% if current_status == 'in_sync' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                    data-status="in_sync"
-                    hx-get="/comparison/table"
-                    hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search],[name=tenant_id]"
-                    hx-vals='{"status": "in_sync"}'>Matched</button>
-            {% if netbox_configured %}
-            <button type="button"
-                    class="btn {% if current_status == 'missing_from_netbox' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                    data-status="missing_from_netbox"
-                    hx-get="/comparison/table"
-                    hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search],[name=tenant_id]"
-                    hx-vals='{"status": "missing_from_netbox"}'>Missing from NetBox</button>
-            <button type="button"
-                    class="btn {% if current_status == 'missing_from_cloud' %}btn-primary{% else %}btn-outline-primary{% endif %}"
-                    data-status="missing_from_cloud"
-                    hx-get="/comparison/table"
-                    hx-target="#comparison-table"
-                    hx-include="[name=provider],[name=search],[name=tenant_id]"
-                    hx-vals='{"status": "missing_from_cloud"}'>Missing from Cloud</button>
-            {% endif %}
-        </div>
-    </div>
 
     <!-- Filters -->
     <div class="col-12">
@@ -192,36 +173,24 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var buttons = document.querySelectorAll('#quick-filter-buttons button');
+    var cards = document.querySelectorAll('.card-filter');
     var statusSelect = document.querySelector('#filter-form select[name="status"]');
 
-    // When a quick-filter button is clicked, highlight it and sync the dropdown
-    buttons.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            buttons.forEach(function(b) {
-                b.classList.remove('btn-primary');
-                b.classList.add('btn-outline-primary');
-            });
-            btn.classList.remove('btn-outline-primary');
-            btn.classList.add('btn-primary');
+    cards.forEach(function(card) {
+        card.addEventListener('click', function() {
+            cards.forEach(function(c) { c.classList.remove('card-filter-active'); });
+            card.classList.add('card-filter-active');
             if (statusSelect) {
-                statusSelect.value = btn.getAttribute('data-status');
+                statusSelect.value = card.getAttribute('data-status');
             }
         });
     });
 
-    // When the status dropdown changes, sync the button highlight
     if (statusSelect) {
         statusSelect.addEventListener('change', function() {
             var val = statusSelect.value;
-            buttons.forEach(function(b) {
-                if (b.getAttribute('data-status') === val) {
-                    b.classList.remove('btn-outline-primary');
-                    b.classList.add('btn-primary');
-                } else {
-                    b.classList.remove('btn-primary');
-                    b.classList.add('btn-outline-primary');
-                }
+            cards.forEach(function(c) {
+                c.classList.toggle('card-filter-active', c.getAttribute('data-status') === val);
             });
         });
     }

@@ -56,3 +56,59 @@ def dashboard(request: Request, tenant_id: int | None = Query(default=None)):
             "selected_tenant_id": selected_tenant_id,
         },
     )
+
+
+@router.get("/dashboard/vm-table")
+def dashboard_vm_table(
+    request: Request,
+    status: str | None = Query(default=None),
+    tenant_id: str = Query(default=""),
+):
+    templates = get_templates()
+    session_factory = request.app.state.session_factory
+    with session_factory() as session:
+        repo = Repository(session)
+
+        selected_tenant_id = None
+        if tenant_id.isdigit():
+            tenant = repo.get_tenant(int(tenant_id))
+            if tenant is not None:
+                selected_tenant_id = tenant.id
+
+        selected_status = status if status in ("active", "offline") else None
+
+        vms = repo.get_all_vms(
+            tenant_id=selected_tenant_id,
+            status=selected_status,
+        )
+
+        vm_list_data = []
+        for vm in vms:
+            account_name = ""
+            if vm.cloud_account:
+                account_name = vm.cloud_account.name
+            vm_list_data.append({
+                "id": vm.id,
+                "name": vm.name,
+                "status": vm.status,
+                "ip_addresses": vm.ip_addresses or [],
+                "vcpus": vm.vcpus,
+                "memory_mb": vm.memory_mb,
+                "account_name": account_name,
+            })
+
+    if selected_status == "active":
+        table_title = "Active VMs"
+    elif selected_status == "offline":
+        table_title = "Offline VMs"
+    else:
+        table_title = "All VMs"
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard_vm_table.html",
+        {
+            "vms": vm_list_data,
+            "table_title": table_title,
+        },
+    )

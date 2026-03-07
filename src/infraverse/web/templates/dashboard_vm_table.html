@@ -1,0 +1,45 @@
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">{{ table_title }} ({{ vms | length }})</h3>
+    </div>
+    {% if vms %}
+    <div class="table-responsive">
+        <table class="table table-vcenter table-hover card-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>IP Addresses</th>
+                    <th>Account</th>
+                    <th>vCPUs</th>
+                    <th>Memory</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vm in vms %}
+                <tr>
+                    <td><a href="/vms/{{ vm.id }}">{{ vm.name }}</a></td>
+                    <td>
+                        {% if vm.status == "active" %}
+                        <span class="badge bg-success-lt">Active</span>
+                        {% elif vm.status == "offline" %}
+                        <span class="badge bg-danger-lt">Offline</span>
+                        {% else %}
+                        <span class="badge bg-secondary-lt">{{ vm.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ vm.ip_addresses | join(", ") if vm.ip_addresses else "-" }}</td>
+                    <td>{{ vm.account_name or "-" }}</td>
+                    <td>{{ vm.vcpus if vm.vcpus else "-" }}</td>
+                    <td>{{ (vm.memory_mb | string) + " MB" if vm.memory_mb else "-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body">
+        <div class="text-secondary">No VMs found</div>
+    </div>
+    {% endif %}
+</div>

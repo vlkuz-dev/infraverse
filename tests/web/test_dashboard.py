@@ -294,3 +294,100 @@ def test_dashboard_tenant_selector_preserves_selection():
     html = resp.text
     # The selected option should be marked
     assert f'value="{acme_id}"' in html
+
+
+def test_dashboard_stat_cards_no_links(seeded_client):
+    """Stat cards should not navigate away from dashboard."""
+    resp = seeded_client.get("/")
+    html = resp.text
+    # Should NOT have old <a href="/vms"> wrappers
+    assert '<a href="/vms' not in html
+
+
+def test_dashboard_has_fetch_now_card(seeded_client):
+    """Dashboard should have a Fetch Now card styled as a stat card."""
+    resp = seeded_client.get("/")
+    html = resp.text
+    assert "Fetch Now" in html
+    assert 'hx-post="/sync/trigger"' in html
+    assert "card-stat-purple" in html
+
+
+def test_dashboard_has_collapsible_vm_section(seeded_client):
+    """Dashboard should have a collapsible VM table section."""
+    resp = seeded_client.get("/")
+    html = resp.text
+    assert "vm-table-collapse" in html
+    assert "Virtual Machines" in html
+    assert 'data-bs-toggle="collapse"' in html
+
+
+# --- VM table partial endpoint tests ---
+
+
+def test_dashboard_vm_table_returns_all_vms(seeded_client):
+    """GET /dashboard/vm-table returns VM table partial with all VMs."""
+    resp = seeded_client.get("/dashboard/vm-table")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "All VMs" in html
+    assert "web-server-1" in html
+    assert "db-server-1" in html
+    assert "(2)" in html
+
+
+def test_dashboard_vm_table_filter_active(seeded_client):
+    """GET /dashboard/vm-table?status=active returns only active VMs."""
+    resp = seeded_client.get("/dashboard/vm-table?status=active")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Active VMs" in html
+    assert "web-server-1" in html
+    assert "db-server-1" not in html
+    assert "(1)" in html
+
+
+def test_dashboard_vm_table_filter_offline(seeded_client):
+    """GET /dashboard/vm-table?status=offline returns only offline VMs."""
+    resp = seeded_client.get("/dashboard/vm-table?status=offline")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "Offline VMs" in html
+    assert "db-server-1" in html
+    assert "web-server-1" not in html
+    assert "(1)" in html
+
+
+def test_dashboard_vm_table_tenant_scoping():
+    """GET /dashboard/vm-table?tenant_id=X returns only that tenant's VMs."""
+    app = _create_multi_tenant_app()
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        acme = repo.get_tenant_by_name("Acme Corp")
+        acme_id = acme.id
+    client = TestClient(app)
+    resp = client.get(f"/dashboard/vm-table?tenant_id={acme_id}")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "acme-web-1" in html
+    assert "acme-db-1" in html
+    assert "beta-app-1" not in html
+
+
+def test_dashboard_vm_table_invalid_status(seeded_client):
+    """Invalid status is ignored and returns all VMs."""
+    resp = seeded_client.get("/dashboard/vm-table?status=bogus")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "All VMs" in html
+    assert "web-server-1" in html
+    assert "db-server-1" in html
+
+
+def test_dashboard_vm_table_empty(client):
+    """VM table with no VMs shows empty message."""
+    resp = client.get("/dashboard/vm-table")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "No VMs found" in html
+    assert "(0)" in html

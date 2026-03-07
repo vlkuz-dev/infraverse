@@ -346,52 +346,52 @@ def test_comparison_search_preserves_value(seeded_client):
 # --- Quick-filter button tests ---
 
 
-def test_quick_filter_buttons_present(seeded_client):
+def test_quick_filter_cards_present(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text
-    assert 'id="quick-filter-buttons"' in html
-    assert ">All</button>" in html
-    assert ">With Issues</button>" in html
-    assert ">Matched</button>" in html
+    assert "card-filter" in html
+    assert ">Total</div>" in html
+    assert ">With Issues</div>" in html
+    assert ">Matched</div>" in html
 
 
-def test_quick_filter_all_button_active_by_default(seeded_client):
+def test_quick_filter_total_card_active_by_default(seeded_client):
     resp = seeded_client.get("/comparison")
     html = resp.text
     import re
     match = re.search(
-        r'class="btn btn-primary"[^>]*data-status=""',
+        r'card-filter card-filter-active"[^>]*data-status=""',
         html,
     )
-    assert match is not None, "All button should be active (btn-primary) by default"
+    assert match is not None, "Total card should be active by default"
 
 
-def test_quick_filter_with_issues_button_active(seeded_client):
+def test_quick_filter_with_issues_card_active(seeded_client):
     resp = seeded_client.get("/comparison?status=with_issues")
     html = resp.text
     import re
     match = re.search(
-        r'class="btn btn-primary"[^>]*data-status="with_issues"',
+        r'card-filter card-filter-active"[^>]*data-status="with_issues"',
         html,
     )
-    assert match is not None, "With Issues button should be active when status=with_issues"
-    # All button should be outline
-    match_all = re.search(
-        r'class="btn btn-outline-primary"[^>]*data-status=""',
+    assert match is not None, "With Issues card should be active when status=with_issues"
+    # Total card should not be active
+    match_total = re.search(
+        r'card-filter card-filter-active"[^>]*data-status=""',
         html,
     )
-    assert match_all is not None, "All button should be outline when status=with_issues"
+    assert match_total is None, "Total card should not be active when status=with_issues"
 
 
-def test_quick_filter_matched_button_active(seeded_client):
+def test_quick_filter_matched_card_active(seeded_client):
     resp = seeded_client.get("/comparison?status=in_sync")
     html = resp.text
     import re
     match = re.search(
-        r'class="btn btn-primary"[^>]*data-status="in_sync"',
+        r'card-filter card-filter-active"[^>]*data-status="in_sync"',
         html,
     )
-    assert match is not None, "Matched button should be active when status=in_sync"
+    assert match is not None, "Matched card should be active when status=in_sync"
 
 
 def test_quick_filter_buttons_have_htmx_attrs(seeded_client):
@@ -776,22 +776,22 @@ def test_netbox_comparison_htmx_partial():
     assert "web-01" in html
 
 
-def test_netbox_filter_buttons_shown():
-    """NetBox filter buttons appear when NetBox hosts exist."""
+def test_netbox_filter_cards_shown():
+    """NetBox filter cards appear when NetBox hosts exist."""
     app = _create_netbox_comparison_app()
     client = TestClient(app)
     resp = client.get("/comparison")
     html = resp.text
-    assert ">Missing from NetBox</button>" in html
-    assert ">Missing from Cloud</button>" in html
+    assert ">Missing from NetBox</div>" in html
+    assert ">Missing from Cloud</div>" in html
 
 
-def test_netbox_filter_buttons_hidden_without_netbox(client):
-    """NetBox filter buttons do not appear when no NetBox hosts."""
+def test_netbox_filter_cards_hidden_without_netbox(client):
+    """NetBox filter cards do not appear when no NetBox hosts."""
     resp = client.get("/comparison")
     html = resp.text
-    assert ">Missing from NetBox</button>" not in html
-    assert ">Missing from Cloud</button>" not in html
+    assert 'data-status="missing_from_netbox"' not in html
+    assert 'data-status="missing_from_cloud"' not in html
 
 
 def test_filter_missing_from_netbox():
@@ -839,15 +839,15 @@ def test_netbox_dropdown_options_hidden_without_netbox(client):
     assert 'value="missing_from_cloud"' not in html
 
 
-def test_missing_from_netbox_button_active():
-    """Missing from NetBox button is active when status=missing_from_netbox."""
+def test_missing_from_netbox_card_active():
+    """Missing from NetBox card is active when status=missing_from_netbox."""
     app = _create_netbox_comparison_app()
     client = TestClient(app)
     resp = client.get("/comparison?status=missing_from_netbox")
     html = resp.text
     import re
     match = re.search(
-        r'class="btn btn-primary"[^>]*data-status="missing_from_netbox"',
+        r'card-filter card-filter-active"[^>]*data-status="missing_from_netbox"',
         html,
     )
     assert match is not None

@@ -16,6 +16,7 @@
 .card-stat-danger  { border-top: 3px solid var(--tblr-danger); }
 .card-stat-warning { border-top: 3px solid var(--tblr-warning); }
 .card-stat-info    { border-top: 3px solid var(--tblr-info); }
+.card-stat-purple  { border-top: 3px solid var(--tblr-purple); }
 
 /* Card depth and hover */
 .card {
@@ -24,6 +25,36 @@
 }
 .card:hover {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Dark mode card shadows */
+[data-bs-theme="dark"] .card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+[data-bs-theme="dark"] .card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Theme toggle icons — show sun in dark mode, moon in light mode */
+[data-bs-theme="light"] #theme-icon-light { display: none; }
+[data-bs-theme="dark"] #theme-icon-dark { display: none; }
+
+/* Clickable stat-card filters */
+.card-filter {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, outline 0.2s ease;
+}
+.card-filter-active {
+    outline: 2px solid var(--tblr-primary);
+    outline-offset: -2px;
+}
+
+/* Collapse chevron rotation */
+.collapse-icon {
+    transition: transform 0.2s ease;
+}
+[aria-expanded="true"] .collapse-icon {
+    transform: rotate(90deg);
 }
 
 /* HTMX loading transitions */

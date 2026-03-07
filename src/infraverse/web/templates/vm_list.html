@@ -24,8 +24,11 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">All VMs</h3>
+                <h3 class="card-title">{% if selected_status %}{{ selected_status | capitalize }} VMs{% else %}All VMs{% endif %}</h3>
                 <div class="card-actions">
+                    {% if selected_status %}
+                    <a href="/vms{% if selected_tenant_id %}?tenant_id={{ selected_tenant_id }}{% endif %}" class="btn btn-outline-secondary btn-sm me-2">Clear filter</a>
+                    {% endif %}
                     <span class="badge bg-azure-lt">{{ vm_count }} VM{{ "s" if vm_count != 1 else "" }}</span>
                 </div>
             </div>

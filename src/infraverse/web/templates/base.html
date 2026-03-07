@@ -1,6 +1,13 @@
 <!doctype html>
 <html lang="en">
 <head>
+    <script>
+    (function() {
+        var saved = localStorage.getItem('theme');
+        var theme = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-bs-theme', theme);
+    })();
+    </script>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <title>{% block title %}Infraverse{% endblock %}</title>
@@ -10,7 +17,7 @@
 </head>
 <body class="layout-fluid">
     <div class="page">
-        <header class="navbar navbar-expand-md d-print-none" data-bs-theme="dark">
+        <header class="navbar navbar-expand-md d-print-none">
             <div class="container-xl">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu">
                     <span class="navbar-toggler-icon"></span>
@@ -46,6 +53,10 @@
                         </li>
                     </ul>
                     <div class="navbar-nav ms-auto">
+                        <a href="#" class="nav-link px-0 me-2" id="theme-toggle" title="Toggle theme">
+                            <i class="ti ti-sun" id="theme-icon-light"></i>
+                            <i class="ti ti-moon" id="theme-icon-dark"></i>
+                        </a>
                         {% set user = get_user(request) if get_user is defined and request is defined else none %}
                         {% if user %}
                         <div class="nav-item dropdown">
@@ -89,6 +100,23 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script>
+    (function() {
+        var toggle = document.getElementById('theme-toggle');
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            var current = document.documentElement.getAttribute('data-bs-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', next);
+            localStorage.setItem('theme', next);
+        });
+        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            if (!localStorage.getItem('theme')) {
+                document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+            }
+        });
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
