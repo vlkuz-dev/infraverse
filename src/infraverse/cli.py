@@ -90,6 +90,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--config", "-c", default=None,
         help="Path to YAML config file",
     )
+    db_migrate_parser = db_sub.add_parser(
+        "migrate", help="Generate a new migration from model changes",
+    )
+    db_migrate_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file",
+    )
+    db_migrate_parser.add_argument(
+        "-m", "--message", required=True,
+        help="Migration description message",
+    )
+    db_upgrade_parser = db_sub.add_parser(
+        "upgrade", help="Apply all pending migrations",
+    )
+    db_upgrade_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file",
+    )
+    db_downgrade_parser = db_sub.add_parser(
+        "downgrade", help="Roll back the last migration",
+    )
+    db_downgrade_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file",
+    )
 
     return parser
 
@@ -337,6 +362,42 @@ def cmd_db_init(args: argparse.Namespace) -> None:
     print("Database initialized")
 
 
+def cmd_db_migrate(args: argparse.Namespace) -> None:
+    """Execute db migrate command: generate a new Alembic migration."""
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
+
+    from infraverse.db.migrate import generate_revision
+
+    generate_revision(args.message, database_url)
+    print(f"Migration created: {args.message}")
+
+
+def cmd_db_upgrade(args: argparse.Namespace) -> None:
+    """Execute db upgrade command: apply all pending Alembic migrations."""
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
+
+    from infraverse.db.migrate import upgrade_head
+
+    upgrade_head(database_url)
+    print("Database upgraded to latest migration")
+
+
+def cmd_db_downgrade(args: argparse.Namespace) -> None:
+    """Execute db downgrade command: roll back the last Alembic migration."""
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
+
+    from infraverse.db.migrate import downgrade_one
+
+    downgrade_one(database_url)
+    print("Database downgraded by one migration")
+
+
 def cmd_db_seed(args: argparse.Namespace) -> None:
     """Execute db seed command: create default tenant."""
     infraverse_config = _load_infraverse_config(args)
@@ -387,6 +448,9 @@ def main() -> None:
         db_commands = {
             "init": cmd_db_init,
             "seed": cmd_db_seed,
+            "migrate": cmd_db_migrate,
+            "upgrade": cmd_db_upgrade,
+            "downgrade": cmd_db_downgrade,
         }
         db_commands[args.db_command](args)
     else:

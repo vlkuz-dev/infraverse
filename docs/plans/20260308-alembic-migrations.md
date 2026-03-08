@@ -56,11 +56,11 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Add `db migrate` and `db upgrade` CLI commands
-- [ ] add `db migrate` subcommand — wraps `alembic revision --autogenerate -m "<message>"`
-- [ ] add `db upgrade` subcommand — wraps `alembic upgrade head`
-- [ ] add `db downgrade` subcommand — wraps `alembic downgrade -1`
-- [ ] write tests for CLI commands (mock Alembic calls)
-- [ ] run tests — must pass before next task
+- [x] add `db migrate` subcommand — wraps `alembic revision --autogenerate -m "<message>"`
+- [x] add `db upgrade` subcommand — wraps `alembic upgrade head`
+- [x] add `db downgrade` subcommand — wraps `alembic downgrade -1`
+- [x] write tests for CLI commands (mock Alembic calls)
+- [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] no `ALTER TABLE` statements in codebase (except in Alembic migrations)

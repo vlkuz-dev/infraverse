@@ -30,6 +30,18 @@ def stamp_head(database_url: str | None = None) -> None:
     command.stamp(cfg, "head")
 
 
+def generate_revision(message: str, database_url: str | None = None) -> None:
+    """Run 'alembic revision --autogenerate -m <message>' — create a new migration."""
+    cfg = _get_alembic_config(database_url)
+    command.revision(cfg, message=message, autogenerate=True)
+
+
+def downgrade_one(database_url: str | None = None) -> None:
+    """Run 'alembic downgrade -1' — roll back the last migration."""
+    cfg = _get_alembic_config(database_url)
+    command.downgrade(cfg, "-1")
+
+
 def current(database_url: str | None = None) -> str | None:
     """Return the current Alembic revision, or None if unversioned."""
     from alembic.runtime.migration import MigrationContext

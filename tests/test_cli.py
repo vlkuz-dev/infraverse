@@ -6,7 +6,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from infraverse.cli import (
-    build_parser, cmd_db_init, cmd_db_seed, cmd_sync, cmd_serve, main,
+    build_parser, cmd_db_init, cmd_db_seed, cmd_db_migrate, cmd_db_upgrade,
+    cmd_db_downgrade, cmd_sync, cmd_serve, main,
     _ingest_to_db, _ensure_cloud_account,
 )
 
@@ -103,6 +104,107 @@ class TestDbCommand:
         args = parser.parse_args(["db"])
         assert args.command == "db"
         assert args.db_command is None
+
+    def test_db_migrate(self):
+        parser = build_parser()
+        args = parser.parse_args(["db", "migrate", "-m", "add users table"])
+        assert args.command == "db"
+        assert args.db_command == "migrate"
+        assert args.message == "add users table"
+
+    def test_db_migrate_long_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["db", "migrate", "--message", "add users table"])
+        assert args.message == "add users table"
+
+    def test_db_migrate_requires_message(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["db", "migrate"])
+
+    def test_db_upgrade(self):
+        parser = build_parser()
+        args = parser.parse_args(["db", "upgrade"])
+        assert args.command == "db"
+        assert args.db_command == "upgrade"
+
+    def test_db_downgrade(self):
+        parser = build_parser()
+        args = parser.parse_args(["db", "downgrade"])
+        assert args.command == "db"
+        assert args.db_command == "downgrade"
+
+
+class TestCmdDbMigrate:
+    """Tests for db migrate command execution."""
+
+    def test_cmd_db_migrate_calls_generate_revision(self):
+        with patch("infraverse.db.migrate.generate_revision") as mock_gen, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
+            args = argparse.Namespace(message="add users table")
+            cmd_db_migrate(args)
+
+        mock_gen.assert_called_once_with("add users table", "sqlite:///:memory:")
+
+    def test_cmd_db_migrate_with_config(self):
+        mock_cfg = MagicMock()
+        mock_cfg.database_url = "sqlite:///custom.db"
+        mock_cfg.log_level = None
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.db.migrate.generate_revision") as mock_gen:
+            args = argparse.Namespace(message="new migration")
+            cmd_db_migrate(args)
+
+        mock_gen.assert_called_once_with("new migration", "sqlite:///custom.db")
+
+
+class TestCmdDbUpgrade:
+    """Tests for db upgrade command execution."""
+
+    def test_cmd_db_upgrade_calls_upgrade_head(self):
+        with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
+            args = argparse.Namespace()
+            cmd_db_upgrade(args)
+
+        mock_upgrade.assert_called_once_with("sqlite:///:memory:")
+
+    def test_cmd_db_upgrade_with_config(self):
+        mock_cfg = MagicMock()
+        mock_cfg.database_url = "sqlite:///custom.db"
+        mock_cfg.log_level = None
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.db.migrate.upgrade_head") as mock_upgrade:
+            args = argparse.Namespace()
+            cmd_db_upgrade(args)
+
+        mock_upgrade.assert_called_once_with("sqlite:///custom.db")
+
+
+class TestCmdDbDowngrade:
+    """Tests for db downgrade command execution."""
+
+    def test_cmd_db_downgrade_calls_downgrade_one(self):
+        with patch("infraverse.db.migrate.downgrade_one") as mock_downgrade, \
+             patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
+            args = argparse.Namespace()
+            cmd_db_downgrade(args)
+
+        mock_downgrade.assert_called_once_with("sqlite:///:memory:")
+
+    def test_cmd_db_downgrade_with_config(self):
+        mock_cfg = MagicMock()
+        mock_cfg.database_url = "sqlite:///custom.db"
+        mock_cfg.log_level = None
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.db.migrate.downgrade_one") as mock_downgrade:
+            args = argparse.Namespace()
+            cmd_db_downgrade(args)
+
+        mock_downgrade.assert_called_once_with("sqlite:///custom.db")
 
 
 class TestCmdSync:
@@ -670,3 +772,26 @@ class TestMain:
         with patch("sys.argv", ["infraverse", "db", "seed"]):
             main()
         mock_cmd_db_seed.assert_called_once()
+
+    @patch("dotenv.load_dotenv")
+    @patch("infraverse.cli.cmd_db_migrate")
+    def test_main_dispatches_db_migrate(self, mock_cmd, mock_load_dotenv):
+        with patch("sys.argv", ["infraverse", "db", "migrate", "-m", "test"]):
+            main()
+        mock_cmd.assert_called_once()
+        args = mock_cmd.call_args[0][0]
+        assert args.message == "test"
+
+    @patch("dotenv.load_dotenv")
+    @patch("infraverse.cli.cmd_db_upgrade")
+    def test_main_dispatches_db_upgrade(self, mock_cmd, mock_load_dotenv):
+        with patch("sys.argv", ["infraverse", "db", "upgrade"]):
+            main()
+        mock_cmd.assert_called_once()
+
+    @patch("dotenv.load_dotenv")
+    @patch("infraverse.cli.cmd_db_downgrade")
+    def test_main_dispatches_db_downgrade(self, mock_cmd, mock_load_dotenv):
+        with patch("sys.argv", ["infraverse", "db", "downgrade"]):
+            main()
+        mock_cmd.assert_called_once()
