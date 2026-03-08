@@ -26,7 +26,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Check session for user
-        user = request.session.get("user") if hasattr(request, "session") else None
+        user = request.session.get("user") if "session" in request.scope else None
 
         if not user:
             return RedirectResponse(url="/auth/login", status_code=302)

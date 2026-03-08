@@ -13,7 +13,7 @@ from starlette.responses import HTMLResponse, JSONResponse
 logger = logging.getLogger(__name__)
 
 SAFE_METHODS = frozenset(("GET", "HEAD", "OPTIONS", "TRACE"))
-CSRF_EXCLUDED_PREFIXES = ("/auth/",)
+CSRF_EXCLUDED_PREFIXES = ("/auth/", "/static/")
 CSRF_EXCLUDED_PATHS = ("/health",)
 
 
@@ -49,11 +49,11 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Ensure session has a CSRF token (generates on first access)
-        if hasattr(request, "session"):
+        if "session" in request.scope:
             get_csrf_token(request.session)
 
         # Validate on mutating methods
-        if request.method not in SAFE_METHODS and hasattr(request, "session"):
+        if request.method not in SAFE_METHODS and "session" in request.scope:
             session_token = request.session.get("csrf_token", "")
             submitted = request.headers.get("X-CSRF-Token", "")
 
