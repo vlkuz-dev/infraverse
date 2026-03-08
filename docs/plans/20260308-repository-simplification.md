@@ -84,15 +84,47 @@
 - [ ] update any tests that used `status` param
 - [ ] run tests — must pass before next task
 
-### Task 6: Verify acceptance criteria
+### Task 6: Add DB indexes for query performance
+- [ ] add index on `vms.cloud_account_id` — used in `get_vms_by_account()`, upsert filter
+- [ ] add index on `vms.status` — used in `list_vms(status=?)` filter
+- [ ] add index on `vms.name` — used for `order_by(VM.name)` in 5+ queries
+- [ ] add index on `cloud_accounts.tenant_id` — used in 3+ queries with joins
+- [ ] add index on `monitoring_hosts.cloud_account_id` — used in account filtering
+- [ ] add index on `monitoring_hosts.name` — used for ordering + `get_monitoring_host_by_name()` case-insensitive search
+- [ ] add index on `netbox_hosts.tenant_id` — used in tenant filtering
+- [ ] add index on `sync_runs.source` — used in `get_latest_sync_run_by_source()` filter
+- [ ] add composite index on `sync_runs(cloud_account_id, started_at)` — used in ordered account history
+- [ ] write tests verifying indexes exist after init_db (inspect table indexes)
+- [ ] run tests — must pass before next task
+
+### Task 7: Add pagination to repository list methods
+- [ ] add `limit: int | None = None` and `offset: int = 0` params to `list_vms()` (renamed `get_all_vms`)
+- [ ] add `limit`/`offset` to `list_monitoring_hosts()` and `list_netbox_hosts()`
+- [ ] add `count_vms()` method — returns total count with same filters (for UI pagination info)
+- [ ] keep default `limit=None` for backward compat (existing callers get all results)
+- [ ] write tests for pagination: limit, offset, limit+offset, count
+- [ ] run tests — must pass before next task
+
+### Task 8: Add pagination to web routes
+- [ ] add `page` and `per_page` query params to `GET /vms` route (default per_page=50)
+- [ ] add pagination to `GET /accounts/{id}` VM list
+- [ ] add pagination to `GET /comparison` and `/comparison/table`
+- [ ] create pagination template partial (page numbers, prev/next links)
+- [ ] pass `total_count`, `page`, `per_page` to templates for pagination rendering
+- [ ] write tests for web routes with pagination params
+- [ ] run tests — must pass before next task
+
+### Task 9: Verify acceptance criteria
 - [ ] method count reduced from 32 to ~26-27
 - [ ] no `list_cloud_accounts_by_tenant`, `list_cloud_accounts_with_tenants`, `get_vms_by_account` methods
 - [ ] consistent naming: `list_*` for collections, `get_*` for single items
 - [ ] all callers updated across cli.py, scheduler.py, web routes, sync modules
+- [ ] DB indexes present on all frequently queried columns
+- [ ] pagination working on `/vms`, `/accounts/{id}`, `/comparison` routes
 - [ ] all tests pass: `python3 -m pytest tests/ -v`
 - [ ] run linter: `ruff check src/ tests/`
 
-### Task 7: [Final] Update documentation
+### Task 10: [Final] Update documentation
 - [ ] update MEMORY.md with new repository API patterns
 - [ ] update this plan with any deviations
 
@@ -139,7 +171,31 @@ get_all_netbox_hosts()                     →     list_netbox_hosts()
 | `tests/db/test_repository.py` | Update test method references |
 | Multiple web test files | Update mock/assert references |
 
+### DB indexes to add
+| Table | Column(s) | Type | Rationale |
+|-------|-----------|------|-----------|
+| vms | cloud_account_id | Single | FK filter, upsert |
+| vms | status | Single | Status filter |
+| vms | name | Single | ORDER BY in 5+ queries |
+| cloud_accounts | tenant_id | Single | FK filter in 3+ queries |
+| monitoring_hosts | cloud_account_id | Single | Account filter |
+| monitoring_hosts | name | Single | ORDER BY + case-insensitive search |
+| netbox_hosts | tenant_id | Single | Tenant filter |
+| sync_runs | source | Single | Source lookup |
+| sync_runs | cloud_account_id, started_at | Composite | Ordered account history |
+
+### Pagination parameters
+```python
+# Repository methods
+def list_vms(tenant_id=None, account_id=None, limit=None, offset=0) -> list[VM]
+def count_vms(tenant_id=None, account_id=None) -> int
+
+# Web routes
+GET /vms?page=1&per_page=50&tenant_id=1&status=RUNNING
+GET /accounts/1?page=2&per_page=25
+GET /comparison?page=1&per_page=100
+```
+
 ## Post-Completion
 - Consider adding type hints for return types (e.g., `list[CloudAccount]` consistently)
-- Consider adding `count_*` methods if pagination is needed later
 - Monitor for N+1 query issues after changing eager-loading defaults
