@@ -8,7 +8,7 @@ from alembic.config import Config
 from alembic import command
 from sqlalchemy import create_engine, inspect
 
-from infraverse.db.migrate import upgrade_head, stamp_head, current
+from infraverse.db.migrate import upgrade_head, stamp_head, downgrade_one, current
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
@@ -18,6 +18,23 @@ EXPECTED_TABLES = {
     "tenants", "cloud_accounts", "vms",
     "monitoring_hosts", "netbox_hosts", "sync_runs",
 }
+
+
+class TestNoManualMigrations:
+    """Verify no ALTER TABLE statements exist outside Alembic migrations."""
+
+    def test_no_alter_table_in_source(self):
+        """Source code should not contain ALTER TABLE (only Alembic migrations may)."""
+        src_dir = PROJECT_ROOT / "src" / "infraverse"
+        migrations_dir = src_dir / "db" / "migrations"
+
+        for py_file in src_dir.rglob("*.py"):
+            # Skip Alembic migration files
+            if migrations_dir in py_file.parents or py_file == migrations_dir:
+                continue
+            content = py_file.read_text()
+            assert "ALTER TABLE" not in content, \
+                f"Found ALTER TABLE in {py_file.relative_to(PROJECT_ROOT)}"
 
 
 class TestAlembicSetup:
@@ -163,6 +180,56 @@ class TestStampHead:
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         assert EXPECTED_TABLES.issubset(tables)
+
+
+class TestDowngradeOne:
+    """Test alembic downgrade -1 rolls back the last migration."""
+
+    def test_downgrade_removes_tables(self, tmp_path):
+        """After upgrade head, downgrade -1 should drop all tables."""
+        db_path = tmp_path / "downgrade.db"
+        db_url = f"sqlite:///{db_path}"
+
+        # First upgrade to head
+        upgrade_head(db_url)
+        engine = create_engine(db_url)
+        inspector = inspect(engine)
+        assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
+
+        # Downgrade -1 should remove all app tables (initial migration is the only one)
+        downgrade_one(db_url)
+        inspector = inspect(engine)
+        remaining = set(inspector.get_table_names())
+        assert not EXPECTED_TABLES.intersection(remaining), \
+            f"App tables should be removed after downgrade: {EXPECTED_TABLES.intersection(remaining)}"
+        # alembic_version should still exist
+        assert "alembic_version" in remaining
+
+    def test_downgrade_sets_revision_to_none(self, tmp_path):
+        """After downgrading the only migration, revision should be None."""
+        db_path = tmp_path / "downgrade_rev.db"
+        db_url = f"sqlite:///{db_path}"
+
+        upgrade_head(db_url)
+        assert current(db_url) is not None
+
+        downgrade_one(db_url)
+        assert current(db_url) is None
+
+    def test_upgrade_after_downgrade_restores_tables(self, tmp_path):
+        """Upgrade after downgrade should restore all tables."""
+        db_path = tmp_path / "roundtrip.db"
+        db_url = f"sqlite:///{db_path}"
+
+        upgrade_head(db_url)
+        downgrade_one(db_url)
+        upgrade_head(db_url)
+
+        engine = create_engine(db_url)
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        assert EXPECTED_TABLES.issubset(tables)
+        assert current(db_url) is not None
 
 
 class TestMigrateHelpers:

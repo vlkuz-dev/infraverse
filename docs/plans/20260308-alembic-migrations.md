@@ -63,12 +63,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] no `ALTER TABLE` statements in codebase (except in Alembic migrations)
-- [ ] `alembic upgrade head` on fresh DB creates all tables correctly
-- [ ] `alembic upgrade head` on existing DB is safe (stamped)
-- [ ] `alembic downgrade -1` rolls back last migration
-- [ ] all tests pass: `python3 -m pytest tests/ -v`
-- [ ] run linter: `ruff check src/ tests/`
+- [x] no `ALTER TABLE` statements in codebase (except in Alembic migrations)
+- [x] `alembic upgrade head` on fresh DB creates all tables correctly
+- [x] `alembic upgrade head` on existing DB is safe (stamped)
+- [x] `alembic downgrade -1` rolls back last migration
+- [x] all tests pass: `python3 -m pytest tests/ -v`
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 6: [Final] Update documentation
 - [ ] update README.md with new `db migrate`/`db upgrade` commands
