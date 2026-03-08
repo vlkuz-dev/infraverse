@@ -48,12 +48,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Remove manual migration code
-- [ ] remove `_migrate_schema()` function from `db/engine.py`
-- [ ] simplify `init_db()` to only call `Base.metadata.create_all()` (for tests) or delegate to Alembic (for production)
-- [ ] keep `create_all()` path for test fixtures (simpler than running Alembic in tests)
-- [ ] update `test_models.py` — remove tests for `_migrate_schema()` if any
-- [ ] verify scheduler and CLI still initialize DB correctly
-- [ ] run tests — must pass before next task
+- [x] remove `_migrate_schema()` function from `db/engine.py`
+- [x] simplify `init_db()` to only call `Base.metadata.create_all()` (for tests) or delegate to Alembic (for production)
+- [x] keep `create_all()` path for test fixtures (simpler than running Alembic in tests)
+- [x] update `test_models.py` — remove tests for `_migrate_schema()` if any
+- [x] verify scheduler and CLI still initialize DB correctly
+- [x] run tests — must pass before next task
 
 ### Task 4: Add `db migrate` and `db upgrade` CLI commands
 - [ ] add `db migrate` subcommand — wraps `alembic revision --autogenerate -m "<message>"`

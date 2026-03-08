@@ -73,6 +73,26 @@ class TestEngine:
         inspector = inspect(eng)
         assert "tenants" in inspector.get_table_names()
 
+    def test_migrate_schema_removed(self):
+        """_migrate_schema is removed; init_db uses only create_all (Alembic handles migrations)."""
+        import infraverse.db.engine as engine_mod
+        assert not hasattr(engine_mod, "_migrate_schema")
+
+    def test_init_db_creates_all_columns_without_alter_table(self):
+        """init_db creates tables with all columns from models, no ALTER TABLE needed."""
+        eng = iv_create_engine("sqlite:///:memory:")
+        init_db(eng)
+        inspector = inspect(eng)
+
+        # Columns that were previously added by _migrate_schema should exist from create_all
+        vm_cols = {c["name"] for c in inspector.get_columns("vms")}
+        assert "last_sync_error" in vm_cols
+        assert "monitoring_exempt" in vm_cols
+        assert "monitoring_exempt_reason" in vm_cols
+
+        nb_cols = {c["name"] for c in inspector.get_columns("netbox_hosts")}
+        assert "tenant_id" in nb_cols
+
 
 # --- Tenant model tests ---
 

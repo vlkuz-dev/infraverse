@@ -2,7 +2,7 @@
 
 import logging
 
-from sqlalchemy import create_engine as sa_create_engine, inspect, text
+from sqlalchemy import create_engine as sa_create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
@@ -27,35 +27,11 @@ def create_session_factory(engine) -> sessionmaker:
     return sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
 
 
-def _migrate_schema(engine) -> None:
-    """Apply lightweight schema migrations for columns added after initial release."""
-    insp = inspect(engine)
-    if "netbox_hosts" in insp.get_table_names():
-        columns = {c["name"] for c in insp.get_columns("netbox_hosts")}
-        if "tenant_id" not in columns:
-            logger.info("Migrating netbox_hosts: adding tenant_id column")
-            with engine.begin() as conn:
-                conn.execute(
-                    text("ALTER TABLE netbox_hosts ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
-                )
-    if "vms" in insp.get_table_names():
-        columns = {c["name"] for c in insp.get_columns("vms")}
-        if "last_sync_error" not in columns:
-            logger.info("Migrating vms: adding last_sync_error column")
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE vms ADD COLUMN last_sync_error TEXT"))
-        if "monitoring_exempt" not in columns:
-            logger.info("Migrating vms: adding monitoring_exempt columns")
-            with engine.begin() as conn:
-                conn.execute(text(
-                    "ALTER TABLE vms ADD COLUMN monitoring_exempt BOOLEAN NOT NULL DEFAULT 0"
-                ))
-                conn.execute(text(
-                    "ALTER TABLE vms ADD COLUMN monitoring_exempt_reason TEXT"
-                ))
-
-
 def init_db(engine) -> None:
-    """Create all database tables and apply pending migrations."""
+    """Create all database tables from model metadata.
+
+    For production use, prefer 'alembic upgrade head' via the db init CLI command.
+    This function is kept for test fixtures and as a safety net for code paths
+    that create tables directly (e.g. web app startup).
+    """
     Base.metadata.create_all(bind=engine)
-    _migrate_schema(engine)
