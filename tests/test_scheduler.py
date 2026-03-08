@@ -1,5 +1,6 @@
 """Tests for infraverse.scheduler module."""
 
+import threading
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -80,6 +81,118 @@ class TestStartStop:
         svc.start(interval_minutes=30)
         svc.stop()
         assert svc._scheduler.running is False
+
+    def test_job_has_max_instances_1(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc.start(interval_minutes=30)
+        try:
+            job = svc._scheduler.get_job("ingestion")
+            assert job.max_instances == 1
+        finally:
+            svc.stop()
+
+    def test_job_has_coalesce_true(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc.start(interval_minutes=30)
+        try:
+            job = svc._scheduler.get_job("ingestion")
+            assert job.coalesce is True
+        finally:
+            svc.stop()
+
+
+class TestJobOverlapPrevention:
+    """Tests for scheduler job overlap prevention."""
+
+    def test_init_creates_job_lock(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        assert isinstance(svc._job_lock, type(threading.Lock()))
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_run_ingestion_acquires_and_releases_lock(self, mock_cycle):
+        mock_cycle.return_value = {}
+        svc = SchedulerService(_make_session_factory(), _make_config())
+
+        assert not svc._job_lock.locked()
+        svc._run_ingestion()
+        assert not svc._job_lock.locked()
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_lock_released_on_error(self, mock_cycle):
+        mock_cycle.side_effect = RuntimeError("boom")
+        svc = SchedulerService(_make_session_factory(), _make_config())
+
+        svc._run_ingestion()
+        assert not svc._job_lock.locked()
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_skips_when_lock_held(self, mock_cycle):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._job_lock.acquire()
+        try:
+            svc._run_ingestion()
+            mock_cycle.assert_not_called()
+        finally:
+            svc._job_lock.release()
+
+    def test_trigger_now_returns_already_running_when_lock_held(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._run_ingestion = MagicMock()
+        svc.start(interval_minutes=60)
+        try:
+            svc._job_lock.acquire()
+            try:
+                result = svc.trigger_now()
+                assert result == "already_running"
+            finally:
+                svc._job_lock.release()
+        finally:
+            svc.stop()
+
+    def test_trigger_now_returns_triggered_when_no_lock(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._run_ingestion = MagicMock()
+        svc.start(interval_minutes=60)
+        try:
+            result = svc.trigger_now()
+            assert result == "triggered"
+        finally:
+            svc.stop()
+
+    def test_trigger_now_without_scheduler_returns_triggered(self):
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._run_ingestion = MagicMock()
+        svc._scheduler.start()
+        svc._running = True
+        try:
+            result = svc.trigger_now()
+            assert result == "triggered"
+        finally:
+            svc._scheduler.shutdown(wait=False)
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_concurrent_ingestion_blocked(self, mock_cycle):
+        """Simulate concurrent execution: second call is blocked while first holds lock."""
+        started = threading.Event()
+
+        def slow_cycle(*args, **kwargs):
+            started.set()  # Signal that we're inside the cycle
+            time.sleep(0.3)
+            return {}
+
+        mock_cycle.side_effect = slow_cycle
+        svc = SchedulerService(_make_session_factory(), _make_config())
+
+        t1 = threading.Thread(target=svc._run_ingestion)
+        t1.start()
+        started.wait(timeout=5)  # Wait until first thread holds the lock
+
+        # Second call should be rejected immediately
+        svc._run_ingestion()
+        t1.join(timeout=5)
+
+        assert mock_cycle.call_count == 1
+        assert not svc._job_lock.locked()
 
 
 class TestTriggerNow:

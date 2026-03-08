@@ -1,6 +1,7 @@
 """Scheduled data ingestion service using APScheduler."""
 
 import logging
+import threading
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -32,6 +33,7 @@ class SchedulerService:
         self._last_result: dict | None = None
         self._last_run_time: datetime | None = None
         self._running = False
+        self._job_lock = threading.Lock()
 
     def start(self, interval_minutes: int) -> None:
         """Start the scheduler with the given interval.
@@ -45,6 +47,8 @@ class SchedulerService:
             minutes=interval_minutes,
             id="ingestion",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self._scheduler.start()
         self._running = True
@@ -57,8 +61,16 @@ class SchedulerService:
             self._running = False
             logger.info("Scheduler stopped")
 
-    def trigger_now(self) -> None:
-        """Trigger an immediate ingestion run outside the regular schedule."""
+    def trigger_now(self) -> str:
+        """Trigger an immediate ingestion run outside the regular schedule.
+
+        Returns:
+            Status message: "triggered" on success, "already_running" if skipped.
+        """
+        if self._job_lock.locked():
+            logger.warning("Ingestion already running, skipping manual trigger")
+            return "already_running"
+
         job = self._scheduler.get_job("ingestion")
         if job is not None:
             job.modify(next_run_time=datetime.now(timezone.utc))
@@ -69,6 +81,7 @@ class SchedulerService:
                 replace_existing=True,
             )
         logger.info("Ingestion triggered manually")
+        return "triggered"
 
     def get_status(self) -> dict:
         """Return current scheduler state.
@@ -90,6 +103,10 @@ class SchedulerService:
 
     def _run_ingestion(self) -> None:
         """Execute a full ingestion cycle using shared orchestrator."""
+        if not self._job_lock.acquire(blocking=False):
+            logger.warning("Ingestion already running, skipping this execution")
+            return
+
         logger.info("Starting scheduled ingestion")
         session = self._session_factory()
         try:
@@ -123,6 +140,7 @@ class SchedulerService:
             logger.error("Scheduled ingestion failed: %s", exc)
         finally:
             session.close()
+            self._job_lock.release()
 
     def _run_netbox_ingestion(self, ingestor, results: dict) -> None:
         """Ingest NetBox VMs into local DB if NetBox is configured."""

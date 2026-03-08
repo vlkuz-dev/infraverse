@@ -74,16 +74,16 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Prevent scheduler job overlap (P0)
-- [ ] add `max_instances=1` to `add_job()` call in `scheduler.py:42` — prevents APScheduler from running concurrent instances
-- [ ] add `coalesce=True` to `add_job()` — coalesce missed runs into single execution
-- [ ] protect `trigger_now()` from overlapping with running interval job:
+- [x] add `max_instances=1` to `add_job()` call in `scheduler.py:42` — prevents APScheduler from running concurrent instances
+- [x] add `coalesce=True` to `add_job()` — coalesce missed runs into single execution
+- [x] protect `trigger_now()` from overlapping with running interval job:
   - add `self._running` lock (threading.Lock or asyncio.Lock)
   - check lock in `_run_ingestion()` — skip with log warning if already running
-- [ ] add `replace_existing=True` on manual trigger job to prevent duplicate job IDs
-- [ ] write tests for `max_instances=1` and `coalesce=True` params passed to APScheduler
-- [ ] write tests for concurrent trigger rejection (mock lock held → trigger returns "already running")
-- [ ] write tests for normal trigger when no job is running
-- [ ] run tests — must pass before next task
+- [x] add `replace_existing=True` on manual trigger job to prevent duplicate job IDs
+- [x] write tests for `max_instances=1` and `coalesce=True` params passed to APScheduler
+- [x] write tests for concurrent trigger rejection (mock lock held → trigger returns "already running")
+- [x] write tests for normal trigger when no job is running
+- [x] run tests — must pass before next task
 
 ### Task 6: Verify acceptance criteria
 - [ ] no `_build_provider_from_account()` function in cli.py or scheduler.py
