@@ -221,7 +221,7 @@ URL templates for linking detail pages to external systems. Use `{placeholder}` 
 Initialize the database and create a default tenant before first use:
 
 ```bash
-# Create database tables
+# Create database tables (applies all Alembic migrations)
 infraverse db init
 
 # Create default tenant (only needed for env-var mode without YAML config)
@@ -229,6 +229,21 @@ infraverse db seed
 ```
 
 When using a YAML config file, tenants and cloud accounts are synced to the database automatically on startup.
+
+### Database migrations
+
+Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/). Use the built-in CLI commands:
+
+```bash
+# Apply all pending migrations
+infraverse db upgrade
+
+# Roll back the last migration
+infraverse db downgrade
+
+# Generate a new migration from model changes
+infraverse db migrate -m "add_new_column"
+```
 
 ### Sync to NetBox
 
@@ -294,7 +309,7 @@ docker run --rm -p 8000:8000 --env-file .env infraverse serve --host 0.0.0.0
 src/infraverse/
   __init__.py              # Package version
   __main__.py              # python -m support
-  cli.py                   # CLI: sync, serve, db init, db seed
+  cli.py                   # CLI: sync, serve, db init/seed/migrate/upgrade/downgrade
   config.py                # Configuration from env vars (legacy)
   config_file.py           # YAML config file parser (multi-tenant)
   scheduler.py             # APScheduler-based background ingestion
@@ -302,6 +317,8 @@ src/infraverse/
     engine.py              # SQLAlchemy engine, session factory
     models.py              # ORM models: Tenant, CloudAccount, VM, MonitoringHost, SyncRun
     repository.py          # Data access layer (CRUD operations)
+    migrate.py             # Alembic programmatic helpers (upgrade, downgrade, generate)
+    migrations/            # Alembic migration environment and version scripts
   providers/
     base.py                # CloudProvider Protocol + VMInfo dataclass
     yandex.py              # Yandex Cloud API client

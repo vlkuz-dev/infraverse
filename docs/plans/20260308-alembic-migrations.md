@@ -71,8 +71,8 @@
 - [x] run linter: `ruff check src/ tests/`
 
 ### Task 6: [Final] Update documentation
-- [ ] update README.md with new `db migrate`/`db upgrade` commands
-- [ ] update MEMORY.md with Alembic patterns
+- [x] update README.md with new `db migrate`/`db upgrade` commands
+- [x] update MEMORY.md with Alembic patterns
 
 ## Technical Details
 
