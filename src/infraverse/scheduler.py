@@ -136,25 +136,27 @@ class SchedulerService:
     def _build_providers(self, accounts) -> dict:
         """Build provider instances from cloud accounts.
 
-        When infraverse_config is set, reads credentials from account.config dict.
-        Otherwise uses env-var-based self._config.
+        When infraverse_config is set, reads credentials from account.config dict
+        via build_provider(). Otherwise uses env-var-based self._config.
 
         Returns:
             Dict mapping account ID -> CloudProvider instance.
         """
-        from infraverse.providers.yandex import YandexCloudClient
-        from infraverse.providers.vcloud import VCloudDirectorClient
+        from infraverse.sync.providers import build_provider
 
         providers = {}
         for account in accounts:
             try:
                 if self._infraverse_config is not None:
                     # Config-file mode: read credentials from account.config
-                    provider = self._build_provider_from_account(account)
-                    if provider is not None:
-                        providers[account.id] = provider
+                    result = build_provider(account)
+                    if result is not None:
+                        providers[account.id] = result[0]
                 else:
                     # Env-var mode: read credentials from self._config
+                    from infraverse.providers.yandex import YandexCloudClient
+                    from infraverse.providers.vcloud import VCloudDirectorClient
+
                     if account.provider_type == "yandex_cloud":
                         from infraverse.providers.yc_auth import resolve_token_provider as _resolve
 
@@ -177,27 +179,6 @@ class SchedulerService:
             except Exception as exc:
                 logger.error("Failed to build provider for account %s: %s", account.name, exc)
         return providers
-
-    def _build_provider_from_account(self, account):
-        """Build a CloudProvider instance from account.config credentials."""
-        from infraverse.providers.yandex import YandexCloudClient
-        from infraverse.providers.vcloud import VCloudDirectorClient
-        from infraverse.providers.yc_auth import resolve_token_provider
-
-        creds = account.config or {}
-        if account.provider_type == "yandex_cloud":
-            provider = resolve_token_provider(creds)
-            return YandexCloudClient(token_provider=provider)
-        elif account.provider_type == "vcloud":
-            return VCloudDirectorClient(
-                url=creds.get("url", ""),
-                username=creds.get("username", ""),
-                password=creds.get("password", ""),
-                org=creds.get("org", "System"),
-            )
-        else:
-            logger.warning("Unknown provider type '%s' for account %s", account.provider_type, account.name)
-            return None
 
     def _build_zabbix_client(self):
         """Build a ZabbixClient if configured, otherwise return None.
@@ -350,6 +331,7 @@ class SchedulerService:
         from infraverse.sync.infrastructure import sync_infrastructure
         from infraverse.sync.batch import sync_vms_optimized
         from infraverse.sync.provider_profile import get_profile
+        from infraverse.sync.providers import build_provider
 
         netbox = NetBoxClient(url=netbox_url, token=netbox_token)
         all_stats: dict = {}
@@ -368,10 +350,11 @@ class SchedulerService:
                 continue
 
             try:
-                client = self._build_provider_from_account(account)
-                if client is None:
+                result = build_provider(account)
+                if result is None:
                     logger.warning("Could not build provider for account %s", account.name)
                     continue
+                client = result[0]
 
                 logger.info(
                     "NetBox sync: fetching data from %s (%s)",

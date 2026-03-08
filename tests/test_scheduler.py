@@ -1062,10 +1062,10 @@ class TestRunNetboxSyncConfigFileMode:
         svc = self._make_svc()
         account = self._make_account()
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build:
+        with patch("infraverse.sync.providers.build_provider") as mock_build:
             mock_client = MagicMock()
             mock_client.fetch_all_data.return_value = {"vms": [{"name": "vm1"}, {"name": "vm2"}]}
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             result = svc._run_netbox_sync(accounts=[account])
 
@@ -1103,10 +1103,10 @@ class TestRunNetboxSyncConfigFileMode:
         svc = self._make_svc()
         account = self._make_account()
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build:
+        with patch("infraverse.sync.providers.build_provider") as mock_build:
             mock_client = MagicMock()
             mock_client.fetch_all_data.return_value = {"vms": [{"name": "broken-vm"}]}
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             result = svc._run_netbox_sync(accounts=[account])
 
@@ -1118,10 +1118,10 @@ class TestRunNetboxSyncConfigFileMode:
         svc = self._make_svc()
         account = self._make_account()
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build:
+        with patch("infraverse.sync.providers.build_provider") as mock_build:
             mock_client = MagicMock()
             mock_client.fetch_all_data.return_value = None
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             result = svc._run_netbox_sync(accounts=[account])
 
@@ -1133,10 +1133,10 @@ class TestRunNetboxSyncConfigFileMode:
         svc = self._make_svc()
         account = self._make_account()
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build:
+        with patch("infraverse.sync.providers.build_provider") as mock_build:
             mock_client = MagicMock()
             mock_client.fetch_all_data.side_effect = RuntimeError("API timeout")
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             result = svc._run_netbox_sync(accounts=[account])
 
@@ -1187,10 +1187,10 @@ class TestRunNetboxSyncConfigFileMode:
         acct1 = self._make_account(name="yc-acct")
         acct2 = self._make_account(name="vcd-acct", provider_type="vcloud", config={"url": "u", "username": "u", "password": "p"})
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build:
+        with patch("infraverse.sync.providers.build_provider") as mock_build:
             mock_client = MagicMock()
             mock_client.fetch_all_data.return_value = {"vms": [{"name": "vm1"}]}
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             result = svc._run_netbox_sync(accounts=[acct1, acct2])
 
@@ -1236,11 +1236,11 @@ class TestRunNetboxSyncConfigFileMode:
         session = MagicMock()
         svc = SchedulerService(_make_session_factory(session), cfg, infraverse_config=ic)
 
-        with patch.object(svc, "_build_provider_from_account") as mock_build, \
+        with patch("infraverse.sync.providers.build_provider") as mock_build, \
              patch("infraverse.providers.netbox.NetBoxClient"):
             mock_client = MagicMock()
             mock_client.fetch_all_data.return_value = {"vms": [{"name": "broken-vm"}, {"name": "ok-vm"}]}
-            mock_build.return_value = mock_client
+            mock_build.return_value = (mock_client, MagicMock())
 
             svc._run_ingestion()
 

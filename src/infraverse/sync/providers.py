@@ -1,7 +1,7 @@
 """Build cloud provider clients from CloudAccount credentials."""
 
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from infraverse.sync.provider_profile import ProviderProfile, get_profile
 
@@ -11,17 +11,14 @@ logger = logging.getLogger(__name__)
 CloudClient = Any
 
 
-def build_provider(account) -> Tuple[CloudClient, ProviderProfile]:
+def build_provider(account) -> Optional[Tuple[CloudClient, ProviderProfile]]:
     """Build a (cloud_client, ProviderProfile) tuple from a CloudAccount.
 
     Args:
         account: CloudAccount DB model with .provider_type and .config dict.
 
     Returns:
-        Tuple of (client, profile).
-
-    Raises:
-        ValueError: If provider_type is unknown.
+        Tuple of (client, profile), or None if provider_type is unknown.
     """
     creds = account.config or {}
 
@@ -44,7 +41,11 @@ def build_provider(account) -> Tuple[CloudClient, ProviderProfile]:
         return (client, get_profile("vcloud"))
 
     else:
-        raise ValueError(f"Unknown provider type: {account.provider_type}")
+        logger.warning(
+            "Unknown provider type '%s' for account %s",
+            account.provider_type, getattr(account, "name", "unknown"),
+        )
+        return None
 
 
 def build_providers_from_accounts(accounts) -> List[Tuple[CloudClient, ProviderProfile]]:
@@ -64,12 +65,9 @@ def build_providers_from_accounts(accounts) -> List[Tuple[CloudClient, ProviderP
             logger.debug("Skipping inactive account: %s", account.name)
             continue
         try:
-            providers.append(build_provider(account))
-        except ValueError:
-            logger.warning(
-                "Unknown provider type '%s' for account %s, skipping",
-                account.provider_type, account.name,
-            )
+            result = build_provider(account)
+            if result is not None:
+                providers.append(result)
         except Exception:
             logger.exception("Failed to build provider for account %s", account.name)
     return providers

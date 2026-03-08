@@ -94,27 +94,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _build_provider_from_account(account):
-    """Build a CloudProvider instance from a CloudAccount's stored credentials."""
-    creds = account.config or {}
-    if account.provider_type == "yandex_cloud":
-        from infraverse.providers.yandex import YandexCloudClient
-        from infraverse.providers.yc_auth import resolve_token_provider
-
-        provider = resolve_token_provider(creds)
-        return YandexCloudClient(token_provider=provider)
-    elif account.provider_type == "vcloud":
-        from infraverse.providers.vcloud import VCloudDirectorClient
-
-        return VCloudDirectorClient(
-            url=creds.get("url", ""),
-            username=creds.get("username", ""),
-            password=creds.get("password", ""),
-            org=creds.get("org", "System"),
-        )
-    else:
-        raise ValueError(f"Unknown provider type: {account.provider_type}")
-
 
 def _ensure_cloud_account(repo, session, tenant_id, provider_type, name):
     """Get or create a CloudAccount for the given provider."""
@@ -211,6 +190,7 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
     from infraverse.db.repository import Repository
     from infraverse.sync.config_sync import sync_config_to_db
     from infraverse.sync.ingest import DataIngestor
+    from infraverse.sync.providers import build_provider
 
     if database_url is None:
         database_url = _get_database_url()
@@ -231,7 +211,9 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
             if not account.is_active:
                 continue
             try:
-                providers[account.id] = _build_provider_from_account(account)
+                result = build_provider(account)
+                if result is not None:
+                    providers[account.id] = result[0]
             except Exception as exc:
                 logger.error(
                     "Failed to build provider for account %s: %s",

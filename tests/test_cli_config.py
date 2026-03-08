@@ -11,7 +11,6 @@ import yaml
 from infraverse.cli import (
     build_parser,
     cmd_sync,
-    _build_provider_from_account,
     _ingest_to_db_with_config,
 )
 from infraverse.config_file import (
@@ -66,76 +65,6 @@ class TestParserConfigFlag:
         assert args.config == "cfg.yaml"
         assert args.dry_run is True
         assert args.no_batch is True
-
-
-# --- _build_provider_from_account tests ---
-
-
-class TestBuildProviderFromAccount:
-    """Tests for building CloudProvider instances from CloudAccount records."""
-
-    @patch("infraverse.providers.yandex.YandexCloudClient")
-    def test_builds_yandex_client(self, mock_yc_cls):
-        account = MagicMock()
-        account.provider_type = "yandex_cloud"
-        account.config = {"token": "yc-secret-token"}
-
-        mock_yc = MagicMock()
-        mock_yc_cls.return_value = mock_yc
-
-        result = _build_provider_from_account(account)
-
-        mock_yc_cls.assert_called_once()
-        call_kwargs = mock_yc_cls.call_args.kwargs
-        assert call_kwargs["token_provider"].get_token() == "yc-secret-token"
-        assert result is mock_yc
-
-    @patch("infraverse.providers.vcloud.VCloudDirectorClient")
-    def test_builds_vcloud_client(self, mock_vcd_cls):
-        account = MagicMock()
-        account.provider_type = "vcloud"
-        account.config = {
-            "url": "https://vcd.example.com",
-            "username": "admin",
-            "password": "secret",
-            "org": "MyOrg",
-        }
-
-        mock_vcd = MagicMock()
-        mock_vcd_cls.return_value = mock_vcd
-
-        result = _build_provider_from_account(account)
-
-        mock_vcd_cls.assert_called_once_with(
-            url="https://vcd.example.com",
-            username="admin",
-            password="secret",
-            org="MyOrg",
-        )
-        assert result is mock_vcd
-
-    @patch("infraverse.providers.vcloud.VCloudDirectorClient")
-    def test_vcloud_defaults_org_to_system(self, mock_vcd_cls):
-        account = MagicMock()
-        account.provider_type = "vcloud"
-        account.config = {
-            "url": "https://vcd.example.com",
-            "username": "admin",
-            "password": "secret",
-        }
-
-        _build_provider_from_account(account)
-
-        call_kwargs = mock_vcd_cls.call_args
-        assert call_kwargs.kwargs["org"] == "System"
-
-    def test_unknown_provider_raises(self):
-        account = MagicMock()
-        account.provider_type = "aws"
-        account.config = {}
-
-        with pytest.raises(ValueError, match="Unknown provider type: aws"):
-            _build_provider_from_account(account)
 
 
 # --- _ingest_to_db_with_config tests ---

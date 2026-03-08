@@ -3,8 +3,6 @@
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-import pytest
-
 from infraverse.sync.providers import build_provider, build_providers_from_accounts
 from infraverse.sync.provider_profile import YC_PROFILE, VCLOUD_PROFILE
 
@@ -66,10 +64,16 @@ class TestBuildProvider:
 
         assert mock_vcd_cls.call_args.kwargs["org"] == "System"
 
-    def test_unknown_provider_raises(self):
+    def test_unknown_provider_returns_none(self):
         account = _make_account("aws")
-        with pytest.raises(ValueError, match="Unknown provider type: aws"):
+        assert build_provider(account) is None
+
+    def test_unknown_provider_logs_warning(self, caplog):
+        import logging
+        account = _make_account("aws")
+        with caplog.at_level(logging.WARNING, logger="infraverse.sync.providers"):
             build_provider(account)
+        assert "Unknown provider type 'aws'" in caplog.text
 
     @patch("infraverse.providers.yc_auth.resolve_token_provider")
     @patch("infraverse.providers.yandex.YandexCloudClient")
@@ -110,7 +114,7 @@ class TestBuildProvidersFromAccounts:
 
     @patch("infraverse.sync.providers.build_provider")
     def test_skips_unknown_provider_type(self, mock_build):
-        mock_build.side_effect = ValueError("Unknown provider type: aws")
+        mock_build.return_value = None
         accounts = [_make_account("aws")]
 
         result = build_providers_from_accounts(accounts)

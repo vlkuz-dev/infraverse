@@ -29,14 +29,14 @@
 ## Implementation Steps
 
 ### Task 1: Remove duplicate `_build_provider_from_account()` — use `sync/providers.py`
-- [ ] verify `sync/providers.py:build_provider(account)` handles both `yandex_cloud` and `vcloud` types
-- [ ] replace CLI `_build_provider_from_account()` (lines 97-116) with call to `build_provider(account)`
-- [ ] replace Scheduler `_build_provider_from_account()` (lines 181-200) with call to `build_provider(account)`
-- [ ] handle the difference: CLI raises ValueError on unknown type, Scheduler returns None — standardize to return None + log warning (safer for scheduler loop)
-- [ ] update `_build_providers()` in scheduler to use `build_provider()` directly
-- [ ] verify all tests pass
-- [ ] write tests for edge case: unknown provider type returns None
-- [ ] run tests — must pass before next task
+- [x] verify `sync/providers.py:build_provider(account)` handles both `yandex_cloud` and `vcloud` types
+- [x] replace CLI `_build_provider_from_account()` (lines 97-116) with call to `build_provider(account)`
+- [x] replace Scheduler `_build_provider_from_account()` (lines 181-200) with call to `build_provider(account)`
+- [x] handle the difference: CLI raises ValueError on unknown type, Scheduler returns None — standardize to return None + log warning (safer for scheduler loop)
+- [x] update `_build_providers()` in scheduler to use `build_provider()` directly
+- [x] verify all tests pass
+- [x] write tests for edge case: unknown provider type returns None
+- [x] run tests — must pass before next task
 
 ### Task 2: Extract Zabbix client builder to `sync/providers.py`
 - [ ] add `build_zabbix_client(infraverse_config=None, legacy_config=None) -> ZabbixClient | None` to `sync/providers.py`
