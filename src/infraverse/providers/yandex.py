@@ -463,7 +463,9 @@ class YandexCloudClient:
 
             resources = vm.get("resources", {})
             memory_bytes = resources.get("memory", 0)
-            # YC returns memory as int (bytes) or string
+            # Raw bytes → MiB for VMInfo storage (4 GiB = 4096 MiB).
+            # This is NOT the same as parse_memory_mb() which produces
+            # NetBox-scaled units (4 GiB = 4000 "MB").
             memory_mb = int(memory_bytes) // (1024 * 1024)
 
             vms.append(VMInfo(

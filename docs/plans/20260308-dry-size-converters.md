@@ -58,11 +58,11 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Align yandex.py memory conversion (review only)
-- [ ] review `providers/yandex.py` line 467: `memory_mb = int(memory_bytes) // (1024 * 1024)` — this is a raw byte→MB conversion (not NetBox scaling), used differently from `parse_memory_mb`
-- [ ] if conversion serves different purpose (raw MB for vCloud pipeline compatibility), document with comment and leave as-is
-- [ ] if it should use NetBox scaling, replace with `parse_memory_mb(memory_bytes)`
-- [ ] review `providers/vcloud.py` line 212: inverse conversion `memory_mb * 1024 * 1024` — document purpose
-- [ ] run tests — must pass before next task
+- [x] review `providers/yandex.py` line 467: `memory_mb = int(memory_bytes) // (1024 * 1024)` — this is a raw byte→MB conversion (not NetBox scaling), used differently from `parse_memory_mb`
+- [x] if conversion serves different purpose (raw MB for vCloud pipeline compatibility), document with comment and leave as-is
+- [x] if it should use NetBox scaling, replace with `parse_memory_mb(memory_bytes)`
+- [x] review `providers/vcloud.py` line 212: inverse conversion `memory_mb * 1024 * 1024` — document purpose
+- [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] no inline `1024 ** 3` or `1024**3` in `vms.py` or `batch.py`

@@ -210,6 +210,8 @@ class VCloudDirectorClient:
                 status = "STOPPED"
 
             memory_mb = int(rec.get("memoryMB", 0))
+            # Convert MiB → bytes so resources.memory matches YC format.
+            # The sync pipeline later applies parse_memory_mb() for NetBox scaling.
             memory_bytes = memory_mb * 1024 * 1024
 
             cpus = int(rec.get("numberOfCpus", 0))
