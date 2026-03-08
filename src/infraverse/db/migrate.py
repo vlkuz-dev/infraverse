@@ -15,6 +15,8 @@ def _get_alembic_config(database_url: str | None = None) -> Config:
     cfg = Config(str(ini_path))
     url = database_url or os.environ.get("DATABASE_URL", "sqlite:///infraverse.db")
     cfg.set_main_option("sqlalchemy.url", url)
+    # Prevent env.py from calling fileConfig() which reconfigures Python logging
+    cfg.config_file_name = None
     return cfg
 
 
@@ -47,8 +49,12 @@ def current(database_url: str | None = None) -> str | None:
     from alembic.runtime.migration import MigrationContext
     from sqlalchemy import create_engine as sa_create_engine
 
-    url = database_url or os.environ.get("DATABASE_URL", "sqlite:///infraverse.db")
+    cfg = _get_alembic_config(database_url)
+    url = cfg.get_main_option("sqlalchemy.url")
     engine = sa_create_engine(url)
-    with engine.connect() as conn:
-        ctx = MigrationContext.configure(conn)
-        return ctx.get_current_revision()
+    try:
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            return ctx.get_current_revision()
+    finally:
+        engine.dispose()

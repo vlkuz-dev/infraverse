@@ -17,16 +17,11 @@ CSRF_EXCLUDED_PREFIXES = ("/auth/", "/static/")
 CSRF_EXCLUDED_PATHS = ("/health",)
 
 
-def generate_csrf_token() -> str:
-    """Generate a cryptographically secure CSRF token."""
-    return secrets.token_urlsafe(32)
-
-
 def get_csrf_token(session: dict) -> str:
     """Get existing CSRF token from session, or generate and store a new one."""
     token = session.get("csrf_token")
     if not token:
-        token = generate_csrf_token()
+        token = secrets.token_urlsafe(32)
         session["csrf_token"] = token
     return token
 

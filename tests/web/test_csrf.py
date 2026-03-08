@@ -7,28 +7,10 @@ from fastapi.testclient import TestClient
 
 from infraverse.config_file import InfraverseConfig, OidcConfig
 from infraverse.web.app import create_app
-from infraverse.web.csrf import generate_csrf_token, get_csrf_token
+from infraverse.web.csrf import get_csrf_token
 
 
 # --- Unit tests for token generation and session storage ---
-
-
-class TestGenerateCsrfToken:
-    """CSRF token generation produces unique, URL-safe tokens."""
-
-    def test_returns_nonempty_string(self):
-        token = generate_csrf_token()
-        assert isinstance(token, str)
-        assert len(token) > 0
-
-    def test_tokens_are_unique(self):
-        tokens = {generate_csrf_token() for _ in range(100)}
-        assert len(tokens) == 100
-
-    def test_token_is_url_safe(self):
-        token = generate_csrf_token()
-        # token_urlsafe produces only alphanumerics, hyphens, underscores
-        assert all(c.isalnum() or c in "-_" for c in token)
 
 
 class TestGetCsrfToken:

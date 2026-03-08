@@ -125,8 +125,6 @@ class SchedulerService:
 
             repo = Repository(session)
             accounts = repo.list_cloud_accounts()
-            if self._infraverse_config is not None:
-                accounts = [a for a in accounts if a.is_active]
 
             netbox_stats = self._run_netbox_sync(accounts=accounts)
             if netbox_stats is not None:
@@ -148,18 +146,7 @@ class SchedulerService:
 
     def _run_netbox_ingestion(self, ingestor, results: dict) -> None:
         """Ingest NetBox VMs into local DB if NetBox is configured."""
-        netbox_url = None
-        netbox_token = None
-
-        if self._infraverse_config is not None and self._infraverse_config.netbox_configured:
-            netbox_url = self._infraverse_config.netbox.url
-            netbox_token = self._infraverse_config.netbox.token
-
-        if not netbox_url:
-            # Env-var / SimpleNamespace mode
-            netbox_url = getattr(self._config, "netbox_url", None)
-            netbox_token = getattr(self._config, "netbox_token", None)
-
+        netbox_url, netbox_token, _ = self._resolve_netbox_config()
         if not netbox_url or not netbox_token:
             return
 

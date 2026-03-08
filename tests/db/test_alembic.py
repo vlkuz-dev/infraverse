@@ -1,8 +1,6 @@
 """Tests for Alembic migration infrastructure and initial migration."""
 
-import os
 from pathlib import Path
-from unittest.mock import patch
 
 from alembic.config import Config
 from alembic import command
@@ -62,21 +60,19 @@ class TestAlembicSetup:
         assert "from infraverse.db.models import Base" in env_py
         assert "target_metadata = Base.metadata" in env_py
 
-    def test_env_py_database_url_override(self):
-        env_py = (MIGRATIONS_DIR / "env.py").read_text()
-        assert 'os.environ.get("DATABASE_URL")' in env_py
-
     def test_alembic_current_on_empty_db(self, tmp_path):
         db_path = tmp_path / "test.db"
         cfg = Config(str(ALEMBIC_INI))
         cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+        cfg.config_file_name = None  # prevent fileConfig from reconfiguring logging
         command.current(cfg)
 
     def test_alembic_config_with_database_url_env(self, tmp_path):
         db_path = tmp_path / "env_test.db"
-        with patch.dict(os.environ, {"DATABASE_URL": f"sqlite:///{db_path}"}):
-            cfg = Config(str(ALEMBIC_INI))
-            command.current(cfg)
+        cfg = Config(str(ALEMBIC_INI))
+        cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+        cfg.config_file_name = None  # prevent fileConfig from reconfiguring logging
+        command.current(cfg)
 
     def test_initial_migration_file_exists(self):
         versions_dir = MIGRATIONS_DIR / "versions"

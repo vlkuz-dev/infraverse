@@ -141,7 +141,7 @@ class TestCmdDbMigrate:
     def test_cmd_db_migrate_calls_generate_revision(self):
         with patch("infraverse.db.migrate.generate_revision") as mock_gen, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
-            args = argparse.Namespace(message="add users table")
+            args = argparse.Namespace(config=None, message="add users table")
             cmd_db_migrate(args)
 
         mock_gen.assert_called_once_with("add users table", "sqlite:///:memory:")
@@ -165,7 +165,7 @@ class TestCmdDbUpgrade:
     def test_cmd_db_upgrade_calls_upgrade_head(self):
         with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_upgrade(args)
 
         mock_upgrade.assert_called_once_with("sqlite:///:memory:")
@@ -177,7 +177,7 @@ class TestCmdDbUpgrade:
 
         with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
              patch("infraverse.db.migrate.upgrade_head") as mock_upgrade:
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_upgrade(args)
 
         mock_upgrade.assert_called_once_with("sqlite:///custom.db")
@@ -189,7 +189,7 @@ class TestCmdDbDowngrade:
     def test_cmd_db_downgrade_calls_downgrade_one(self):
         with patch("infraverse.db.migrate.downgrade_one") as mock_downgrade, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_downgrade(args)
 
         mock_downgrade.assert_called_once_with("sqlite:///:memory:")
@@ -201,7 +201,7 @@ class TestCmdDbDowngrade:
 
         with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
              patch("infraverse.db.migrate.downgrade_one") as mock_downgrade:
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_downgrade(args)
 
         mock_downgrade.assert_called_once_with("sqlite:///custom.db")
@@ -376,7 +376,7 @@ class TestCmdDbInit:
     def test_cmd_db_init_calls_upgrade_head(self):
         with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_init(args)
 
         mock_upgrade.assert_called_once_with("sqlite:///:memory:")
@@ -386,7 +386,7 @@ class TestCmdDbInit:
         env = {"DATABASE_URL": "sqlite:///:memory:"}
         with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
              patch.dict("os.environ", env, clear=True):
-            args = argparse.Namespace()
+            args = argparse.Namespace(config=None)
             cmd_db_init(args)
 
         mock_upgrade.assert_called_once()
@@ -417,7 +417,7 @@ class TestCmdDbSeed:
                 mock_repo.create_tenant.return_value = mock_tenant
                 mock_repo_cls.return_value = mock_repo
 
-                args = argparse.Namespace()
+                args = argparse.Namespace(config=None)
                 cmd_db_seed(args)
 
             mock_repo.create_tenant.assert_called_once_with(
@@ -445,7 +445,7 @@ class TestCmdDbSeed:
                 mock_repo.get_tenant_by_name.return_value = existing_tenant
                 mock_repo_cls.return_value = mock_repo
 
-                args = argparse.Namespace()
+                args = argparse.Namespace(config=None)
                 cmd_db_seed(args)
 
             mock_repo.create_tenant.assert_not_called()
