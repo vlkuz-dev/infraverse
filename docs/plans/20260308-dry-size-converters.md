@@ -65,15 +65,15 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] no inline `1024 ** 3` or `1024**3` in `vms.py` or `batch.py`
-- [ ] `parse_memory_mb`, `parse_cores`, `parse_disk_size_mb` all live in `size_converters.py`
-- [ ] re-exports in `vms.py` preserve backward compatibility
-- [ ] all tests pass: `python3 -m pytest tests/ -v`
-- [ ] run linter: `ruff check src/ tests/`
+- [x] no inline `1024 ** 3` or `1024**3` in `vms.py` or `batch.py`
+- [x] `parse_memory_mb`, `parse_cores`, `parse_disk_size_mb` all live in `size_converters.py`
+- [x] re-exports in `vms.py` preserve backward compatibility
+- [x] all tests pass: `python3 -m pytest tests/ -v`
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 6: [Final] Update documentation
-- [ ] update MEMORY.md with new module path
-- [ ] update this plan with any deviations
+- [x] update MEMORY.md with new module path
+- [x] update this plan with any deviations
 
 ## Technical Details
 
