@@ -42,7 +42,7 @@ class TestParseDiskSizeMb:
         assert parse_disk_size_mb(1024 * BYTES_PER_GIB) == 1024000
 
     def test_non_exact_gib(self):
-        # 1.5 GiB = 1536 MB in NetBox terms
+        # 1.5 GiB = 1500 MB in NetBox terms
         size_bytes = int(1.5 * BYTES_PER_GIB)
         assert parse_disk_size_mb(size_bytes) == 1500
 
