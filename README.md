@@ -312,6 +312,7 @@ src/infraverse/
     ingest.py              # DataIngestor: providers -> DB
     config_sync.py         # YAML config to DB sync (tenants, accounts)
     monitoring.py          # Per-VM monitoring check via Zabbix
+    size_converters.py     # Size conversion utilities (bytes -> NetBox MB)
     infrastructure.py      # Sites, clusters, prefixes sync
     vms.py                 # VM sync logic
     batch.py               # Optimized batch operations

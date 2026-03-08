@@ -6,7 +6,7 @@ from typing import Any, Dict
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.ip import is_private_ip, get_ip_without_cidr, ensure_cidr_notation
 from infraverse.sync.cleanup import cleanup_orphaned_vms
-from infraverse.sync.size_converters import parse_memory_mb, parse_cores, parse_disk_size_mb  # noqa: F401 — re-export
+from infraverse.sync.size_converters import parse_memory_mb, parse_cores, parse_disk_size_mb
 
 logger = logging.getLogger(__name__)
 
