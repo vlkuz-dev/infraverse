@@ -65,13 +65,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Eliminate Scheduler's `_run_netbox_sync_per_account()` duplication
-- [ ] verify `SyncEngine.run()` already handles per-provider iteration (lines 47-102 of engine.py)
-- [ ] refactor Scheduler `_run_netbox_sync_per_account()` (lines 341-413) to use `SyncEngine` instead of reimplementing sync loop
-- [ ] ensure scheduler passes correct `dry_run` flag to SyncEngine
-- [ ] remove duplicated `sync_infrastructure` + `sync_vms_optimized` direct calls from scheduler
-- [ ] verify all tests pass
-- [ ] update scheduler tests to verify SyncEngine is called correctly
-- [ ] run tests — must pass before next task
+- [x] verify `SyncEngine.run()` already handles per-provider iteration (lines 47-102 of engine.py)
+- [x] refactor Scheduler `_run_netbox_sync_per_account()` (lines 341-413) to use `SyncEngine` instead of reimplementing sync loop
+- [x] ensure scheduler passes correct `dry_run` flag to SyncEngine
+- [x] remove duplicated `sync_infrastructure` + `sync_vms_optimized` direct calls from scheduler
+- [x] verify all tests pass
+- [x] update scheduler tests to verify SyncEngine is called correctly
+- [x] run tests — must pass before next task
 
 ### Task 5: Prevent scheduler job overlap (P0)
 - [ ] add `max_instances=1` to `add_job()` call in `scheduler.py:42` — prevents APScheduler from running concurrent instances
