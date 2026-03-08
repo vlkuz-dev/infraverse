@@ -50,11 +50,11 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Verify acceptance criteria
-- [ ] verify SessionMiddleware has `https_only=True` and `same_site='strict'` in non-debug mode
-- [ ] verify CSRF token required on all POST routes
-- [ ] verify local development still works (localhost exception for https_only)
-- [ ] run full test suite
-- [ ] run linter: `ruff check src/ tests/`
+- [x] verify SessionMiddleware has `https_only=True` and `same_site='strict'` in non-debug mode
+- [x] verify CSRF token required on all POST routes
+- [x] verify local development still works (localhost exception for https_only)
+- [x] run full test suite
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 4: [Final] Update documentation
 - [ ] update config.example.yaml with SESSION_SECRET field
