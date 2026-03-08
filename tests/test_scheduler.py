@@ -162,13 +162,9 @@ class TestJobOverlapPrevention:
     def test_trigger_now_without_scheduler_returns_triggered(self):
         svc = SchedulerService(_make_session_factory(), _make_config())
         svc._run_ingestion = MagicMock()
-        svc._scheduler.start()
-        svc._running = True
-        try:
-            result = svc.trigger_now()
-            assert result == "triggered"
-        finally:
-            svc._scheduler.shutdown(wait=False)
+        # trigger_now uses threading.Thread directly, no scheduler needed
+        result = svc.trigger_now()
+        assert result == "triggered"
 
     @patch("infraverse.scheduler.run_ingestion_cycle")
     def test_concurrent_ingestion_blocked(self, mock_cycle):
@@ -197,33 +193,25 @@ class TestJobOverlapPrevention:
 
 
 class TestTriggerNow:
-    def test_trigger_now_modifies_existing_job(self):
+    def test_trigger_now_starts_daemon_thread(self):
         svc = SchedulerService(_make_session_factory(), _make_config())
-        # Mock _run_ingestion BEFORE start() so APScheduler captures the mock
         svc._run_ingestion = MagicMock()
         svc.start(interval_minutes=60)
         try:
             svc.trigger_now()
-            # Trigger sets next_run_time to now - the job still exists
-            job = svc._scheduler.get_job("ingestion")
-            assert job is not None
+            # Give the daemon thread time to call _run_ingestion
+            time.sleep(0.2)
+            svc._run_ingestion.assert_called()
         finally:
             svc.stop()
 
-    def test_trigger_now_without_existing_job_adds_manual(self):
+    def test_trigger_now_works_without_scheduler_job(self):
         svc = SchedulerService(_make_session_factory(), _make_config())
-        # Mock _run_ingestion BEFORE starting so APScheduler captures the mock
         svc._run_ingestion = MagicMock()
-        svc._scheduler.start()
-        svc._running = True
-        try:
-            svc.trigger_now()
-            # Give the background thread time to pick up the job
-            time.sleep(0.2)
-            # The manual job fires immediately and gets consumed; verify _run_ingestion was called
-            svc._run_ingestion.assert_called()
-        finally:
-            svc._scheduler.shutdown(wait=False)
+        # No scheduler start — trigger_now uses a thread directly
+        svc.trigger_now()
+        time.sleep(0.2)
+        svc._run_ingestion.assert_called()
 
     @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.scheduler.DataIngestor")
@@ -240,16 +228,12 @@ class TestTriggerNow:
 
         session = MagicMock()
         svc = SchedulerService(_make_session_factory(session), _make_config())
-        svc.start(interval_minutes=60)
-        try:
-            svc.trigger_now()
-            # Give the background thread time to execute
-            time.sleep(0.5)
-            mock_cycle.assert_called_once()
-            assert svc._last_result == {"test": "success"}
-            assert svc._last_run_time is not None
-        finally:
-            svc.stop()
+        svc.trigger_now()
+        # Give the daemon thread time to execute
+        time.sleep(0.5)
+        mock_cycle.assert_called_once()
+        assert svc._last_result == {"test": "success"}
+        assert svc._last_run_time is not None
 
 
 class TestGetStatus:

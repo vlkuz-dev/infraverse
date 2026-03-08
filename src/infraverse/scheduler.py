@@ -64,6 +64,16 @@ class SchedulerService:
     def trigger_now(self) -> str:
         """Trigger an immediate ingestion run outside the regular schedule.
 
+        Starts _run_ingestion in a daemon thread. The lock inside
+        _run_ingestion guarantees that a concurrent interval run and this
+        manual trigger never overlap — the second call is skipped.
+
+        Note: there is a small TOCTOU window between the locked() check
+        and the thread acquiring the lock. In the unlikely event an
+        interval run starts in that window, the manual run is silently
+        skipped while this method still returns "triggered". This is
+        acceptable because the interval run performs the same work.
+
         Returns:
             Status message: "triggered" on success, "already_running" if skipped.
         """
@@ -71,15 +81,7 @@ class SchedulerService:
             logger.warning("Ingestion already running, skipping manual trigger")
             return "already_running"
 
-        job = self._scheduler.get_job("ingestion")
-        if job is not None:
-            job.modify(next_run_time=datetime.now(timezone.utc))
-        else:
-            self._scheduler.add_job(
-                self._run_ingestion,
-                id="ingestion_manual",
-                replace_existing=True,
-            )
+        threading.Thread(target=self._run_ingestion, daemon=True).start()
         logger.info("Ingestion triggered manually")
         return "triggered"
 
