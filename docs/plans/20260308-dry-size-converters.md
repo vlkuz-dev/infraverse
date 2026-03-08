@@ -30,14 +30,14 @@
 ## Implementation Steps
 
 ### Task 1: Create size converter module with disk parser
-- [ ] create `src/infraverse/sync/size_converters.py` with constants:
+- [x] create `src/infraverse/sync/size_converters.py` with constants:
   - `BYTES_PER_GIB = 1024 ** 3`
   - `NETBOX_MB_PER_GIB = 1000` (NetBox uses decimal MB display for GiB values)
-- [ ] add `parse_disk_size_mb(size_bytes: int | float | str) -> int` function
+- [x] add `parse_disk_size_mb(size_bytes: int | float | str) -> int` function
   - formula: `round(int(size_bytes) / BYTES_PER_GIB * NETBOX_MB_PER_GIB)`
   - handle string/int/float input types (same as `parse_memory_mb`)
-- [ ] write tests for `parse_disk_size_mb()` — various inputs, edge cases (0, negative, string, float)
-- [ ] run tests — must pass before next task
+- [x] write tests for `parse_disk_size_mb()` — various inputs, edge cases (0, negative, string, float)
+- [x] run tests — must pass before next task
 
 ### Task 2: Move `parse_memory_mb` and `parse_cores` to size_converters
 - [ ] move `parse_memory_mb()` from `vms.py:16-55` to `size_converters.py`
