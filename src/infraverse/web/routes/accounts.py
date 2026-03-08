@@ -73,7 +73,7 @@ def account_detail(request: Request, account_id: int):
         sync_runs = repo.get_sync_runs_by_account(account_id, limit=10)
 
         # Extract data while session is open — mask sensitive config values
-        SENSITIVE_KEYS = {"token", "password", "client_secret", "secret"}
+        SENSITIVE_KEYS = {"token", "password", "client_secret", "secret", "sa_key"}
         raw_config = account.config or {}
         safe_config = {
             k: "***" if k in SENSITIVE_KEYS else v

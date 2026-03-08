@@ -60,6 +60,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "infraverse.web" = ["templates/*.html", "static/*.css"]
+"infraverse.db" = ["migrations/script.py.mako", "migrations/README"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
