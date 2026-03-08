@@ -108,8 +108,9 @@ class SchedulerService:
             return
 
         logger.info("Starting scheduled ingestion")
-        session = self._session_factory()
+        session = None
         try:
+            session = self._session_factory()
             results = run_ingestion_cycle(
                 session,
                 infraverse_config=self._infraverse_config,
@@ -139,7 +140,8 @@ class SchedulerService:
             self._last_run_time = datetime.now(timezone.utc)
             logger.error("Scheduled ingestion failed: %s", exc)
         finally:
-            session.close()
+            if session is not None:
+                session.close()
             self._job_lock.release()
 
     def _run_netbox_ingestion(self, ingestor, results: dict) -> None:
