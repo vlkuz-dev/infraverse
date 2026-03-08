@@ -271,30 +271,23 @@ class TestCmdServe:
 class TestCmdDbInit:
     """Tests for db init command execution."""
 
-    def test_cmd_db_init_creates_tables(self):
-        with patch("infraverse.db.engine.create_engine") as mock_create_engine, \
-             patch("infraverse.db.engine.init_db") as mock_init_db, \
+    def test_cmd_db_init_calls_upgrade_head(self):
+        with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
-            mock_engine = MagicMock()
-            mock_create_engine.return_value = mock_engine
-
             args = argparse.Namespace()
             cmd_db_init(args)
 
-        mock_create_engine.assert_called_once_with("sqlite:///:memory:")
-        mock_init_db.assert_called_once_with(mock_engine)
+        mock_upgrade.assert_called_once_with("sqlite:///:memory:")
 
     def test_cmd_db_init_does_not_require_cloud_creds(self):
         """db init should work without YC_TOKEN, NETBOX_URL, NETBOX_TOKEN."""
         env = {"DATABASE_URL": "sqlite:///:memory:"}
-        with patch("infraverse.db.engine.create_engine") as mock_ce, \
-             patch("infraverse.db.engine.init_db"), \
+        with patch("infraverse.db.migrate.upgrade_head") as mock_upgrade, \
              patch.dict("os.environ", env, clear=True):
-            mock_ce.return_value = MagicMock()
             args = argparse.Namespace()
             cmd_db_init(args)
 
-        mock_ce.assert_called_once()
+        mock_upgrade.assert_called_once()
 
 
 class TestCmdDbSeed:
@@ -302,7 +295,7 @@ class TestCmdDbSeed:
 
     def test_cmd_db_seed_creates_default_tenant(self):
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
-             patch("infraverse.db.engine.init_db"), \
+             patch("infraverse.db.migrate.upgrade_head"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
             mock_engine = MagicMock()
@@ -332,7 +325,7 @@ class TestCmdDbSeed:
 
     def test_cmd_db_seed_skips_if_exists(self):
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
-             patch("infraverse.db.engine.init_db"), \
+             patch("infraverse.db.migrate.upgrade_head"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
              patch.dict("os.environ", {"DATABASE_URL": "sqlite:///:memory:"}):
             mock_ce.return_value = MagicMock()

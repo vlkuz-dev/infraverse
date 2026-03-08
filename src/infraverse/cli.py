@@ -325,15 +325,14 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 
 def cmd_db_init(args: argparse.Namespace) -> None:
-    """Execute db init command: create all database tables."""
+    """Execute db init command: create all database tables via Alembic migrations."""
     infraverse_config = _load_infraverse_config(args)
     _setup_logging(infraverse_config)
     database_url = _get_database_url(infraverse_config)
 
-    from infraverse.db.engine import create_engine, init_db
+    from infraverse.db.migrate import upgrade_head
 
-    engine = create_engine(database_url)
-    init_db(engine)
+    upgrade_head(database_url)
     logger.info("Database initialized")
     print("Database initialized")
 
@@ -344,11 +343,12 @@ def cmd_db_seed(args: argparse.Namespace) -> None:
     _setup_logging(infraverse_config)
     database_url = _get_database_url(infraverse_config)
 
-    from infraverse.db.engine import create_engine, create_session_factory, init_db
+    from infraverse.db.engine import create_engine, create_session_factory
+    from infraverse.db.migrate import upgrade_head
     from infraverse.db.repository import Repository
 
+    upgrade_head(database_url)
     engine = create_engine(database_url)
-    init_db(engine)
     session_factory = create_session_factory(engine)
 
     with session_factory() as session:

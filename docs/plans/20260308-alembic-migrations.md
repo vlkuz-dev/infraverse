@@ -39,13 +39,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Create initial migration from current schema
-- [ ] run `alembic revision --autogenerate -m "initial_schema"` to capture current model state
-- [ ] review generated migration — ensure all 6 tables with all columns are captured
-- [ ] handle existing databases: add `alembic stamp head` to mark existing DBs as current
-- [ ] update `db init` CLI command: call `alembic upgrade head` instead of `init_db()`
-- [ ] write test for fresh database: `alembic upgrade head` creates all tables
-- [ ] write test for existing database: `alembic stamp head` + `alembic upgrade head` is no-op
-- [ ] run tests — must pass before next task
+- [x] run `alembic revision --autogenerate -m "initial_schema"` to capture current model state
+- [x] review generated migration — ensure all 6 tables with all columns are captured
+- [x] handle existing databases: add `alembic stamp head` to mark existing DBs as current
+- [x] update `db init` CLI command: call `alembic upgrade head` instead of `init_db()`
+- [x] write test for fresh database: `alembic upgrade head` creates all tables
+- [x] write test for existing database: `alembic stamp head` + `alembic upgrade head` is no-op
+- [x] run tests — must pass before next task
 
 ### Task 3: Remove manual migration code
 - [ ] remove `_migrate_schema()` function from `db/engine.py`
