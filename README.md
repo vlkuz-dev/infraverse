@@ -7,6 +7,7 @@ Infrastructure visibility platform - sync multi-cloud infrastructure to NetBox a
 - **Multi-tenant YAML config:** define tenants and cloud accounts in a single config file with `${ENV_VAR}` expansion for credentials
 - **Multi-cloud support:** Yandex Cloud and vCloud Director providers via unified CloudProvider interface
 - **SSO/OIDC authentication:** optional OpenID Connect login with role-based access control (works with Keycloak, Google Workspace, Azure AD, etc.)
+- **CSRF protection:** automatic per-session CSRF tokens validated on all mutating requests (POST/PUT/DELETE/PATCH) when OIDC is enabled
 - **Per-VM monitoring check:** query Zabbix per known VM (by name, then IP fallback) instead of bulk-fetching all hosts
 - **SQLite database:** persistent storage for VMs, monitoring hosts, sync runs, and tenant/account hierarchy
 - **Tenant & CloudAccount model:** multi-customer, multi-cloud support (one tenant = one customer, many cloud accounts)
@@ -148,6 +149,8 @@ Credentials use `${VAR_NAME}` syntax and are expanded from environment variables
 | `SYNC_INTERVAL_MINUTES` | Background ingestion interval (default: `0` = disabled) |
 | `LOG_LEVEL` | Logging level (default: `INFO`) |
 | `YC_CONSOLE_URL`, `ZABBIX_HOST_URL`, `NETBOX_VM_URL` | External link URL templates for detail pages |
+| `SESSION_SECRET` | Dedicated secret for signing session cookies (overrides `oidc.session_secret` config) |
+| `INFRAVERSE_DEBUG` | Set to `1` to relax secure cookie flags for local HTTP dev (`https_only=False`, `same_site=lax`) |
 
 ### Environment Variables (legacy single-tenant)
 
@@ -326,6 +329,7 @@ src/infraverse/
   web/
     app.py                 # FastAPI app factory with scheduler lifespan
     links.py               # External URL template helper
+    csrf.py                # CSRF protection middleware
     middleware.py           # OIDC auth middleware and session management
     routes/
       auth.py              # OIDC login, callback, logout routes
@@ -413,8 +417,11 @@ When the `oidc` section is present in the config file:
 2. Unauthenticated users are redirected to `/auth/login` -> OIDC provider
 3. After authentication, the ID token is validated and the user's roles are checked
 4. Users must have the `required_role` claim to access the app (otherwise 403)
-5. Sessions are stored in signed cookies (no server-side session store)
-6. When OIDC is not configured, all routes are accessible without authentication
+5. Sessions are stored in signed cookies (no server-side session store) with `https_only=True` and `same_site=lax`
+6. All mutating requests (POST, PUT, DELETE, PATCH) require a valid CSRF token via the `X-CSRF-Token` header
+7. When OIDC is not configured, all routes are accessible without authentication
+
+For local development over plain HTTP, set `INFRAVERSE_DEBUG=1` to relax cookie flags (`https_only=False`).
 
 ## OIDC Setup
 

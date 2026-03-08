@@ -77,7 +77,7 @@
 | Flag | Production | Local Dev |
 |------|-----------|-----------|
 | `https_only` | `True` | `False` |
-| `same_site` | `strict` | `lax` |
+| `same_site` | `lax` | `lax` |
 | `max_age` | 14 days | 14 days |
 
 ## Post-Completion

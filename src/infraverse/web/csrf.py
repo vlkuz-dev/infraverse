@@ -1,7 +1,7 @@
 """CSRF protection for Infraverse web UI.
 
 Generates per-session CSRF tokens and validates them on mutating requests.
-Token is checked via X-CSRF-Token header (for HTMX/fetch) or csrf_token form field.
+Token is checked via the X-CSRF-Token header (for HTMX/fetch requests).
 """
 
 import logging

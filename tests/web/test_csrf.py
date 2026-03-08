@@ -215,11 +215,32 @@ class TestCSRFValidationAccepts:
 class TestCSRFExcludedPaths:
     """CSRF validation is skipped for excluded paths."""
 
-    def test_health_endpoint_no_csrf_needed(self, app, client):
-        resp = client.get("/health")
-        assert resp.status_code == 200
+    def test_health_post_no_csrf_needed(self, app, client):
+        # POST to /health should NOT get 403 from CSRF middleware
+        resp = client.post("/health")
+        # 405 = Method Not Allowed (route only defines GET), not 403 = CSRF blocked
+        assert resp.status_code == 405
 
-    def test_auth_paths_no_csrf_needed(self, app, client):
-        resp = client.get("/auth/logout", follow_redirects=False)
-        # Should reach the route, not be blocked by CSRF
-        assert resp.status_code == 302
+    def test_auth_post_no_csrf_needed(self, app, client):
+        # POST to /auth/* should NOT get 403 from CSRF middleware
+        resp = client.post("/auth/logout")
+        # 405 = Method Not Allowed (route only defines GET), not 403 = CSRF blocked
+        assert resp.status_code == 405
+
+
+class TestCSRFMutatingMethods:
+    """CSRF validation applies to all mutating HTTP methods, not just POST."""
+
+    @pytest.mark.parametrize("method", ["PUT", "DELETE", "PATCH"])
+    def test_mutating_method_without_csrf_returns_403(self, app, client, method):
+        _login_user(app, client)
+        resp = client.request(method, "/sync/trigger")
+        assert resp.status_code == 403
+
+    @pytest.mark.parametrize("method", ["PUT", "DELETE", "PATCH"])
+    def test_mutating_method_with_valid_csrf_passes(self, app, client, method):
+        _login_user(app, client)
+        token = _get_csrf_token_from_session(app, client)
+        resp = client.request(method, "/sync/trigger", headers={"X-CSRF-Token": token})
+        # Not 403 means CSRF passed; actual status depends on route support
+        assert resp.status_code != 403

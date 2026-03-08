@@ -73,13 +73,13 @@ class TestSessionCookieFlags:
         assert kwargs is not None, "SessionMiddleware not found"
         assert kwargs["https_only"] is True
 
-    def test_production_mode_same_site_strict(self, monkeypatch):
+    def test_production_mode_same_site_lax(self, monkeypatch):
         monkeypatch.delenv("INFRAVERSE_DEBUG", raising=False)
         cfg = self._make_infraverse_config()
         app = create_app("sqlite:///:memory:", infraverse_config=cfg)
         kwargs = self._get_session_middleware_kwargs(app)
         assert kwargs is not None
-        assert kwargs["same_site"] == "strict"
+        assert kwargs["same_site"] == "lax"
 
     def test_debug_mode_https_only_false(self, monkeypatch):
         monkeypatch.setenv("INFRAVERSE_DEBUG", "true")

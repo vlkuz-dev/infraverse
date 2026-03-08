@@ -136,7 +136,7 @@ def create_app(
             secret_key=session_secret,
             max_age=session_max_age,
             https_only=not debug_mode,
-            same_site="lax" if debug_mode else "strict",
+            same_site="lax",
         )
 
     if config is not None and config.sync_interval_minutes > 0:

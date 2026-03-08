@@ -91,6 +91,8 @@ async def callback(request: Request):
             status_code=403,
         )
 
+    # Rotate CSRF token on authentication state change to prevent fixation
+    request.session.pop("csrf_token", None)
     request.session["user"] = {
         "name": userinfo.get("name", ""),
         "email": userinfo.get("email", ""),
