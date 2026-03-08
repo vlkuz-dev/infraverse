@@ -62,7 +62,7 @@ def app_with_oidc(oidc_config):
 
 @pytest.fixture
 def client_with_oidc(app_with_oidc):
-    return TestClient(app_with_oidc)
+    return TestClient(app_with_oidc, base_url="https://testserver")
 
 
 def _login_user(app, client, name="Test User", email="test@example.com"):

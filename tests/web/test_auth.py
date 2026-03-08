@@ -34,7 +34,7 @@ def app(infraverse_config):
 
 @pytest.fixture
 def client(app):
-    return TestClient(app)
+    return TestClient(app, base_url="https://testserver")
 
 
 def _mock_oauth(app, authorize_redirect_rv=None, authorize_access_token_rv=None,

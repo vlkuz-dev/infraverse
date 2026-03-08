@@ -17,6 +17,18 @@ from infraverse.db.engine import create_engine, create_session_factory, init_db
 
 logger = logging.getLogger(__name__)
 
+
+def _resolve_session_secret(oidc) -> str:
+    """Resolve session secret: SESSION_SECRET env > oidc.session_secret > OIDC-derived."""
+    env_secret = os.getenv("SESSION_SECRET")
+    if env_secret:
+        return env_secret
+    if oidc.session_secret:
+        return oidc.session_secret
+    return hashlib.sha256(
+        b"infraverse-session:" + oidc.client_secret.encode()
+    ).hexdigest()
+
 WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
@@ -106,13 +118,14 @@ def create_app(
         # Auth middleware must be added before session middleware
         # (Starlette processes middleware in reverse order of addition)
         app.add_middleware(AuthMiddleware)
-        session_secret = hashlib.sha256(
-            b"infraverse-session:" + oidc.client_secret.encode()
-        ).hexdigest()
+        session_secret = _resolve_session_secret(oidc)
+        debug_mode = os.getenv("INFRAVERSE_DEBUG", "").lower() in ("1", "true", "yes")
         app.add_middleware(
             SessionMiddleware,
             secret_key=session_secret,
             max_age=session_max_age,
+            https_only=not debug_mode,
+            same_site="lax" if debug_mode else "strict",
         )
 
     if config is not None and config.sync_interval_minutes > 0:

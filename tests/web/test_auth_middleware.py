@@ -34,7 +34,7 @@ def app(infraverse_config):
 
 @pytest.fixture
 def client(app):
-    return TestClient(app)
+    return TestClient(app, base_url="https://testserver")
 
 
 def _mock_oauth(app, authorize_redirect_rv=None, authorize_access_token_rv=None):
@@ -162,7 +162,7 @@ class TestAuthMiddlewareSessionExpiry:
             infraverse_config=inf_cfg,
             session_max_age=1,
         )
-        client = TestClient(app)
+        client = TestClient(app, base_url="https://testserver")
 
         _login_user(app, client)
 

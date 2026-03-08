@@ -30,13 +30,13 @@
 ## Implementation Steps
 
 ### Task 1: Add SESSION_SECRET config and secure cookie flags
-- [ ] add `session_secret: str | None` to `OidcConfig` in `config_file.py` (optional, falls back to current SHA256 derivation)
-- [ ] add `SESSION_SECRET` env var support (checked before OIDC derivation fallback)
-- [ ] update SessionMiddleware in `app.py` to use: `https_only=True` (when not DEBUG), `same_site='strict'`
-- [ ] add `INFRAVERSE_DEBUG` or check if running on localhost to allow `https_only=False` for local dev
-- [ ] write tests for session secret resolution: explicit > env var > OIDC-derived
-- [ ] write tests for cookie flags set correctly in production vs debug mode
-- [ ] run tests — must pass before next task
+- [x] add `session_secret: str | None` to `OidcConfig` in `config_file.py` (optional, falls back to current SHA256 derivation)
+- [x] add `SESSION_SECRET` env var support (checked before OIDC derivation fallback)
+- [x] update SessionMiddleware in `app.py` to use: `https_only=True` (when not DEBUG), `same_site='strict'`
+- [x] add `INFRAVERSE_DEBUG` or check if running on localhost to allow `https_only=False` for local dev
+- [x] write tests for session secret resolution: explicit > env var > OIDC-derived
+- [x] write tests for cookie flags set correctly in production vs debug mode
+- [x] run tests — must pass before next task
 
 ### Task 2: Add CSRF protection to mutating routes
 - [ ] create `src/infraverse/web/csrf.py` with CSRF token generation (using `secrets.token_urlsafe()`) and validation

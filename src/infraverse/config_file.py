@@ -47,6 +47,7 @@ class OidcConfig:
     client_id: str
     client_secret: str
     required_role: str
+    session_secret: str | None = None
 
 
 @dataclass
@@ -211,6 +212,7 @@ def _parse_oidc(raw: dict) -> OidcConfig:
         client_id=raw["client_id"],
         client_secret=raw["client_secret"],
         required_role=raw["required_role"],
+        session_secret=raw.get("session_secret"),
     )
 
 

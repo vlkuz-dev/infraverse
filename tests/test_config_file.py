@@ -547,6 +547,29 @@ class TestOidcConfigParsing:
         cfg = load_config(path)
         assert cfg.oidc is None
 
+    def test_session_secret_parsed_when_present(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com",
+            "client_id": "app",
+            "client_secret": "sec",
+            "required_role": "admin",
+            "session_secret": "my-explicit-secret",
+        })
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.oidc.session_secret == "my-explicit-secret"
+
+    def test_session_secret_defaults_to_none(self, tmp_path):
+        data = _minimal_with_oidc({
+            "provider_url": "https://idp.example.com",
+            "client_id": "app",
+            "client_secret": "sec",
+            "required_role": "admin",
+        })
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.oidc.session_secret is None
+
 
 # ── dataclass properties ────────────────────────────────────────────
 
