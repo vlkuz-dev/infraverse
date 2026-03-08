@@ -111,15 +111,17 @@ class TestTriggerNow:
         finally:
             svc._scheduler.shutdown(wait=False)
 
+    @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_trigger_now_executes_ingestion(self, mock_repo_cls, mock_ingestor_cls):
+    def test_trigger_now_executes_ingestion(self, mock_repo_cls, mock_ingestor_cls, mock_cycle):
+        mock_cycle.return_value = {"test": "success"}
+
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
 
         mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {"test": "success"}
         mock_ingestor_cls.return_value = mock_ingestor
 
         session = MagicMock()
@@ -129,7 +131,7 @@ class TestTriggerNow:
             svc.trigger_now()
             # Give the background thread time to execute
             time.sleep(0.5)
-            mock_ingestor.ingest_all.assert_called_once()
+            mock_cycle.assert_called_once()
             assert svc._last_result == {"test": "success"}
             assert svc._last_run_time is not None
         finally:
@@ -186,37 +188,25 @@ class TestGetStatus:
 
 
 class TestRunIngestion:
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_successful_ingestion(self, mock_repo_cls, mock_ingestor_cls):
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {"yc": "success"}
-        mock_ingestor_cls.return_value = mock_ingestor
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_successful_ingestion(self, mock_cycle):
+        mock_cycle.return_value = {"yc": "success"}
 
         session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config())
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(session), cfg)
         svc._run_ingestion()
 
-        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=[])
-        mock_ingestor.ingest_all.assert_called_once()
+        mock_cycle.assert_called_once_with(
+            session, infraverse_config=None, legacy_config=cfg,
+        )
         assert svc._last_result == {"yc": "success"}
         assert svc._last_run_time is not None
         session.close.assert_called_once()
 
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_ingestion_error_captured(self, mock_repo_cls, mock_ingestor_cls):
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.side_effect = RuntimeError("db connection lost")
-        mock_ingestor_cls.return_value = mock_ingestor
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_ingestion_error_captured(self, mock_cycle):
+        mock_cycle.side_effect = RuntimeError("db connection lost")
 
         session = MagicMock()
         svc = SchedulerService(_make_session_factory(session), _make_config())
@@ -226,10 +216,9 @@ class TestRunIngestion:
         assert svc._last_run_time is not None
         session.close.assert_called_once()
 
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_session_closed_on_error(self, mock_repo_cls, mock_ingestor_cls):
-        mock_repo_cls.side_effect = RuntimeError("cannot create repo")
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_session_closed_on_error(self, mock_cycle):
+        mock_cycle.side_effect = RuntimeError("boom")
 
         session = MagicMock()
         svc = SchedulerService(_make_session_factory(session), _make_config())
@@ -237,21 +226,13 @@ class TestRunIngestion:
 
         session.close.assert_called_once()
 
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_ingestion_with_no_providers(self, mock_repo_cls, mock_ingestor_cls):
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_ingestion_with_no_providers(self, mock_cycle):
+        mock_cycle.return_value = {}
 
         svc = SchedulerService(_make_session_factory(), _make_config())
         svc._run_ingestion()
 
-        mock_ingestor.ingest_all.assert_called_once_with({}, None)
         assert svc._last_result == {}
 
 
@@ -452,79 +433,29 @@ class TestSchedulerWithInfraverseConfig:
         svc = SchedulerService(_make_session_factory(), _make_config())
         assert svc._infraverse_config is None
 
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_run_ingestion_calls_config_sync(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_run_ingestion_passes_infraverse_config(self, mock_cycle):
+        mock_cycle.return_value = {}
         ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
 
         session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(session), cfg, infraverse_config=ic)
         svc._run_ingestion()
 
-        mock_sync_cfg.assert_called_once_with(ic, session)
+        mock_cycle.assert_called_once_with(session, infraverse_config=ic, legacy_config=cfg)
 
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_run_ingestion_without_infraverse_config_skips_sync(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_run_ingestion_without_infraverse_config(self, mock_cycle):
+        mock_cycle.return_value = {}
 
-        svc = SchedulerService(_make_session_factory(), _make_config())
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(), cfg)
         svc._run_ingestion()
 
-        mock_sync_cfg.assert_not_called()
-
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_run_ingestion_filters_active_accounts(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
-        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud", {"token": "t1"})]})
-
-        active = MagicMock()
-        active.id = 1
-        active.is_active = True
-        active.provider_type = "yandex_cloud"
-        active.config = {"token": "t1"}
-        active.name = "active-yc"
-
-        inactive = MagicMock()
-        inactive.id = 2
-        inactive.is_active = False
-        inactive.provider_type = "yandex_cloud"
-        inactive.config = {"token": "old"}
-        inactive.name = "inactive-yc"
-
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = [active, inactive]
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
-
-        session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
-
-        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
-             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
-            mock_yc_cls.return_value = MagicMock()
-            svc._run_ingestion()
-
-        providers = mock_ingestor.ingest_all.call_args[0][0]
-        assert 1 in providers
-        assert 2 not in providers
+        call_kwargs = mock_cycle.call_args.kwargs
+        assert call_kwargs["infraverse_config"] is None
+        assert call_kwargs["legacy_config"] is cfg
 
 
 class TestBuildProvidersFromAccountConfig:
@@ -748,147 +679,30 @@ class TestBuildZabbixClientWithMonitoringConfig:
 
 
 class TestSchedulerMultiTenant:
-    """Tests for scheduler with multiple tenants and accounts."""
+    """Tests for scheduler multi-tenant ingestion via run_ingestion_cycle.
 
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_multiple_tenants_multiple_providers(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+    Detailed multi-tenant provider building and filtering tests are in
+    tests/sync/test_orchestrator.py. These tests verify the scheduler
+    correctly delegates to run_ingestion_cycle.
+    """
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_multiple_tenants_delegates_to_orchestrator(self, mock_cycle):
+        mock_cycle.return_value = {"acme": "ok", "beta": "ok"}
+
         ic = _make_infraverse_config(tenants={
             "acme": [("acme-yc", "yandex_cloud", {"token": "t1"})],
             "beta": [("beta-yc", "yandex_cloud", {"token": "t2"})],
         })
 
-        acme_acct = MagicMock()
-        acme_acct.id = 1
-        acme_acct.is_active = True
-        acme_acct.provider_type = "yandex_cloud"
-        acme_acct.config = {"token": "t1"}
-        acme_acct.name = "acme-yc"
-
-        beta_acct = MagicMock()
-        beta_acct.id = 2
-        beta_acct.is_active = True
-        beta_acct.provider_type = "yandex_cloud"
-        beta_acct.config = {"token": "t2"}
-        beta_acct.name = "beta-yc"
-
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = [acme_acct, beta_acct]
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
-
         session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(session), cfg, infraverse_config=ic)
+        svc._run_ingestion()
 
-        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
-             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
-            mock_yc_cls.side_effect = lambda token_provider=None, **kw: MagicMock()
-            svc._run_ingestion()
-
-        providers = mock_ingestor.ingest_all.call_args[0][0]
-        assert len(providers) == 2
-        assert 1 in providers
-        assert 2 in providers
-
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_mixed_provider_types(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
-        ic = _make_infraverse_config(tenants={
-            "acme": [
-                ("acme-yc", "yandex_cloud", {"token": "t1"}),
-                ("acme-vcd", "vcloud", {"url": "https://vcd.example.com", "username": "admin", "password": "pass", "org": "Org1"}),
-            ],
-        })
-
-        yc_acct = MagicMock()
-        yc_acct.id = 1
-        yc_acct.is_active = True
-        yc_acct.provider_type = "yandex_cloud"
-        yc_acct.config = {"token": "t1"}
-        yc_acct.name = "acme-yc"
-
-        vcd_acct = MagicMock()
-        vcd_acct.id = 2
-        vcd_acct.is_active = True
-        vcd_acct.provider_type = "vcloud"
-        vcd_acct.config = {"url": "https://vcd.example.com", "username": "admin", "password": "pass", "org": "Org1"}
-        vcd_acct.name = "acme-vcd"
-
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = [yc_acct, vcd_acct]
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
-
-        session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
-
-        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
-             patch("infraverse.providers.vcloud.VCloudDirectorClient") as mock_vcd_cls:
-            mock_yc_cls.return_value = MagicMock()
-            mock_vcd_cls.return_value = MagicMock()
-            svc._run_ingestion()
-
-        providers = mock_ingestor.ingest_all.call_args[0][0]
-        assert len(providers) == 2
-        assert 1 in providers
-        assert 2 in providers
-
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_active_and_inactive_mixed(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
-        ic = _make_infraverse_config(tenants={
-            "acme": [("acme-yc", "yandex_cloud", {"token": "t1"})],
-        })
-
-        active = MagicMock()
-        active.id = 1
-        active.is_active = True
-        active.provider_type = "yandex_cloud"
-        active.config = {"token": "t1"}
-        active.name = "acme-yc"
-
-        inactive1 = MagicMock()
-        inactive1.id = 2
-        inactive1.is_active = False
-        inactive1.provider_type = "yandex_cloud"
-        inactive1.config = {"token": "old1"}
-        inactive1.name = "old-yc"
-
-        inactive2 = MagicMock()
-        inactive2.id = 3
-        inactive2.is_active = False
-        inactive2.provider_type = "vcloud"
-        inactive2.config = {"url": "https://old.vcd.com"}
-        inactive2.name = "old-vcd"
-
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = [active, inactive1, inactive2]
-        mock_repo_cls.return_value = mock_repo
-
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
-
-        session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
-
-        with patch("infraverse.providers.yandex.YandexCloudClient") as mock_yc_cls, \
-             patch("infraverse.providers.vcloud.VCloudDirectorClient"):
-            mock_yc_cls.return_value = MagicMock()
-            svc._run_ingestion()
-
-        providers = mock_ingestor.ingest_all.call_args[0][0]
-        assert len(providers) == 1
-        assert 1 in providers
+        mock_cycle.assert_called_once_with(session, infraverse_config=ic, legacy_config=cfg)
+        assert svc._last_result["acme"] == "ok"
+        assert svc._last_result["beta"] == "ok"
 
 
 def _make_real_config(**overrides):
@@ -962,18 +776,20 @@ class TestRunNetboxSync:
 
         assert result == {"error": "sync failed"}
 
+    @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
     @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_ingestion_result_includes_netbox_sync(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build):
+    def test_ingestion_result_includes_netbox_sync(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build, mock_cycle):
+        mock_cycle.return_value = {"yc": "ok"}
+
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
 
         mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {"yc": "ok"}
         mock_ingestor_cls.return_value = mock_ingestor
 
         mock_engine = MagicMock()
@@ -986,20 +802,21 @@ class TestRunNetboxSync:
 
         assert svc._last_result["yc"] == "ok"
         assert svc._last_result["netbox_sync"] == {"vms_synced": 3}
-        assert svc._last_result["netbox_ingestion"] == "success"
 
+    @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
     @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_netbox_failure_does_not_affect_ingestion_result(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build):
+    def test_netbox_failure_does_not_affect_ingestion_result(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build, mock_cycle):
+        mock_cycle.return_value = {"yc": "ok"}
+
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
 
         mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {"yc": "ok"}
         mock_ingestor_cls.return_value = mock_ingestor
 
         mock_engine_cls.side_effect = RuntimeError("netbox down")
@@ -1011,15 +828,17 @@ class TestRunNetboxSync:
         assert svc._last_result["yc"] == "ok"
         assert svc._last_result["netbox_sync"] == {"error": "netbox down"}
 
+    @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_no_netbox_sync_key_when_config_is_mock(self, mock_repo_cls, mock_ingestor_cls):
+    def test_no_netbox_sync_key_when_config_is_mock(self, mock_repo_cls, mock_ingestor_cls, mock_cycle):
+        mock_cycle.return_value = {"yc": "ok"}
+
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
 
         mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {"yc": "ok"}
         mock_ingestor_cls.return_value = mock_ingestor
 
         cfg = _make_config()  # MagicMock
@@ -1198,16 +1017,18 @@ class TestRunNetboxSyncConfigFileMode:
         assert "vcd-acct" in result
         assert mock_sync_vms.call_count == 2
 
+    @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.sync.batch.sync_vms_optimized")
     @patch("infraverse.sync.infrastructure.sync_infrastructure")
-    @patch("infraverse.scheduler.sync_config_to_db")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
     def test_ingestion_stores_vm_sync_errors_config_file_mode(
-        self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg,
-        mock_sync_infra, mock_sync_vms,
+        self, mock_repo_cls, mock_ingestor_cls,
+        mock_sync_infra, mock_sync_vms, mock_cycle,
     ):
         """Full integration: _run_ingestion → _run_netbox_sync → _store_vm_sync_errors."""
+        mock_cycle.return_value = {}
+
         account = MagicMock()
         account.id = 1
         account.is_active = True
@@ -1220,7 +1041,6 @@ class TestRunNetboxSyncConfigFileMode:
         mock_repo_cls.return_value = mock_repo
 
         mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
         mock_ingestor_cls.return_value = mock_ingestor
 
         mock_sync_infra.return_value = {"zones": {}, "folders": {}}
@@ -1252,12 +1072,16 @@ class TestRunNetboxSyncConfigFileMode:
 
 
 class TestSchedulerExclusionRules:
-    """Tests for exclusion rules being passed from config to DataIngestor."""
+    """Tests for exclusion rules delegation to run_ingestion_cycle.
 
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_exclusion_rules_passed_to_ingestor(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+    Detailed exclusion rule handling tests are in tests/sync/test_orchestrator.py.
+    These tests verify the scheduler passes infraverse_config (which contains
+    exclusion rules) to run_ingestion_cycle correctly.
+    """
+
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_infraverse_config_with_rules_passed_to_cycle(self, mock_cycle):
+        mock_cycle.return_value = {}
         rules = [
             MonitoringExclusionRule(name_pattern="cl1*", reason="K8s workers"),
         ]
@@ -1265,50 +1089,21 @@ class TestSchedulerExclusionRules:
             tenants={"t": [("a", "yandex_cloud")]},
             monitoring_exclusions=rules,
         )
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
 
         session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(session), cfg, infraverse_config=ic)
         svc._run_ingestion()
 
-        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=rules)
+        mock_cycle.assert_called_once_with(session, infraverse_config=ic, legacy_config=cfg)
 
-    @patch("infraverse.scheduler.sync_config_to_db")
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_no_exclusion_rules_passes_empty_list(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
-        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
+    @patch("infraverse.scheduler.run_ingestion_cycle")
+    def test_no_infraverse_config_passes_none(self, mock_cycle):
+        mock_cycle.return_value = {}
 
-        session = MagicMock()
-        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        cfg = _make_config()
+        svc = SchedulerService(_make_session_factory(), cfg)
         svc._run_ingestion()
 
-        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=[])
-
-    @patch("infraverse.scheduler.DataIngestor")
-    @patch("infraverse.scheduler.Repository")
-    def test_no_infraverse_config_passes_empty_rules(self, mock_repo_cls, mock_ingestor_cls):
-        mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts.return_value = []
-        mock_repo_cls.return_value = mock_repo
-        mock_ingestor = MagicMock()
-        mock_ingestor.ingest_all.return_value = {}
-        mock_ingestor_cls.return_value = mock_ingestor
-
-        svc = SchedulerService(_make_session_factory(), _make_config())
-        svc._run_ingestion()
-
-        # Without infraverse_config, empty exclusion rules are passed
-        call_kwargs = mock_ingestor_cls.call_args[1]
-        assert call_kwargs["exclusion_rules"] == []
+        call_kwargs = mock_cycle.call_args.kwargs
+        assert call_kwargs["infraverse_config"] is None

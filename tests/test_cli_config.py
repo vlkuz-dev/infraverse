@@ -83,6 +83,27 @@ class TestIngestToDbWithConfig:
             t[tname] = TenantConfig(name=tname, cloud_accounts=accs)
         return InfraverseConfig(tenants=t, monitoring=monitoring)
 
+    def test_calls_run_ingestion_cycle(self):
+        """_ingest_to_db_with_config delegates to run_ingestion_cycle."""
+        config = self._make_infraverse_config(
+            tenants={"acme": [("acme-yc", "yandex_cloud", {"token": "t1"})]}
+        )
+
+        with patch("infraverse.db.engine.create_engine") as mock_ce, \
+             patch("infraverse.db.engine.init_db"), \
+             patch("infraverse.db.engine.create_session_factory") as mock_sf, \
+             patch("infraverse.sync.orchestrator.run_ingestion_cycle") as mock_cycle:
+            mock_ce.return_value = MagicMock()
+            mock_session = MagicMock()
+            mock_session_factory = MagicMock()
+            mock_session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+            mock_session_factory.return_value.__exit__ = MagicMock(return_value=False)
+            mock_sf.return_value = mock_session_factory
+
+            _ingest_to_db_with_config(config)
+
+            mock_cycle.assert_called_once_with(mock_session, infraverse_config=config)
+
     @patch("infraverse.providers.yandex.YandexCloudClient")
     def test_calls_sync_config_to_db(self, mock_yc_cls):
         config = self._make_infraverse_config(
@@ -93,8 +114,9 @@ class TestIngestToDbWithConfig:
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
-             patch("infraverse.sync.config_sync.sync_config_to_db") as mock_sync_cfg, \
-             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls:
+             patch("infraverse.sync.orchestrator.sync_config_to_db") as mock_sync_cfg, \
+             patch("infraverse.sync.orchestrator.DataIngestor") as mock_ingestor_cls, \
+             patch("infraverse.sync.orchestrator.Repository") as mock_repo_cls:
             mock_ce.return_value = MagicMock()
             mock_session = MagicMock()
             mock_session_factory = MagicMock()
@@ -104,23 +126,21 @@ class TestIngestToDbWithConfig:
 
             mock_sync_cfg.return_value = MagicMock()
 
-            # Mock repo to return active accounts
-            with patch("infraverse.db.repository.Repository") as mock_repo_cls:
-                mock_repo = MagicMock()
-                mock_account = MagicMock()
-                mock_account.id = 1
-                mock_account.is_active = True
-                mock_account.provider_type = "yandex_cloud"
-                mock_account.config = {"token": "t1"}
-                mock_account.name = "acme-yc"
-                mock_repo.list_cloud_accounts.return_value = [mock_account]
-                mock_repo_cls.return_value = mock_repo
+            mock_repo = MagicMock()
+            mock_account = MagicMock()
+            mock_account.id = 1
+            mock_account.is_active = True
+            mock_account.provider_type = "yandex_cloud"
+            mock_account.config = {"token": "t1"}
+            mock_account.name = "acme-yc"
+            mock_repo.list_cloud_accounts.return_value = [mock_account]
+            mock_repo_cls.return_value = mock_repo
 
-                mock_ingestor = MagicMock()
-                mock_ingestor.ingest_all.return_value = {}
-                mock_ingestor_cls.return_value = mock_ingestor
+            mock_ingestor = MagicMock()
+            mock_ingestor.ingest_all.return_value = {}
+            mock_ingestor_cls.return_value = mock_ingestor
 
-                _ingest_to_db_with_config(config)
+            _ingest_to_db_with_config(config)
 
             mock_sync_cfg.assert_called_once_with(config, mock_session)
 
@@ -135,9 +155,9 @@ class TestIngestToDbWithConfig:
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
-             patch("infraverse.sync.config_sync.sync_config_to_db"), \
-             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls, \
-             patch("infraverse.db.repository.Repository") as mock_repo_cls:
+             patch("infraverse.sync.orchestrator.sync_config_to_db"), \
+             patch("infraverse.sync.orchestrator.DataIngestor") as mock_ingestor_cls, \
+             patch("infraverse.sync.orchestrator.Repository") as mock_repo_cls:
             mock_ce.return_value = MagicMock()
             mock_session = MagicMock()
             mock_session_factory = MagicMock()
@@ -188,9 +208,9 @@ class TestIngestToDbWithConfig:
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
-             patch("infraverse.sync.config_sync.sync_config_to_db"), \
-             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls, \
-             patch("infraverse.db.repository.Repository") as mock_repo_cls, \
+             patch("infraverse.sync.orchestrator.sync_config_to_db"), \
+             patch("infraverse.sync.orchestrator.DataIngestor") as mock_ingestor_cls, \
+             patch("infraverse.sync.orchestrator.Repository") as mock_repo_cls, \
              patch("infraverse.providers.yandex.YandexCloudClient"), \
              patch("infraverse.providers.zabbix.ZabbixClient") as mock_zabbix_cls:
             mock_ce.return_value = MagicMock()
@@ -235,9 +255,9 @@ class TestIngestToDbWithConfig:
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
-             patch("infraverse.sync.config_sync.sync_config_to_db"), \
-             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls, \
-             patch("infraverse.db.repository.Repository") as mock_repo_cls, \
+             patch("infraverse.sync.orchestrator.sync_config_to_db"), \
+             patch("infraverse.sync.orchestrator.DataIngestor") as mock_ingestor_cls, \
+             patch("infraverse.sync.orchestrator.Repository") as mock_repo_cls, \
              patch("infraverse.providers.yandex.YandexCloudClient"):
             mock_ce.return_value = MagicMock()
             mock_session = MagicMock()
@@ -273,24 +293,13 @@ class TestIngestToDbWithConfig:
         with patch("infraverse.db.engine.create_engine") as mock_ce, \
              patch("infraverse.db.engine.init_db"), \
              patch("infraverse.db.engine.create_session_factory") as mock_sf, \
-             patch("infraverse.sync.config_sync.sync_config_to_db"), \
-             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls, \
-             patch("infraverse.db.repository.Repository") as mock_repo_cls, \
-             patch("infraverse.providers.yandex.YandexCloudClient"):
+             patch("infraverse.sync.orchestrator.run_ingestion_cycle"):
             mock_ce.return_value = MagicMock()
             mock_session = MagicMock()
             mock_session_factory = MagicMock()
             mock_session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
             mock_session_factory.return_value.__exit__ = MagicMock(return_value=False)
             mock_sf.return_value = mock_session_factory
-
-            mock_repo = MagicMock()
-            mock_repo.list_cloud_accounts.return_value = []
-            mock_repo_cls.return_value = mock_repo
-
-            mock_ingestor = MagicMock()
-            mock_ingestor.ingest_all.return_value = {}
-            mock_ingestor_cls.return_value = mock_ingestor
 
             _ingest_to_db_with_config(config, database_url="sqlite:///custom.db")
 

@@ -181,10 +181,7 @@ def _ingest_to_db(config) -> None:
 def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
     """Populate database from YAML config-file-driven providers."""
     from infraverse.db.engine import create_engine, create_session_factory, init_db
-    from infraverse.db.repository import Repository
-    from infraverse.sync.config_sync import sync_config_to_db
-    from infraverse.sync.ingest import DataIngestor
-    from infraverse.sync.providers import build_provider, build_zabbix_client
+    from infraverse.sync.orchestrator import run_ingestion_cycle
 
     if database_url is None:
         database_url = _get_database_url()
@@ -194,30 +191,7 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
     session_factory = create_session_factory(engine)
 
     with session_factory() as session:
-        sync_config_to_db(infraverse_config, session)
-        session.commit()
-
-        repo = Repository(session)
-        accounts = repo.list_cloud_accounts()
-
-        providers = {}
-        for account in accounts:
-            if not account.is_active:
-                continue
-            try:
-                result = build_provider(account)
-                if result is not None:
-                    providers[account.id] = result[0]
-            except Exception as exc:
-                logger.error(
-                    "Failed to build provider for account %s: %s",
-                    account.name, exc,
-                )
-
-        zabbix_client = build_zabbix_client(infraverse_config=infraverse_config)
-
-        ingestor = DataIngestor(session)
-        ingestor.ingest_all(providers, zabbix_client)
+        run_ingestion_cycle(session, infraverse_config=infraverse_config)
 
 
 def cmd_sync(args: argparse.Namespace) -> None:

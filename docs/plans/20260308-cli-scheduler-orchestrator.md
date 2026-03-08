@@ -48,20 +48,21 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Extract ingestion cycle to shared function
-- [ ] create `sync/orchestrator.py` with function:
+- [x] create `sync/orchestrator.py` with function:
   ```python
   def run_ingestion_cycle(
-      session_factory,
+      session,
       infraverse_config=None,
       legacy_config=None,
   ) -> dict:
   ```
-- [ ] move shared logic: config-to-db sync, account loading, provider building, DataIngestor execution
-- [ ] refactor CLI `_ingest_to_db_with_config()` to call `run_ingestion_cycle()`
-- [ ] refactor Scheduler `_run_ingestion()` to call `run_ingestion_cycle()`
-- [ ] verify all tests pass
-- [ ] write tests for `run_ingestion_cycle()` — with YAML config, with legacy config, empty accounts
-- [ ] run tests — must pass before next task
+  ⚠️ Signature uses `session` instead of `session_factory` — cleaner since both callers manage their own session lifecycle for post-ingestion steps
+- [x] move shared logic: config-to-db sync, account loading, provider building, DataIngestor execution
+- [x] refactor CLI `_ingest_to_db_with_config()` to call `run_ingestion_cycle()`
+- [x] refactor Scheduler `_run_ingestion()` to call `run_ingestion_cycle()`
+- [x] verify all tests pass
+- [x] write tests for `run_ingestion_cycle()` — with YAML config, with legacy config, empty accounts
+- [x] run tests — must pass before next task
 
 ### Task 4: Eliminate Scheduler's `_run_netbox_sync_per_account()` duplication
 - [ ] verify `SyncEngine.run()` already handles per-provider iteration (lines 47-102 of engine.py)

@@ -7,8 +7,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from infraverse.config import Config
 from infraverse.db.repository import Repository
-from infraverse.sync.config_sync import sync_config_to_db
 from infraverse.sync.ingest import DataIngestor
+from infraverse.sync.orchestrator import run_ingestion_cycle
 
 logger = logging.getLogger(__name__)
 
@@ -89,33 +89,24 @@ class SchedulerService:
         }
 
     def _run_ingestion(self) -> None:
-        """Execute a full ingestion cycle using DataIngestor."""
+        """Execute a full ingestion cycle using shared orchestrator."""
         logger.info("Starting scheduled ingestion")
         session = self._session_factory()
         try:
-            # Sync config to DB if YAML config is provided
-            if self._infraverse_config is not None:
-                sync_config_to_db(self._infraverse_config, session)
-                session.commit()
+            results = run_ingestion_cycle(
+                session,
+                infraverse_config=self._infraverse_config,
+                legacy_config=self._config,
+            )
 
-            exclusion_rules = []
-            if self._infraverse_config is not None:
-                exclusion_rules = self._infraverse_config.monitoring_exclusions
-            ingestor = DataIngestor(session, exclusion_rules=exclusion_rules)
+            # Post-ingestion steps (scheduler-specific)
+            ingestor = DataIngestor(session)
+            self._run_netbox_ingestion(ingestor, results)
 
             repo = Repository(session)
             accounts = repo.list_cloud_accounts()
-
-            # Filter to active accounts only when using config-file mode
             if self._infraverse_config is not None:
                 accounts = [a for a in accounts if a.is_active]
-
-            providers = self._build_providers(accounts)
-            zabbix_client = self._build_zabbix_client()
-
-            results = ingestor.ingest_all(providers, zabbix_client)
-
-            self._run_netbox_ingestion(ingestor, results)
 
             netbox_stats = self._run_netbox_sync(accounts=accounts)
             if netbox_stats is not None:
