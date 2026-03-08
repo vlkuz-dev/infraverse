@@ -72,6 +72,8 @@ tenants:
 #   client_id: "infraverse"
 #   client_secret: "${OIDC_CLIENT_SECRET}"
 #   required_role: "infraverse-admin"
+#   session_secret: "${SESSION_SECRET}"  # Optional. Dedicated secret for signing session cookies.
+#                                        # Resolution order: SESSION_SECRET env var > this field > derived from client_secret.
 
 # =============================================================================
 # Monitoring Exclusions (optional)

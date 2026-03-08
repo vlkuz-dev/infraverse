@@ -57,8 +57,8 @@
 - [x] run linter: `ruff check src/ tests/`
 
 ### Task 4: [Final] Update documentation
-- [ ] update config.example.yaml with SESSION_SECRET field
-- [ ] update MEMORY.md if new patterns discovered
+- [x] update config.example.yaml with SESSION_SECRET field
+- [x] update MEMORY.md if new patterns discovered
 
 ## Technical Details
 
