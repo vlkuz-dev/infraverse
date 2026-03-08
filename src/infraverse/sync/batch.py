@@ -729,7 +729,7 @@ def _step_set_primary_ips(cache: NetBoxCache, netbox: NetBoxClient,
                 stats["primary_ips_changed"] += 1
                 logger.info(f"VM {vm.name}: Set primary IPv4 to {ip.address} (ID: {ip_id})")
             except Exception as e:
-                logger.error(f"VM {vm.name} (ID {vm_id}): Failed to set primary IP {ip_id}: {e}")
+                logger.error(f"VM ID {vm_id}: Failed to set primary IP {ip_id}: {e}")
                 stats["errors"] += 1
         elif ip_id == "pending":
             vm = cache.vms.get(vm_id)
