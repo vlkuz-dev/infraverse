@@ -185,6 +185,56 @@ def _process_vm_parameters(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     return False
 
 
+def _process_vm_disks(vm_id: int, yc_vm: Dict[str, Any], cache: NetBoxCache) -> bool:
+    """Parse cloud disk data and queue create/update/delete operations in cache.
+
+    Returns True if any disk changes were queued.
+    """
+    yc_disks = yc_vm.get("disks", [])
+    existing_disks = cache.disks_by_vm[vm_id]
+    changes_made = False
+
+    if not isinstance(yc_disks, list):
+        return False
+
+    yc_disk_map = {}
+    for i, d in enumerate(yc_disks):
+        if isinstance(d, dict):
+            name = d.get("name", f"disk{i}")
+            raw_size = d.get("size", 0)
+            if not isinstance(raw_size, (int, float)) or raw_size <= 0:
+                continue
+            size_mb = parse_disk_size_mb(raw_size)
+            if size_mb > 0:
+                yc_disk_map[name] = size_mb
+
+    existing_disk_map = {d.name: d for d in existing_disks}
+
+    # Find disks to create or update
+    for name, size in yc_disk_map.items():
+        if name not in existing_disk_map:
+            cache.disks_to_create.append({
+                "virtual_machine": vm_id,
+                "size": size,
+                "name": name
+            })
+            changes_made = True
+        else:
+            # Check if disk size needs updating
+            existing_disk = existing_disk_map[name]
+            if existing_disk.size != size:
+                cache.disks_to_update.append((existing_disk, size))
+                changes_made = True
+
+    # Find disks to delete
+    for disk in existing_disks:
+        if disk.name not in yc_disk_map:
+            cache.disks_to_delete.append(disk)
+            changes_made = True
+
+    return changes_made
+
+
 def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                        id_mapping: Dict[str, Dict[str, int]],
                        netbox: NetBoxClient = None,
@@ -201,44 +251,8 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
         changes_made = True
 
     # 2. Process disks
-    yc_disks = yc_vm.get("disks", [])
-    existing_disks = cache.disks_by_vm[vm_id]
-
-    if isinstance(yc_disks, list):
-        yc_disk_map = {}
-        for i, d in enumerate(yc_disks):
-            if isinstance(d, dict):
-                name = d.get("name", f"disk{i}")
-                raw_size = d.get("size", 0)
-                if not isinstance(raw_size, (int, float)) or raw_size <= 0:
-                    continue
-                size_mb = parse_disk_size_mb(raw_size)
-                if size_mb > 0:
-                    yc_disk_map[name] = size_mb
-
-        existing_disk_map = {d.name: d for d in existing_disks}
-
-        # Find disks to create or update
-        for name, size in yc_disk_map.items():
-            if name not in existing_disk_map:
-                cache.disks_to_create.append({
-                    "virtual_machine": vm_id,
-                    "size": size,
-                    "name": name
-                })
-                changes_made = True
-            else:
-                # Check if disk size needs updating
-                existing_disk = existing_disk_map[name]
-                if existing_disk.size != size:
-                    cache.disks_to_update.append((existing_disk, size))
-                    changes_made = True
-
-        # Find disks to delete
-        for disk in existing_disks:
-            if disk.name not in yc_disk_map:
-                cache.disks_to_delete.append(disk)
-                changes_made = True
+    if _process_vm_disks(vm_id, yc_vm, cache):
+        changes_made = True
 
     # 3. Process interfaces and IPs
     yc_interfaces = yc_vm.get("network_interfaces", [])

@@ -6,6 +6,7 @@ from infraverse.sync.batch import (
     NetBoxCache,
     _normalize_comments,
     _process_vm_parameters,
+    _process_vm_disks,
     load_netbox_data,
     process_vm_updates,
     apply_batch_updates,
@@ -392,6 +393,117 @@ class TestProcessVmParameters:
         result = self._run(vm, yc_vm, cache=cache)
         assert result is True
         assert "YC VM ID: new-id" in cache.vms_to_update[1]["comments"]
+
+
+# ════════════════════════════════════════════════════════════
+# Tests: _process_vm_disks
+# ════════════════════════════════════════════════════════════
+
+
+class TestProcessVmDisks:
+    """Tests for _process_vm_disks — disk change detection and queuing."""
+
+    def test_new_disk_queued_for_creation(self):
+        """A cloud disk not in NetBox should be queued for creation."""
+        cache = NetBoxCache()
+        yc_vm = {"disks": [{"name": "boot", "size": 10 * (1024**2)}]}  # 10 MiB raw
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is True
+        assert len(cache.disks_to_create) == 1
+        assert cache.disks_to_create[0]["name"] == "boot"
+        assert cache.disks_to_create[0]["virtual_machine"] == 1
+
+    def test_existing_disk_size_change_queued_for_update(self):
+        """Disk with changed size should be queued for update."""
+        cache = NetBoxCache()
+        existing_disk = make_mock_disk(200, "boot", 1, size=10000)
+        cache.disks_by_vm[1] = [existing_disk]
+
+        yc_vm = {"disks": [{"name": "boot", "size": 40 * (1024**3)}]}  # 40 GiB
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is True
+        assert len(cache.disks_to_update) == 1
+        assert cache.disks_to_update[0] == (existing_disk, 40000)
+
+    def test_orphaned_disk_queued_for_deletion(self):
+        """Disk in NetBox but not in cloud should be queued for deletion."""
+        cache = NetBoxCache()
+        old_disk = make_mock_disk(200, "orphan-disk", 1)
+        cache.disks_by_vm[1] = [old_disk]
+
+        yc_vm = {"disks": []}
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is True
+        assert len(cache.disks_to_delete) == 1
+        assert cache.disks_to_delete[0] == old_disk
+
+    def test_no_disks_returns_false(self):
+        """No cloud disks and no existing disks means no changes."""
+        cache = NetBoxCache()
+        yc_vm = {"disks": []}
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is False
+        assert len(cache.disks_to_create) == 0
+        assert len(cache.disks_to_update) == 0
+        assert len(cache.disks_to_delete) == 0
+
+    def test_matching_disk_no_changes(self):
+        """Disk with same name and size should not queue any changes."""
+        cache = NetBoxCache()
+        existing_disk = make_mock_disk(200, "boot", 1, size=10000)
+        cache.disks_by_vm[1] = [existing_disk]
+
+        yc_vm = {"disks": [{"name": "boot", "size": 10 * (1024**3)}]}  # 10 GiB = 10000 MB
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is False
+
+    def test_invalid_disk_size_skipped(self):
+        """Disk with non-positive size should be skipped."""
+        cache = NetBoxCache()
+        yc_vm = {"disks": [{"name": "bad", "size": -1}]}
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is False
+        assert len(cache.disks_to_create) == 0
+
+    def test_non_list_disks_returns_false(self):
+        """Non-list disks value should return False without error."""
+        cache = NetBoxCache()
+        yc_vm = {"disks": "not-a-list"}
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is False
+
+    def test_missing_disks_key_returns_false(self):
+        """Missing disks key should return False (defaults to empty list)."""
+        cache = NetBoxCache()
+        yc_vm = {}
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is False
+
+    def test_disk_without_name_gets_default(self):
+        """Disk without a name should get a default 'diskN' name."""
+        cache = NetBoxCache()
+        yc_vm = {"disks": [{"size": 10 * (1024**2)}]}  # no "name" key
+
+        result = _process_vm_disks(1, yc_vm, cache)
+
+        assert result is True
+        assert cache.disks_to_create[0]["name"] == "disk0"
 
 
 # ════════════════════════════════════════════════════════════

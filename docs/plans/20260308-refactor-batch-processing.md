@@ -38,12 +38,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Extract disk synchronization logic from `process_vm_updates()`
-- [ ] create `_process_vm_disks(vm_id, yc_vm, cache) -> bool` function
-- [ ] move lines 188-226 (disk size parsing, create/update/delete queueing) into new function
-- [ ] call `_process_vm_disks()` from `process_vm_updates()` in place of extracted code
-- [ ] verify all existing tests pass without modification
-- [ ] write tests for `_process_vm_disks()` directly (new disk, updated size, orphaned disk removal, no disks)
-- [ ] run tests — must pass before next task
+- [x] create `_process_vm_disks(vm_id, yc_vm, cache) -> bool` function
+- [x] move lines 188-226 (disk size parsing, create/update/delete queueing) into new function
+- [x] call `_process_vm_disks()` from `process_vm_updates()` in place of extracted code
+- [x] verify all existing tests pass without modification
+- [x] write tests for `_process_vm_disks()` directly (new disk, updated size, orphaned disk removal, no disks)
+- [x] run tests — must pass before next task
 
 ### Task 3: Extract IP address handling from `process_vm_updates()`
 - [ ] create `_process_vm_ips(vm, yc_vm, cache) -> bool` function covering lines 228-332 (interface loop + IP processing)
