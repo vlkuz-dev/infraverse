@@ -8,11 +8,17 @@ from alembic.config import Config
 
 
 def _get_alembic_config(database_url: str | None = None) -> Config:
-    """Build Alembic Config pointing at the project's alembic.ini."""
-    # Find alembic.ini relative to this file (src/infraverse/db/ -> project root)
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
-    ini_path = project_root / "alembic.ini"
-    cfg = Config(str(ini_path))
+    """Build Alembic Config pointing at the package's migration scripts.
+
+    Resolves the migrations directory relative to this file so it works both
+    in a development checkout and in an installed package (pip / Docker).
+    """
+    migrations_dir = Path(__file__).resolve().parent / "migrations"
+    cfg = Config()
+    # Ensure the [alembic] section exists for programmatic configuration
+    if not cfg.file_config.has_section(cfg.config_ini_section):
+        cfg.file_config.add_section(cfg.config_ini_section)
+    cfg.set_main_option("script_location", str(migrations_dir))
     url = database_url or os.environ.get("DATABASE_URL", "sqlite:///infraverse.db")
     cfg.set_main_option("sqlalchemy.url", url)
     # Prevent env.py from calling fileConfig() which reconfigures Python logging

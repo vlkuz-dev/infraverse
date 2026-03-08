@@ -228,6 +228,59 @@ class TestDowngradeOne:
         assert current(db_url) is not None
 
 
+class TestUpgradeAfterCreateAll:
+    """Test that upgrade_head works on a DB where create_all already ran."""
+
+    def test_upgrade_head_after_create_all(self, tmp_path):
+        """upgrade_head on a DB with tables from create_all should not fail."""
+        db_path = tmp_path / "create_all_first.db"
+        db_url = f"sqlite:///{db_path}"
+
+        # Simulate init_db() / create_all() running first (e.g. web app startup)
+        from infraverse.db.models import Base
+        engine = create_engine(db_url)
+        Base.metadata.create_all(engine)
+
+        # Tables exist but no alembic_version
+        inspector = inspect(engine)
+        assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
+        assert current(db_url) is None
+
+        # upgrade_head should succeed (migration guards against existing tables)
+        upgrade_head(db_url)
+
+        # Tables should still be intact and Alembic version should be set
+        inspector = inspect(engine)
+        assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
+        assert current(db_url) is not None
+
+
+class TestProgrammaticConfig:
+    """Test that _get_alembic_config works without alembic.ini."""
+
+    def test_config_sets_script_location(self):
+        from infraverse.db.migrate import _get_alembic_config
+
+        cfg = _get_alembic_config("sqlite:///test.db")
+        script_location = cfg.get_main_option("script_location")
+        assert script_location is not None
+        assert script_location.endswith("migrations")
+        assert Path(script_location).is_dir()
+
+    def test_config_sets_database_url(self):
+        from infraverse.db.migrate import _get_alembic_config
+
+        cfg = _get_alembic_config("sqlite:///custom.db")
+        url = cfg.get_main_option("sqlalchemy.url")
+        assert url == "sqlite:///custom.db"
+
+    def test_config_prevents_fileconfig(self):
+        from infraverse.db.migrate import _get_alembic_config
+
+        cfg = _get_alembic_config("sqlite:///test.db")
+        assert cfg.config_file_name is None
+
+
 class TestMigrateHelpers:
     """Test the programmatic migrate helper functions."""
 
