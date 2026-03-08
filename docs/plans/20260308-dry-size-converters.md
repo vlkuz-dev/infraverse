@@ -49,13 +49,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Replace inline disk conversions with `parse_disk_size_mb()`
-- [ ] replace `vms.py` line ~402: `size_mb = round(int(size) / (1024 ** 3) * 1000)` → `size_mb = parse_disk_size_mb(size)`
-- [ ] replace `vms.py` line ~434: inline dict `"size": round(...)` → `"size": parse_disk_size_mb(size)`
-- [ ] replace `vms.py` line ~961: inline dict `"size": round(...)` → `"size": parse_disk_size_mb(size)`
-- [ ] replace `batch.py` line ~200: `size_mb = round(int(raw_size) / (1024 ** 3) * 1000)` → `size_mb = parse_disk_size_mb(raw_size)`
-- [ ] add import `from infraverse.sync.size_converters import parse_disk_size_mb` in both files
-- [ ] verify all existing tests pass
-- [ ] run tests — must pass before next task
+- [x] replace `vms.py` line ~402: `size_mb = round(int(size) / (1024 ** 3) * 1000)` → `size_mb = parse_disk_size_mb(size)`
+- [x] replace `vms.py` line ~434: inline dict `"size": round(...)` → `"size": parse_disk_size_mb(size)`
+- [x] replace `vms.py` line ~961: inline dict `"size": round(...)` → `"size": parse_disk_size_mb(size)`
+- [x] replace `batch.py` line ~200: `size_mb = round(int(raw_size) / (1024 ** 3) * 1000)` → `size_mb = parse_disk_size_mb(raw_size)`
+- [x] add import `from infraverse.sync.size_converters import parse_disk_size_mb` in both files
+- [x] verify all existing tests pass
+- [x] run tests — must pass before next task
 
 ### Task 4: Align yandex.py memory conversion (review only)
 - [ ] review `providers/yandex.py` line 467: `memory_mb = int(memory_bytes) // (1024 * 1024)` — this is a raw byte→MB conversion (not NetBox scaling), used differently from `parse_memory_mb`

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from infraverse.ip import is_private_ip, get_ip_without_cidr, ensure_cidr_notation
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.vms import prepare_vm_data, detect_platform_id
-from infraverse.sync.size_converters import parse_memory_mb, parse_cores
+from infraverse.sync.size_converters import parse_memory_mb, parse_cores, parse_disk_size_mb
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                 raw_size = d.get("size", 0)
                 if not isinstance(raw_size, (int, float)) or raw_size <= 0:
                     continue
-                size_mb = round(int(raw_size) / (1024 ** 3) * 1000)
+                size_mb = parse_disk_size_mb(raw_size)
                 if size_mb > 0:
                     yc_disk_map[name] = size_mb
 

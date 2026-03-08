@@ -6,7 +6,7 @@ from typing import Any, Dict
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.ip import is_private_ip, get_ip_without_cidr, ensure_cidr_notation
 from infraverse.sync.cleanup import cleanup_orphaned_vms
-from infraverse.sync.size_converters import parse_memory_mb, parse_cores  # noqa: F401 — re-export
+from infraverse.sync.size_converters import parse_memory_mb, parse_cores, parse_disk_size_mb  # noqa: F401 — re-export
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +336,7 @@ def sync_vm_disks(
                 # Check if size needs updating
                 size = disk.get("size", 0)
                 if isinstance(size, (int, float)) and size > 0:
-                    size_mb = round(int(size) / (1024 ** 3) * 1000)
+                    size_mb = parse_disk_size_mb(size)
                     if existing_disk.size != size_mb:
                         if netbox.dry_run:
                             logger.info(
@@ -368,7 +368,7 @@ def sync_vm_disks(
 
             disk_data = {
                 "virtual_machine": vm.id,
-                "size": round(int(size) / (1024 ** 3) * 1000),
+                "size": parse_disk_size_mb(size),
                 "name": disk_name
             }
 
@@ -895,7 +895,7 @@ def sync_vms(
                     if isinstance(size, (int, float)):
                         disk_data = {
                             "virtual_machine": created_vm.id,
-                            "size": round(int(size) / (1024 ** 3) * 1000),
+                            "size": parse_disk_size_mb(size),
                             "name": str(disk.get("name", "disk"))
                         }
                         netbox.create_disk(disk_data)
