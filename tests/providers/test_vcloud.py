@@ -317,6 +317,145 @@ class TestCloudProviderProtocol:
         assert isinstance(mock_client, CloudProvider)
 
 
+class TestFetchAllData:
+    """Tests for VCloudDirectorClient.fetch_all_data() adapter."""
+
+    def test_returns_expected_structure(self, mock_client):
+        records = [
+            {
+                "name": "vm-1",
+                "href": "urn:vcloud:vm:1",
+                "status": 4,
+                "ipAddress": "10.0.0.1",
+                "numberOfCpus": 2,
+                "memoryMB": 4096,
+                "org": "Org1",
+                "vdc": "VDC1",
+                "guestOs": "Ubuntu Linux (64-bit)",
+            },
+        ]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        assert isinstance(result, dict)
+        assert result["zones"] == []
+        assert result["clouds"] == []
+        assert result["vpcs"] == []
+        assert result["subnets"] == []
+        assert result["_has_fetch_errors"] is False
+        assert result["_provider"] == "vcloud"
+        assert len(result["folders"]) == 1
+        assert len(result["vms"]) == 1
+
+    def test_status_conversion(self, mock_client):
+        records = [
+            {"name": "on", "href": "1", "status": 4, "vdc": "v", "org": "o"},
+            {"name": "off", "href": "2", "status": 8, "vdc": "v", "org": "o"},
+            {"name": "str-on", "href": "3", "status": "POWERED_ON", "vdc": "v", "org": "o"},
+            {"name": "str-off", "href": "4", "status": "POWERED_OFF", "vdc": "v", "org": "o"},
+        ]
+        resp = _mock_response({"record": records, "total": 4, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        statuses = {vm["name"]: vm["status"] for vm in result["vms"]}
+        assert statuses["on"] == "RUNNING"
+        assert statuses["off"] == "STOPPED"
+        assert statuses["str-on"] == "RUNNING"
+        assert statuses["str-off"] == "STOPPED"
+
+    def test_memory_conversion(self, mock_client):
+        records = [
+            {"name": "vm-1", "href": "1", "memoryMB": 2048, "vdc": "v", "org": "o"},
+        ]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        vm = result["vms"][0]
+        # 2048 MB → 2048 * 1024 * 1024 bytes
+        assert vm["resources"]["memory"] == 2048 * 1024 * 1024
+
+    def test_cpu_conversion(self, mock_client):
+        records = [
+            {"name": "vm-1", "href": "1", "numberOfCpus": 4, "vdc": "v", "org": "o"},
+        ]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        assert result["vms"][0]["resources"]["cores"] == 4
+
+    def test_ip_wrapping(self, mock_client):
+        records = [
+            {
+                "name": "vm-1", "href": "1", "vdc": "v", "org": "o",
+                "ipAddress": "10.0.0.5",
+                "networkConnections": [{"ipAddress": "10.0.0.5"}, {"ipAddress": "192.168.1.1"}],
+            },
+        ]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        ifaces = result["vms"][0]["network_interfaces"]
+        # Primary IP as first interface, additional as second
+        assert len(ifaces) == 2
+        assert ifaces[0]["primary_v4_address"] == "10.0.0.5"
+        assert ifaces[1]["primary_v4_address"] == "192.168.1.1"
+
+    def test_folder_extraction(self, mock_client):
+        records = [
+            {"name": "vm-1", "href": "1", "vdc": "VDC-A", "org": "Org1"},
+            {"name": "vm-2", "href": "2", "vdc": "VDC-A", "org": "Org1"},
+            {"name": "vm-3", "href": "3", "vdc": "VDC-B", "org": "Org2"},
+        ]
+        resp = _mock_response({"record": records, "total": 3, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        folders = result["folders"]
+        assert len(folders) == 2
+        folder_names = {f["name"] for f in folders}
+        assert folder_names == {"VDC-A", "VDC-B"}
+
+    def test_guest_os_mapping(self, mock_client):
+        records = [
+            {"name": "vm-1", "href": "1", "vdc": "v", "org": "o", "guestOs": "Windows Server 2019"},
+        ]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        assert result["vms"][0]["os"] == "Windows Server 2019"
+
+    def test_empty_records(self, mock_client):
+        resp = _mock_response({"record": [], "total": 0, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        assert result["vms"] == []
+        assert result["folders"] == []
+
+    def test_disks_are_empty(self, mock_client):
+        records = [{"name": "vm-1", "href": "1", "vdc": "v", "org": "o"}]
+        resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
+        mock_client.client.get.return_value = resp
+
+        result = mock_client.fetch_all_data()
+
+        assert result["vms"][0]["disks"] == []
+
+
 class TestInit:
     def test_init_sets_fields(self):
         with patch("infraverse.providers.vcloud.httpx.Client") as mock_httpx:

@@ -357,6 +357,7 @@ class TestIngestToDb:
             mock_sf.return_value = mock_session_factory
 
             mock_repo = MagicMock()
+            mock_repo.list_tenants.return_value = []  # no config-file tenants
             mock_repo.get_tenant_by_name.return_value = None
             mock_tenant = MagicMock()
             mock_tenant.id = 1
@@ -385,7 +386,7 @@ class TestIngestToDb:
             assert 10 in providers
 
     def test_ingest_reuses_existing_tenant(self):
-        """_ingest_to_db should reuse existing tenant, not create a new one."""
+        """_ingest_to_db should reuse existing Default tenant, not create a new one."""
         mock_config = MagicMock()
         mock_config.database_url = "sqlite:///:memory:"
         mock_config.yc_token = "test-token"
@@ -409,7 +410,9 @@ class TestIngestToDb:
 
             existing_tenant = MagicMock()
             existing_tenant.id = 5
+            existing_tenant.name = "Default"
             mock_repo = MagicMock()
+            mock_repo.list_tenants.return_value = [existing_tenant]  # only Default
             mock_repo.get_tenant_by_name.return_value = existing_tenant
             mock_repo.list_cloud_accounts_by_tenant.return_value = []
             mock_account = MagicMock()
@@ -423,6 +426,39 @@ class TestIngestToDb:
             _ingest_to_db(mock_config)
 
             mock_repo.create_tenant.assert_not_called()
+
+    def test_ingest_refuses_when_config_tenants_exist(self):
+        """_ingest_to_db should abort if non-Default tenants exist (from config-file mode)."""
+        mock_config = MagicMock()
+        mock_config.database_url = "sqlite:///:memory:"
+
+        with patch("infraverse.db.engine.create_engine") as mock_ce, \
+             patch("infraverse.db.engine.init_db"), \
+             patch("infraverse.db.engine.create_session_factory") as mock_sf, \
+             patch("infraverse.db.repository.Repository") as mock_repo_cls, \
+             patch("infraverse.sync.ingest.DataIngestor") as mock_ingestor_cls:
+            mock_ce.return_value = MagicMock()
+
+            mock_session = MagicMock()
+            mock_session_factory = MagicMock()
+            mock_session_factory.return_value.__enter__ = MagicMock(return_value=mock_session)
+            mock_session_factory.return_value.__exit__ = MagicMock(return_value=False)
+            mock_sf.return_value = mock_session_factory
+
+            config_tenant = MagicMock()
+            config_tenant.id = 1
+            config_tenant.name = "grandtrade"
+            mock_repo = MagicMock()
+            mock_repo.list_tenants.return_value = [config_tenant]
+            mock_repo_cls.return_value = mock_repo
+
+            mock_ingestor_cls.return_value = MagicMock()
+
+            _ingest_to_db(mock_config)
+
+            # Should NOT create any tenant or ingest anything
+            mock_repo.create_tenant.assert_not_called()
+            mock_repo.get_tenant_by_name.assert_not_called()
 
     def test_ingest_includes_vcloud_when_configured(self):
         """_ingest_to_db should include vCloud when configured."""
@@ -454,7 +490,9 @@ class TestIngestToDb:
 
             mock_tenant = MagicMock()
             mock_tenant.id = 1
+            mock_tenant.name = "Default"
             mock_repo = MagicMock()
+            mock_repo.list_tenants.return_value = [mock_tenant]  # only Default
             mock_repo.get_tenant_by_name.return_value = mock_tenant
             yc_account = MagicMock()
             yc_account.id = 10
@@ -509,7 +547,9 @@ class TestIngestToDb:
 
             mock_tenant = MagicMock()
             mock_tenant.id = 1
+            mock_tenant.name = "Default"
             mock_repo = MagicMock()
+            mock_repo.list_tenants.return_value = [mock_tenant]  # only Default
             mock_repo.get_tenant_by_name.return_value = mock_tenant
             mock_account = MagicMock()
             mock_account.id = 10

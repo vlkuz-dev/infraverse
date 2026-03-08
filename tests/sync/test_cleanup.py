@@ -2,6 +2,7 @@
 
 
 from infraverse.sync.cleanup import cleanup_orphaned_infrastructure, cleanup_orphaned_vms
+from infraverse.sync.provider_profile import VCLOUD_PROFILE
 from tests.conftest import MockRecord, MockTag, make_mock_netbox_client
 
 
@@ -273,6 +274,34 @@ class TestCleanupOrphanedVMs:
         result = cleanup_orphaned_vms(yc_vms, netbox, dry_run=False)
 
         assert result == 2
+
+    def test_cleanup_ignores_other_provider_vms(self):
+        """VCloud cleanup must not delete VMs tagged with YC sync tag."""
+        yc_tag_id = 5
+        vcloud_tag_id = 7
+
+        netbox = make_mock_netbox_client()
+        netbox.ensure_sync_tag.return_value = vcloud_tag_id
+
+        # NetBox has YC VMs (tag=5) and one vCloud orphan (tag=7)
+        yc_vm = MockRecord(id=1, name="yc-web-01", tags=[MockTag(id=yc_tag_id)])
+        yc_vm2 = MockRecord(id=2, name="yc-db-01", tags=[MockTag(id=yc_tag_id)])
+        vcloud_orphan = MockRecord(id=3, name="vcloud-old", tags=[MockTag(id=vcloud_tag_id)])
+        vcloud_active = MockRecord(id=4, name="vcloud-active", tags=[MockTag(id=vcloud_tag_id)])
+        netbox.fetch_vms.return_value = [yc_vm, yc_vm2, vcloud_orphan, vcloud_active]
+
+        # vCloud source only has vcloud-active
+        vcloud_vms = [{"name": "vcloud-active"}]
+
+        result = cleanup_orphaned_vms(
+            vcloud_vms, netbox, dry_run=False, provider_profile=VCLOUD_PROFILE,
+        )
+
+        assert result == 1  # only vcloud-old
+        vcloud_orphan.delete.assert_called_once()
+        yc_vm.delete.assert_not_called()
+        yc_vm2.delete.assert_not_called()
+        vcloud_active.delete.assert_not_called()
 
     def test_exception_during_vm_cleanup_returns_zero(self):
         """If fetch_vms raises, return 0 gracefully."""

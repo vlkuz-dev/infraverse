@@ -175,6 +175,111 @@ class VCloudDirectorClient:
             folder_name=record.get("vdc", ""),
         )
 
+    def fetch_all_data(self) -> Dict[str, Any]:
+        """Fetch all vCloud data in the format expected by the NetBox sync pipeline.
+
+        Returns a dict compatible with the structure from YandexCloudClient.fetch_all_data(),
+        so the same sync pipeline can process both providers.
+        """
+        if not self.auth_token:
+            self.authenticate()
+
+        records = self.fetch_all_vm_records()
+
+        # Extract unique (org, vdc) pairs as folders
+        seen_folders: Dict[str, Dict[str, str]] = {}
+        for rec in records:
+            vdc = rec.get("vdc", "")
+            if vdc and vdc not in seen_folders:
+                seen_folders[vdc] = {
+                    "id": vdc,
+                    "name": vdc,
+                    "cloud_name": rec.get("org", ""),
+                    "description": "",
+                }
+
+        # Convert VM records to sync-pipeline-compatible dicts
+        vms: List[Dict[str, Any]] = []
+        for rec in records:
+            raw_status = rec.get("status")
+            if isinstance(raw_status, int):
+                status = "RUNNING" if raw_status == 4 else "STOPPED"
+            elif isinstance(raw_status, str):
+                status = "RUNNING" if raw_status == "POWERED_ON" else "STOPPED"
+            else:
+                status = "STOPPED"
+
+            memory_mb = int(rec.get("memoryMB", 0))
+            memory_bytes = memory_mb * 1024 * 1024
+
+            cpus = int(rec.get("numberOfCpus", 0))
+
+            # Build network interfaces from available IP data
+            network_interfaces: List[Dict[str, Any]] = []
+            primary_ip = rec.get("ipAddress")
+            if primary_ip:
+                network_interfaces.append({
+                    "index": 0,
+                    "primary_v4_address": primary_ip,
+                    "primary_v4_address_one_to_one_nat": None,
+                    "vpc_id": None,
+                    "vpc_name": None,
+                    "subnet_id": None,
+                    "subnet_name": None,
+                    "zone_id": None,
+                })
+
+            # Additional IPs from networkConnections
+            for idx, conn in enumerate(rec.get("networkConnections", [])):
+                conn_ip = conn.get("ipAddress")
+                if conn_ip and conn_ip != primary_ip:
+                    network_interfaces.append({
+                        "index": len(network_interfaces),
+                        "primary_v4_address": conn_ip,
+                        "primary_v4_address_one_to_one_nat": None,
+                        "vpc_id": None,
+                        "vpc_name": None,
+                        "subnet_id": None,
+                        "subnet_name": None,
+                        "zone_id": None,
+                    })
+
+            vdc = rec.get("vdc", "")
+            org = rec.get("org", "")
+
+            vms.append({
+                "id": rec.get("href", rec.get("id", "")),
+                "name": rec.get("name", ""),
+                "status": status,
+                "folder_id": vdc,
+                "folder_name": vdc,
+                "cloud_id": org,
+                "cloud_name": org,
+                "zone_id": None,
+                "resources": {
+                    "memory": memory_bytes,
+                    "cores": cpus,
+                },
+                "disks": [],
+                "network_interfaces": network_interfaces,
+                "os": rec.get("guestOs", ""),
+                "description": "",
+                "labels": {},
+                "created_at": None,
+                "platform_id": "",
+            })
+
+        return {
+            "zones": [],
+            "clouds": [],
+            "vpcs": [],
+            "subnets": [],
+            "folders": list(seen_folders.values()),
+            "vms": vms,
+            "_has_fetch_errors": False,
+            "_provider": "vcloud",
+        }
+
     # -- CloudProvider interface --
 
     def get_provider_name(self) -> str:

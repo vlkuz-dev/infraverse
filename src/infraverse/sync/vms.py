@@ -147,9 +147,12 @@ def detect_platform_id(os_name: str, netbox: NetBoxClient = None) -> int:
 def prepare_vm_data(
     yc_vm: Dict[str, Any],
     netbox: NetBoxClient,
-    id_mapping: Dict[str, Dict[str, int]]
+    id_mapping: Dict[str, Dict[str, int]],
+    provider_profile=None,
 ) -> Dict[str, Any]:
     """Prepare VM data for NetBox creation."""
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
     # Get cluster ID from folder mapping
     folder_id = yc_vm.get("folder_id", "")
     cluster_id = id_mapping["folders"].get(folder_id) if folder_id else None
@@ -162,7 +165,9 @@ def prepare_vm_data(
             cluster_id = netbox.ensure_cluster(
                 folder_name=folder_name,
                 folder_id=folder_id,
-                cloud_name=cloud_name
+                cloud_name=cloud_name,
+                cluster_type_slug=profile.cluster_type_slug,
+                tag_slug=profile.tag_slug,
             )
 
     # Calculate resources using shared helpers
@@ -202,7 +207,7 @@ def prepare_vm_data(
 
     # Build comments with metadata
     comments_parts = [
-        f"YC VM ID: {vm_id}",
+        f"{profile.vm_comment_prefix}: {vm_id}",
         f"Zone: {zone_id}" if zone_id else None,
         f"Hardware Platform: {platform_id}" if platform_id else None,
         f"OS: {os_name}" if os_name else None,
@@ -840,22 +845,26 @@ def sync_vms(
     yc_data: Dict[str, Any],
     netbox: NetBoxClient,
     id_mapping: Dict[str, Dict[str, int]],
-    cleanup_orphaned: bool = True
+    cleanup_orphaned: bool = True,
+    provider_profile=None,
 ) -> Dict[str, int]:
-    """Sync VMs from Yandex Cloud to NetBox. Returns statistics."""
+    """Sync VMs from cloud provider to NetBox. Returns statistics."""
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
+
     yc_vms = yc_data.get("vms", [])
 
     if not yc_vms:
-        logger.info("No VMs found in Yandex Cloud")
+        logger.info("No VMs found in %s", profile.display_name)
         return {"created": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0}
 
-    logger.info(f"Found {len(yc_vms)} VMs in Yandex Cloud")
+    logger.info(f"Found {len(yc_vms)} VMs in {profile.display_name}")
 
     # Clean up orphaned VMs first if requested
     deleted_count = 0
     if cleanup_orphaned:
         logger.info("Checking for orphaned VMs to clean up...")
-        deleted_count = cleanup_orphaned_vms(yc_vms, netbox, netbox.dry_run)
+        deleted_count = cleanup_orphaned_vms(yc_vms, netbox, netbox.dry_run, provider_profile=profile)
         if deleted_count > 0:
             logger.info(f"Cleanup complete: removed {deleted_count} orphaned VMs")
 
@@ -916,14 +925,14 @@ def sync_vms(
                     skipped_count += 1
                 continue
 
-            vm_data = prepare_vm_data(yc_vm, netbox, id_mapping)
+            vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, provider_profile=profile)
 
             if netbox.dry_run:
                 logger.info(f"[DRY-RUN] Would create VM: {vm_name}")
                 created_count += 1
                 continue
 
-            created_vm = netbox.create_vm(vm_data)
+            created_vm = netbox.create_vm(vm_data, tag_slug=profile.tag_slug)
             if not created_vm:
                 logger.error(f"Failed to create VM: {vm_name}")
                 failed_count += 1

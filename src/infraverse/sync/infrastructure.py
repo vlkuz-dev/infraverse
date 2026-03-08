@@ -1,10 +1,11 @@
 """Sync infrastructure components (zones as sites, folders as clusters, prefixes)."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.cleanup import cleanup_orphaned_infrastructure
+from infraverse.sync.provider_profile import ProviderProfile, YC_PROFILE
 
 logger = logging.getLogger(__name__)
 
@@ -12,33 +13,43 @@ logger = logging.getLogger(__name__)
 def sync_infrastructure(
     yc_data: Dict[str, Any],
     netbox: NetBoxClient,
-    cleanup_orphaned: bool = True
+    cleanup_orphaned: bool = True,
+    provider_profile: Optional[ProviderProfile] = None,
 ) -> Dict[str, Dict[str, int]]:
     """
     Sync infrastructure components (zones as sites, folders as clusters, prefixes).
 
     Args:
-        yc_data: Data from Yandex Cloud
+        yc_data: Data from cloud provider
         netbox: NetBox client
         cleanup_orphaned: Whether to clean up orphaned infrastructure objects
+        provider_profile: Provider-specific profile (defaults to YC_PROFILE)
 
     Returns:
         Dictionary with mapping of IDs:
         - zones: {zone_id: netbox_site_id}
         - folders: {folder_id: netbox_cluster_id}
     """
-    logger.info("Syncing infrastructure components...")
+    profile = provider_profile or YC_PROFILE
+    logger.info("Syncing infrastructure components for %s...", profile.display_name)
 
     # Ensure sync tag exists before creating any objects
     logger.info("Ensuring sync tag exists...")
-    tag_id = netbox.ensure_sync_tag()
+    tag_id = netbox.ensure_sync_tag(
+        tag_name=profile.tag_name,
+        tag_slug=profile.tag_slug,
+        tag_color=profile.tag_color,
+        tag_description=profile.tag_description,
+    )
     if tag_id:
         logger.info(f"Using sync tag ID: {tag_id}")
 
     # Clean up orphaned infrastructure if requested
     if cleanup_orphaned:
         logger.info("Checking for orphaned infrastructure objects...")
-        cleanup_counts = cleanup_orphaned_infrastructure(yc_data, netbox, netbox.dry_run)
+        cleanup_counts = cleanup_orphaned_infrastructure(
+            yc_data, netbox, netbox.dry_run, provider_profile=profile,
+        )
         total_cleaned = sum(cleanup_counts.values())
         if total_cleaned > 0:
             logger.info(f"Cleaned up {total_cleaned} orphaned infrastructure objects")
@@ -54,14 +65,17 @@ def sync_infrastructure(
     # Create sites for each availability zone
     zones = yc_data.get("zones", [])
     if not zones:
-        # Use default zones if none fetched
-        zones = [
-            {"id": "ru-central1-a", "name": "ru-central1-a"},
-            {"id": "ru-central1-b", "name": "ru-central1-b"},
-            {"id": "ru-central1-c", "name": "ru-central1-c"},
-            {"id": "ru-central1-d", "name": "ru-central1-d"},
-        ]
-        logger.info("Using default zones as none were fetched from API")
+        if profile.key == "yandex_cloud":
+            # Use default zones only for YC
+            zones = [
+                {"id": "ru-central1-a", "name": "ru-central1-a"},
+                {"id": "ru-central1-b", "name": "ru-central1-b"},
+                {"id": "ru-central1-c", "name": "ru-central1-c"},
+                {"id": "ru-central1-d", "name": "ru-central1-d"},
+            ]
+            logger.info("Using default zones as none were fetched from API")
+        else:
+            logger.info("No zones for provider %s, skipping site creation", profile.display_name)
 
     for zone in zones:
         zone_id = zone.get("id", "")
@@ -69,16 +83,22 @@ def sync_infrastructure(
 
         if zone_id:
             try:
-                site_id = netbox.ensure_site(zone_id, zone_name)
+                site_id = netbox.ensure_site(
+                    zone_id, zone_name,
+                    description_prefix=profile.site_description_prefix,
+                )
                 id_mapping["zones"][zone_id] = site_id
                 logger.info(f"Ensured site for zone: {zone_name} (ID: {site_id})")
             except Exception as e:
                 logger.error(f"Failed to ensure site for zone {zone_name}: {e}")
-                # Continue without this zone in the mapping
                 continue
 
     # Ensure cluster type exists
-    netbox.ensure_cluster_type()
+    netbox.ensure_cluster_type(
+        name=profile.cluster_type_name,
+        slug=profile.cluster_type_slug,
+        description=profile.cluster_type_description,
+    )
 
     # Create clusters for each folder
     folders = yc_data.get("folders", [])
@@ -90,12 +110,13 @@ def sync_infrastructure(
 
         if folder_id:
             try:
-                # Optionally assign to a default site if needed
                 cluster_id = netbox.ensure_cluster(
                     folder_name=folder_name,
                     folder_id=folder_id,
                     cloud_name=cloud_name,
-                    description=description
+                    description=description,
+                    cluster_type_slug=profile.cluster_type_slug,
+                    tag_slug=profile.tag_slug,
                 )
                 id_mapping["folders"][folder_id] = cluster_id
                 logger.info(f"Ensured cluster for folder: {folder_name} (ID: {cluster_id})")
@@ -122,9 +143,7 @@ def sync_infrastructure(
             else:
                 logger.debug(f"No zone_id for subnet with prefix {cidr}, will create without site")
 
-            # Always try to create/update the prefix, even without a site
             try:
-                # Pass site_id only if it's valid (not None and not 0)
                 result = netbox.ensure_prefix(
                     prefix=cidr,
                     vpc_name=vpc_name if isinstance(vpc_name, str) else "",
@@ -141,7 +160,6 @@ def sync_infrastructure(
                     logger.warning(f"Failed to sync prefix {cidr}: no result returned")
             except Exception as e:
                 logger.error(f"Failed to sync prefix {cidr}: {e}")
-                # Continue with other prefixes
                 continue
 
     return id_mapping

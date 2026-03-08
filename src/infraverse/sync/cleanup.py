@@ -1,9 +1,10 @@
-"""Cleanup of orphaned objects in NetBox that no longer exist in Yandex Cloud."""
+"""Cleanup of orphaned objects in NetBox that no longer exist in the source cloud."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from infraverse.providers.netbox import NetBoxClient
+from infraverse.sync.provider_profile import ProviderProfile, YC_PROFILE
 
 logger = logging.getLogger(__name__)
 
@@ -11,19 +12,22 @@ logger = logging.getLogger(__name__)
 def cleanup_orphaned_infrastructure(
     yc_data: Dict[str, Any],
     netbox: NetBoxClient,
-    dry_run: bool = False
+    dry_run: bool = False,
+    provider_profile: Optional[ProviderProfile] = None,
 ) -> Dict[str, int]:
     """
-    Delete infrastructure objects that have synced-from-yc tag but don't exist in Yandex Cloud.
+    Delete infrastructure objects that have the provider's sync tag but don't exist in the source.
 
     Args:
-        yc_data: Data from Yandex Cloud
+        yc_data: Data from cloud provider
         netbox: NetBox client
         dry_run: If True, only log what would be deleted
+        provider_profile: Provider-specific profile (defaults to YC_PROFILE)
 
     Returns:
         Dictionary with counts of deleted objects by type
     """
+    profile = provider_profile or YC_PROFILE
     deleted_counts = {
         "sites": 0,
         "clusters": 0,
@@ -31,7 +35,12 @@ def cleanup_orphaned_infrastructure(
     }
 
     try:
-        tag_id = netbox.ensure_sync_tag()
+        tag_id = netbox.ensure_sync_tag(
+            tag_name=profile.tag_name,
+            tag_slug=profile.tag_slug,
+            tag_color=profile.tag_color,
+            tag_description=profile.tag_description,
+        )
 
         # Check sites (zones)
         yc_zones = {zone["id"] for zone in yc_data.get("zones", [])}
@@ -39,8 +48,6 @@ def cleanup_orphaned_infrastructure(
 
         for site in all_sites:
             site_tags = [t.id if hasattr(t, 'id') else t for t in (site.tags or [])]
-            # Extract zone_id from site slug (ensure_site sets slug = zone_id.lower())
-            # or from description which has format "Yandex Cloud Availability Zone: {zone_id}"
             zone_id = None
             if hasattr(site, 'slug') and site.slug:
                 zone_id = site.slug
@@ -72,7 +79,6 @@ def cleanup_orphaned_infrastructure(
 
             logger.debug(f"Cluster {cluster.name}: tags={cluster_tags}, has_sync_tag={has_sync_tag}")
 
-            # Extract folder_id from cluster comments
             folder_id = None
             if cluster.comments:
                 logger.debug(f"Cluster {cluster.name} comments: {cluster.comments[:200]}")
@@ -110,8 +116,6 @@ def cleanup_orphaned_infrastructure(
 
         for prefix in all_prefixes:
             prefix_tags = [t.id if hasattr(t, 'id') else t for t in (prefix.tags or [])]
-            # Check if this tagged prefix's CIDR still exists in YC subnets
-            # Since ensure_prefix doesn't store subnet_id, match by CIDR
             prefix_cidr = str(prefix.prefix) if hasattr(prefix, 'prefix') else None
 
             if tag_id in prefix_tags and prefix_cidr and prefix_cidr not in yc_subnet_cidrs:
@@ -141,37 +145,41 @@ def cleanup_orphaned_infrastructure(
 def cleanup_orphaned_vms(
     yc_vms: List[Dict[str, Any]],
     netbox: NetBoxClient,
-    dry_run: bool = False
+    dry_run: bool = False,
+    provider_profile: Optional[ProviderProfile] = None,
 ) -> int:
     """
-    Delete VMs that have synced-from-yc tag but don't exist in Yandex Cloud.
+    Delete VMs that have the provider's sync tag but don't exist in the source.
 
     Args:
-        yc_vms: List of VMs from Yandex Cloud
+        yc_vms: List of VMs from cloud provider
         netbox: NetBox client
         dry_run: If True, only log what would be deleted
+        provider_profile: Provider-specific profile (defaults to YC_PROFILE)
 
     Returns:
         Number of VMs deleted
     """
+    profile = provider_profile or YC_PROFILE
     deleted_count = 0
 
     try:
-        # Get YC VM names for comparison
         yc_vm_names = {vm.get("name") for vm in yc_vms if vm.get("name")}
-        logger.debug(f"Found {len(yc_vm_names)} VMs in Yandex Cloud for cleanup check")
+        logger.debug(f"Found {len(yc_vm_names)} VMs in {profile.display_name} for cleanup check")
 
-        # Get all VMs from NetBox with synced-from-yc tag
         all_netbox_vms = netbox.fetch_vms()
-        tag_id = netbox.ensure_sync_tag()
+        tag_id = netbox.ensure_sync_tag(
+            tag_name=profile.tag_name,
+            tag_slug=profile.tag_slug,
+            tag_color=profile.tag_color,
+            tag_description=profile.tag_description,
+        )
 
         for vm in all_netbox_vms:
-            # Check if VM has synced-from-yc tag
             vm_tags = []
             if hasattr(vm, 'tags') and vm.tags:
                 vm_tags = [t.id if hasattr(t, 'id') else t for t in vm.tags]
 
-            # If VM has our tag but doesn't exist in YC, delete it
             if tag_id in vm_tags and vm.name not in yc_vm_names:
                 if dry_run:
                     logger.info(f"[DRY-RUN] Would delete orphaned VM: {vm.name} (ID: {vm.id})")

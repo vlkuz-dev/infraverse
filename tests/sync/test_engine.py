@@ -6,6 +6,7 @@ import pytest
 
 from infraverse.config import Config
 from infraverse.sync.engine import SyncEngine
+from infraverse.sync.provider_profile import YC_PROFILE
 
 
 @pytest.fixture
@@ -98,6 +99,28 @@ class TestSyncEngineInit:
         from infraverse.providers.yc_auth import ServiceAccountKeyProvider
         assert isinstance(call_kwargs["token_provider"], ServiceAccountKeyProvider)
 
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
+    def test_yc_only_provider_by_default(self, mock_yc_cls, mock_nb_cls, config):
+        engine = SyncEngine(config)
+        assert len(engine._providers) == 1
+        assert engine._providers[0][1] is YC_PROFILE
+
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
+    def test_adds_vcloud_when_configured(self, mock_yc_cls, mock_nb_cls):
+        from infraverse.sync.provider_profile import VCLOUD_PROFILE
+
+        cfg = Config(
+            yc_token="t", netbox_url="u", netbox_token="n",
+            vcd_url="https://vcd.test", vcd_user="admin", vcd_password="pass",
+        )
+        with patch("infraverse.providers.vcloud.VCloudDirectorClient"):
+            engine = SyncEngine(cfg)
+
+        assert len(engine._providers) == 2
+        assert engine._providers[1][1] is VCLOUD_PROFILE
+
 
 class TestSyncEngineRunBatch:
     @patch("infraverse.sync.engine.sync_vms_optimized")
@@ -119,11 +142,14 @@ class TestSyncEngineRunBatch:
 
         mock_yc.fetch_all_data.assert_called_once()
         mock_nb.ensure_sync_tag.assert_called_once()
-        mock_infra.assert_called_once_with(yc_data, mock_nb, cleanup_orphaned=True)
-        mock_batch.assert_called_once_with(
-            yc_data, mock_nb, id_mapping, cleanup_orphaned=True
+        mock_infra.assert_called_once_with(
+            yc_data, mock_nb, cleanup_orphaned=True, provider_profile=YC_PROFILE,
         )
-        assert result == batch_stats
+        mock_batch.assert_called_once_with(
+            yc_data, mock_nb, id_mapping,
+            cleanup_orphaned=True, provider_profile=YC_PROFILE,
+        )
+        assert result == {"yandex_cloud": batch_stats}
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
     @patch("infraverse.sync.engine.sync_infrastructure")
@@ -141,10 +167,12 @@ class TestSyncEngineRunBatch:
         engine.run(use_batch=True, cleanup=False)
 
         mock_infra.assert_called_once_with(
-            yc_data, mock_nb_cls.return_value, cleanup_orphaned=False
+            yc_data, mock_nb_cls.return_value,
+            cleanup_orphaned=False, provider_profile=YC_PROFILE,
         )
         mock_batch.assert_called_once_with(
-            yc_data, mock_nb_cls.return_value, id_mapping, cleanup_orphaned=False
+            yc_data, mock_nb_cls.return_value, id_mapping,
+            cleanup_orphaned=False, provider_profile=YC_PROFILE,
         )
 
 
@@ -167,9 +195,10 @@ class TestSyncEngineRunStandard:
         result = engine.run(use_batch=False, cleanup=True)
 
         mock_vms.assert_called_once_with(
-            yc_data, mock_nb, id_mapping, cleanup_orphaned=True
+            yc_data, mock_nb, id_mapping,
+            cleanup_orphaned=True, provider_profile=YC_PROFILE,
         )
-        assert result == {"created": 1, "updated": 0, "skipped": 0, "errors": 0}
+        assert result == {"yandex_cloud": {"created": 1, "updated": 0, "skipped": 0, "errors": 0}}
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
     @patch("infraverse.sync.engine.sync_vms")
@@ -215,10 +244,12 @@ class TestSyncEngineFetchErrors:
         engine.run(use_batch=True, cleanup=True)
 
         mock_infra.assert_called_once_with(
-            yc_data_with_errors, mock_nb_cls.return_value, cleanup_orphaned=False
+            yc_data_with_errors, mock_nb_cls.return_value,
+            cleanup_orphaned=False, provider_profile=YC_PROFILE,
         )
         mock_batch.assert_called_once_with(
-            yc_data_with_errors, mock_nb_cls.return_value, id_mapping, cleanup_orphaned=False
+            yc_data_with_errors, mock_nb_cls.return_value, id_mapping,
+            cleanup_orphaned=False, provider_profile=YC_PROFILE,
         )
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
@@ -237,7 +268,8 @@ class TestSyncEngineFetchErrors:
         engine.run(use_batch=True, cleanup=True)
 
         mock_infra.assert_called_once_with(
-            yc_data, mock_nb_cls.return_value, cleanup_orphaned=True
+            yc_data, mock_nb_cls.return_value,
+            cleanup_orphaned=True, provider_profile=YC_PROFILE,
         )
 
 
@@ -258,8 +290,49 @@ class TestSyncEngineDefaults:
         engine.run()
 
         mock_infra.assert_called_once_with(
-            yc_data, mock_nb_cls.return_value, cleanup_orphaned=True
+            yc_data, mock_nb_cls.return_value,
+            cleanup_orphaned=True, provider_profile=YC_PROFILE,
         )
         mock_batch.assert_called_once_with(
-            yc_data, mock_nb_cls.return_value, id_mapping, cleanup_orphaned=True
+            yc_data, mock_nb_cls.return_value, id_mapping,
+            cleanup_orphaned=True, provider_profile=YC_PROFILE,
         )
+
+
+class TestSyncEngineMultiProvider:
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
+    def test_returns_keyed_stats(
+        self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
+        config, yc_data, id_mapping, batch_stats,
+    ):
+        mock_yc_cls.return_value.fetch_all_data.return_value = yc_data
+        mock_infra.return_value = id_mapping
+        mock_batch.return_value = batch_stats
+
+        engine = SyncEngine(config)
+        result = engine.run()
+
+        assert "yandex_cloud" in result
+        assert result["yandex_cloud"] == batch_stats
+
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    @patch("infraverse.sync.engine.NetBoxClient")
+    @patch("infraverse.sync.engine.YandexCloudClient")
+    def test_provider_failure_isolated(
+        self, mock_yc_cls, mock_nb_cls, mock_infra, mock_batch,
+        config, id_mapping, batch_stats,
+    ):
+        """If YC fetch fails, the error is captured but engine doesn't crash."""
+        mock_yc_cls.return_value.fetch_all_data.side_effect = RuntimeError("API down")
+        mock_infra.return_value = id_mapping
+        mock_batch.return_value = batch_stats
+
+        engine = SyncEngine(config)
+        result = engine.run()
+
+        assert "yandex_cloud" in result
+        assert result["yandex_cloud"]["error"] == "sync failed"

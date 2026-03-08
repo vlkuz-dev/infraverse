@@ -218,6 +218,7 @@ class YandexCloudClient:
             "subnets": [],
             "vms": [],
             "_has_fetch_errors": False,
+            "_provider": "yandex_cloud",
         }
 
         # Fetch availability zones first

@@ -1696,7 +1696,7 @@ class TestSyncVmsOptimized:
         netbox.nb.virtualization.virtual_disks.all.return_value = []
 
         vm_call_count = [0]
-        def create_vm_side_effect(data):
+        def create_vm_side_effect(data, **kwargs):
             vm_call_count[0] += 1
             return vm1 if vm_call_count[0] == 1 else vm2
 
@@ -1758,3 +1758,48 @@ class TestSyncVmsOptimized:
         assert stats["created"] == 2
         assert vm1.primary_ip4 == 400
         assert vm2.primary_ip4 == 401
+
+    def test_cleanup_does_not_delete_other_provider_vms(self):
+        """VCloud cleanup must not delete VMs tagged with the YC sync tag."""
+        from infraverse.sync.provider_profile import VCLOUD_PROFILE
+
+        yc_tag_id = 5
+        vcloud_tag_id = 7
+
+        # YC VMs and vCloud VMs in NetBox
+        yc_vm1 = make_mock_vm(1, "yc-web-01", tags=[MockRecord(id=yc_tag_id)])
+        yc_vm2 = make_mock_vm(2, "yc-db-01", tags=[MockRecord(id=yc_tag_id)])
+        vcloud_orphan = make_mock_vm(3, "vcloud-old", tags=[MockRecord(id=vcloud_tag_id)])
+        vcloud_active = make_mock_vm(4, "vcloud-active", tags=[MockRecord(id=vcloud_tag_id)])
+
+        netbox = make_mock_netbox()
+        netbox.ensure_sync_tag.return_value = vcloud_tag_id
+        netbox.nb.virtualization.virtual_machines.all.return_value = [
+            yc_vm1, yc_vm2, vcloud_orphan, vcloud_active,
+        ]
+        netbox.nb.virtualization.interfaces.all.return_value = []
+        netbox.nb.ipam.ip_addresses.all.return_value = []
+        netbox.nb.virtualization.virtual_disks.all.return_value = []
+
+        # Only vcloud-active exists in the vCloud source
+        vcloud_data = {
+            "vms": [{
+                "name": "vcloud-active",
+                "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                "status": "RUNNING",
+                "network_interfaces": [],
+                "disks": [],
+            }]
+        }
+
+        stats = sync_vms_optimized(
+            vcloud_data, netbox, {},
+            cleanup_orphaned=True,
+            provider_profile=VCLOUD_PROFILE,
+        )
+
+        assert stats["deleted"] == 1  # only vcloud-old
+        vcloud_orphan.delete.assert_called_once()
+        yc_vm1.delete.assert_not_called()
+        yc_vm2.delete.assert_not_called()
+        vcloud_active.delete.assert_not_called()

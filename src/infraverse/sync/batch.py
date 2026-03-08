@@ -101,8 +101,11 @@ def load_netbox_data(netbox: NetBoxClient) -> NetBoxCache:
 
 def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                        id_mapping: Dict[str, Dict[str, int]],
-                       netbox: NetBoxClient = None) -> bool:
+                       netbox: NetBoxClient = None,
+                       provider_profile=None) -> bool:
     """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
     vm_id = vm.id
     vm_name = vm.name
     changes_made = False
@@ -167,7 +170,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     platform_id_str = yc_vm.get("platform_id", "")
     created_at = yc_vm.get("created_at", "")
     comments_parts = [
-        f"YC VM ID: {yc_vm_id}",
+        f"{profile.vm_comment_prefix}: {yc_vm_id}",
         f"Zone: {zone_id}" if zone_id else None,
         f"Hardware Platform: {platform_id_str}" if platform_id_str else None,
         f"OS: {os_name}" if os_name else None,
@@ -688,12 +691,16 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
 
 def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
                        id_mapping: Dict[str, Dict[str, int]],
-                       cleanup_orphaned: bool = True) -> Dict[str, int]:
+                       cleanup_orphaned: bool = True,
+                       provider_profile=None) -> Dict[str, int]:
     """
     Optimized VM synchronization with batch operations.
 
     Returns statistics dictionary.
     """
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
+
     stats = {
         "created": 0,
         "updated": 0,
@@ -704,10 +711,10 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
 
     yc_vms = yc_data.get("vms", [])
     if not yc_vms:
-        logger.info("No VMs found in Yandex Cloud")
+        logger.info("No VMs found in %s", profile.display_name)
         return stats
 
-    logger.info(f"Found {len(yc_vms)} VMs in Yandex Cloud")
+    logger.info(f"Found {len(yc_vms)} VMs in {profile.display_name}")
 
     # Load all NetBox data into cache
     cache = load_netbox_data(netbox)
@@ -716,7 +723,12 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
     if cleanup_orphaned:
         logger.info("Checking for orphaned VMs...")
         yc_vm_names = {vm.get("name") for vm in yc_vms if vm.get("name")}
-        tag_id = netbox.ensure_sync_tag()
+        tag_id = netbox.ensure_sync_tag(
+            tag_name=profile.tag_name,
+            tag_slug=profile.tag_slug,
+            tag_color=profile.tag_color,
+            tag_description=profile.tag_description,
+        )
 
         for vm_name, vm in cache.vms_by_name.items():
             vm_tags = []
@@ -749,22 +761,22 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
             if vm_name in cache.vms_by_name:
                 # Update existing VM
                 existing_vm = cache.vms_by_name[vm_name]
-                if process_vm_updates(existing_vm, yc_vm, cache, id_mapping, netbox):
+                if process_vm_updates(existing_vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
                     stats["updated"] += 1
                 else:
                     stats["skipped"] += 1
             else:
                 # Create new VM
-                vm_data = prepare_vm_data(yc_vm, netbox, id_mapping)
+                vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, provider_profile=profile)
 
                 if not netbox.dry_run:
-                    created_vm = netbox.create_vm(vm_data)
+                    created_vm = netbox.create_vm(vm_data, tag_slug=profile.tag_slug)
                     if created_vm:
                         logger.info(f"Created VM: {vm_name}")
                         stats["created"] += 1
                         cache.vms[created_vm.id] = created_vm
                         cache.vms_by_name[vm_name] = created_vm
-                        process_vm_updates(created_vm, yc_vm, cache, id_mapping, netbox)
+                        process_vm_updates(created_vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile)
                     else:
                         stats["errors"] += 1
                 else:

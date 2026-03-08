@@ -121,6 +121,18 @@ def _ingest_to_db(config) -> None:
     with session_factory() as session:
         repo = Repository(session)
 
+        # If config-file tenants already exist, refuse to create a "Default"
+        # tenant to avoid duplicating VMs under a separate cloud account.
+        existing_tenants = repo.list_tenants()
+        non_default = [t for t in existing_tenants if t.name != "Default"]
+        if non_default:
+            logger.error(
+                "Database already contains tenants from config file (%s). "
+                "Use --config to run in config-file mode instead of env-var mode.",
+                ", ".join(t.name for t in non_default),
+            )
+            return
+
         tenant = repo.get_tenant_by_name("Default")
         if not tenant:
             tenant = repo.create_tenant(name="Default")
@@ -263,7 +275,8 @@ def cmd_sync(args: argparse.Namespace) -> None:
         try:
             engine = SyncEngine(config)
             stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
-            logger.info("Sync complete: %s", stats)
+            for provider, provider_stats in stats.items():
+                logger.info("Sync complete for %s: %s", provider, provider_stats)
         except Exception:
             logger.exception("Sync failed")
             sys.exit(1)

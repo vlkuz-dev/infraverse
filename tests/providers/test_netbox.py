@@ -99,8 +99,23 @@ class TestEnsureSyncTag:
 
         result = nb_client_dry_run.ensure_sync_tag()
 
-        assert result == 1
+        assert result >= 1_000_000
         nb_client_dry_run.nb.extras.tags.create.assert_not_called()
+
+    def test_dry_run_unique_ids_per_slug(self, nb_client_dry_run):
+        """Different tag slugs get distinct mock IDs in dry-run mode."""
+        nb_client_dry_run.nb.extras.tags.get.return_value = None
+
+        id_yc = nb_client_dry_run.ensure_sync_tag(
+            tag_name="synced-from-yc", tag_slug="synced-from-yc",
+        )
+        id_vcloud = nb_client_dry_run.ensure_sync_tag(
+            tag_name="synced-from-vcloud", tag_slug="synced-from-vcloud",
+        )
+
+        assert id_yc != id_vcloud
+        assert id_yc >= 1_000_000
+        assert id_vcloud >= 1_000_000
 
     def test_create_failure_returns_zero(self, nb_client):
         nb_client.nb.extras.tags.get.return_value = None

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from infraverse.sync.infrastructure import sync_infrastructure
+from infraverse.sync.provider_profile import YC_PROFILE, VCLOUD_PROFILE
 from tests.conftest import MockRecord, make_mock_netbox_client
 
 
@@ -50,7 +51,9 @@ class TestSyncInfrastructure:
         assert result["folders"] == {"f1": 20, "f2": 21}
         assert netbox.ensure_cluster.call_count == 2
         netbox.ensure_cluster.assert_any_call(
-            folder_name="dev", folder_id="f1", cloud_name="cloud-1", description="Dev folder"
+            folder_name="dev", folder_id="f1", cloud_name="cloud-1",
+            description="Dev folder",
+            cluster_type_slug="yandex-cloud", tag_slug="synced-from-yc",
         )
 
     def test_syncs_prefixes_with_site(self):
@@ -201,7 +204,9 @@ class TestSyncInfrastructure:
         with patch("infraverse.sync.infrastructure.cleanup_orphaned_infrastructure") as mock_cleanup:
             mock_cleanup.return_value = {"sites": 0, "clusters": 0, "prefixes": 0}
             sync_infrastructure(yc_data, netbox, cleanup_orphaned=True)
-            mock_cleanup.assert_called_once_with(yc_data, netbox, netbox.dry_run)
+            mock_cleanup.assert_called_once_with(
+                yc_data, netbox, netbox.dry_run, provider_profile=YC_PROFILE,
+            )
 
     def test_skips_cleanup_when_disabled(self):
         """When cleanup_orphaned=False, no cleanup runs."""
@@ -255,3 +260,46 @@ class TestSyncInfrastructure:
         sync_infrastructure(yc_data, netbox, cleanup_orphaned=False)
 
         assert netbox.ensure_prefix.call_count == 2
+
+
+class TestSyncInfrastructureVCloud:
+    """Tests for vCloud provider profile behavior."""
+
+    def test_vcloud_empty_zones_no_default_sites(self):
+        """vCloud with empty zones should NOT create default ru-central1 sites."""
+        netbox = make_mock_netbox_client()
+
+        yc_data = {"zones": [], "folders": [], "subnets": []}
+
+        result = sync_infrastructure(
+            yc_data, netbox, cleanup_orphaned=False,
+            provider_profile=VCLOUD_PROFILE,
+        )
+
+        netbox.ensure_site.assert_not_called()
+        assert result["zones"] == {}
+
+    def test_vcloud_uses_correct_cluster_type(self):
+        """vCloud profile passes its own cluster type slug."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 50
+
+        yc_data = {
+            "zones": [],
+            "folders": [{"id": "vdc1", "name": "vdc1", "cloud_name": "org1", "description": ""}],
+            "subnets": [],
+        }
+
+        sync_infrastructure(
+            yc_data, netbox, cleanup_orphaned=False,
+            provider_profile=VCLOUD_PROFILE,
+        )
+
+        netbox.ensure_cluster_type.assert_called_once_with(
+            name="vcloud", slug="vcloud", description="VMware vCloud Director",
+        )
+        netbox.ensure_cluster.assert_called_once_with(
+            folder_name="vdc1", folder_id="vdc1", cloud_name="org1",
+            description="",
+            cluster_type_slug="vcloud", tag_slug="synced-from-vcloud",
+        )

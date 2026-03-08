@@ -37,25 +37,40 @@ class NetBoxClient:
         """
         self.nb = pynetbox.api(url, token=token)
         self.dry_run = dry_run
-        self._cluster_type_id: Optional[int] = None
+        self._cluster_type_cache: Dict[str, int] = {}
+        self._cluster_type_id: Optional[int] = None  # backward compat shortcut
 
         logger.info(f"Initialized NetBox client for {url} (dry_run={dry_run})")
-        self._sync_tag_id: Optional[int] = None
+        self._sync_tag_cache: Dict[str, int] = {}
+        self._sync_tag_id: Optional[int] = None  # backward compat shortcut
 
-    def ensure_sync_tag(self) -> int:
+    def ensure_sync_tag(
+        self,
+        tag_name: Optional[str] = None,
+        tag_slug: Optional[str] = None,
+        tag_color: Optional[str] = None,
+        tag_description: Optional[str] = None,
+    ) -> int:
         """
-        Ensure the 'synced-from-yc' tag exists in NetBox.
+        Ensure a sync tag exists in NetBox.
+
+        All params are optional; defaults to "synced-from-yc" for backward compatibility.
 
         Returns:
             Tag ID
         """
-        if self._sync_tag_id is not None:
-            return self._sync_tag_id
+        tag_name = tag_name or "synced-from-yc"
+        tag_slug = tag_slug or "synced-from-yc"
+        tag_color = tag_color or "2196f3"
+        tag_description = tag_description or "Object synced from Yandex Cloud"
 
-        tag_name = "synced-from-yc"
-        tag_slug = "synced-from-yc"
-        tag_color = "2196f3"  # Blue color
-        tag_description = "Object synced from Yandex Cloud"
+        # Check per-slug cache
+        if tag_slug in self._sync_tag_cache:
+            return self._sync_tag_cache[tag_slug]
+
+        # Backward compat: check old scalar cache
+        if self._sync_tag_id is not None and tag_slug == "synced-from-yc":
+            return self._sync_tag_id
 
         # Check if tag exists
         tag = None
@@ -68,15 +83,20 @@ class NetBoxClient:
                 pass
 
         if tag:
-            self._sync_tag_id = tag.id
+            self._sync_tag_cache[tag_slug] = tag.id
+            if tag_slug == "synced-from-yc":
+                self._sync_tag_id = tag.id
             logger.debug(f"Found existing tag: {tag_name} (ID: {tag.id})")
             return tag.id
 
         # Create tag if it doesn't exist
         if self.dry_run:
             logger.info(f"[DRY-RUN] Would create tag: {tag_name}")
-            self._sync_tag_id = 1  # Mock ID
-            return 1
+            mock_id = 1_000_000 + len(self._sync_tag_cache)
+            self._sync_tag_cache[tag_slug] = mock_id
+            if tag_slug == "synced-from-yc":
+                self._sync_tag_id = mock_id
+            return mock_id
 
         try:
             tag = self.nb.extras.tags.create({
@@ -85,21 +105,23 @@ class NetBoxClient:
                 "color": tag_color,
                 "description": tag_description
             })
-            self._sync_tag_id = tag.id
+            self._sync_tag_cache[tag_slug] = tag.id
+            if tag_slug == "synced-from-yc":
+                self._sync_tag_id = tag.id
             logger.info(f"Created tag: {tag_name} (ID: {tag.id})")
             return tag.id
         except Exception as e:
             if '400' in str(e) and 'slug' in str(e).lower():
-                # Tag might exist with different name, try to get by slug
                 try:
                     tag = self.nb.extras.tags.get(slug=tag_slug)
                     if tag:
-                        self._sync_tag_id = tag.id
+                        self._sync_tag_cache[tag_slug] = tag.id
+                        if tag_slug == "synced-from-yc":
+                            self._sync_tag_id = tag.id
                         return tag.id
                 except Exception:
                     pass
             logger.error(f"Failed to create tag: {e}")
-            # Continue without tag
             return 0
 
     def _add_tag_to_object(self, obj: Any, tag_id: int) -> bool:
@@ -184,20 +206,27 @@ class NetBoxClient:
 
         return False
 
-    def ensure_site(self, zone_id: str, zone_name: Optional[str] = None) -> int:
+    def ensure_site(
+        self,
+        zone_id: str,
+        zone_name: Optional[str] = None,
+        description_prefix: Optional[str] = None,
+    ) -> int:
         """
         Ensure availability zone exists as a site in NetBox.
 
         Args:
             zone_id: Zone ID (e.g., "ru-central1-a")
             zone_name: Optional zone display name
+            description_prefix: Prefix for the site description (default: "Yandex Cloud Availability Zone")
 
         Returns:
             Site ID
         """
         name = zone_name or zone_id
         slug = zone_id.lower().replace("_", "-")
-        description = f"Yandex Cloud Availability Zone: {zone_id}"
+        prefix = description_prefix or "Yandex Cloud Availability Zone"
+        description = f"{prefix}: {zone_id}"
 
         # Check if site exists by name or slug
         site = None
@@ -288,19 +317,31 @@ class NetBoxClient:
             logger.error(f"Failed to create or find site for zone {name}: {e}")
             raise
 
-    def ensure_cluster_type(self) -> int:
+    def ensure_cluster_type(
+        self,
+        name: Optional[str] = None,
+        slug: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> int:
         """
-        Ensure 'yandex-cloud' cluster type exists.
+        Ensure a cluster type exists.
+
+        All params optional; defaults to "yandex-cloud" for backward compatibility.
 
         Returns:
             Cluster type ID
         """
-        if self._cluster_type_id is not None:
-            return self._cluster_type_id
+        desired_name = name or "yandex-cloud"
+        desired_slug = slug or "yandex-cloud"
+        desired_description = description or "Yandex Cloud Platform"
 
-        desired_name = "yandex-cloud"
-        desired_slug = "yandex-cloud"
-        desired_description = "Yandex Cloud Platform"
+        # Check per-slug cache
+        if desired_slug in self._cluster_type_cache:
+            return self._cluster_type_cache[desired_slug]
+
+        # Backward compat: check old scalar cache
+        if self._cluster_type_id is not None and desired_slug == "yandex-cloud":
+            return self._cluster_type_id
 
         # Check if cluster type exists by name or slug
         cluster_type = None
@@ -336,14 +377,19 @@ class NetBoxClient:
             if tag_id:
                 self._add_tag_to_object(cluster_type, tag_id)
 
-            self._cluster_type_id = cluster_type.id
+            self._cluster_type_cache[desired_slug] = cluster_type.id
+            if desired_slug == "yandex-cloud":
+                self._cluster_type_id = cluster_type.id
             return cluster_type.id
 
         # Create cluster type if it doesn't exist
         if self.dry_run:
             logger.info(f"[DRY-RUN] Would create cluster type: {desired_name}")
-            self._cluster_type_id = 1  # Mock ID
-            return 1
+            mock_id = 1_000_000 + len(self._cluster_type_cache)
+            self._cluster_type_cache[desired_slug] = mock_id
+            if desired_slug == "yandex-cloud":
+                self._cluster_type_id = mock_id
+            return mock_id
 
         # Ensure tag exists
         tag_id = self.ensure_sync_tag()
@@ -360,7 +406,9 @@ class NetBoxClient:
 
         try:
             cluster_type = self.nb.virtualization.cluster_types.create(cluster_type_data)
-            self._cluster_type_id = cluster_type.id
+            self._cluster_type_cache[desired_slug] = cluster_type.id
+            if desired_slug == "yandex-cloud":
+                self._cluster_type_id = cluster_type.id
             logger.info(f"Created cluster type: {desired_name} (ID: {cluster_type.id})")
             return cluster_type.id
         except Exception as e:
@@ -372,7 +420,9 @@ class NetBoxClient:
                 try:
                     cluster_type = self.nb.virtualization.cluster_types.get(slug=desired_slug)
                     if cluster_type:
-                        self._cluster_type_id = cluster_type.id
+                        self._cluster_type_cache[desired_slug] = cluster_type.id
+                        if desired_slug == "yandex-cloud":
+                            self._cluster_type_id = cluster_type.id
                         logger.info(f"Found existing cluster type: {cluster_type.name} (ID: {cluster_type.id})")
                         return cluster_type.id
                 except Exception:
@@ -383,7 +433,9 @@ class NetBoxClient:
                     all_types = list(self.nb.virtualization.cluster_types.all())
                     for ct in all_types:
                         if getattr(ct, 'slug', None) == desired_slug:
-                            self._cluster_type_id = ct.id
+                            self._cluster_type_cache[desired_slug] = ct.id
+                            if desired_slug == "yandex-cloud":
+                                self._cluster_type_id = ct.id
                             logger.info(f"Found existing cluster type by iteration: {ct.name} (ID: {ct.id})")
                             return ct.id
                 except Exception:
@@ -398,10 +450,12 @@ class NetBoxClient:
         folder_id: str,
         cloud_name: str,
         site_id: Optional[int] = None,
-        description: str = ""
+        description: str = "",
+        cluster_type_slug: Optional[str] = None,
+        tag_slug: Optional[str] = None,
     ) -> int:
         """
-        Ensure cluster exists for a Yandex Cloud folder.
+        Ensure cluster exists for a cloud folder.
 
         Args:
             folder_name: Folder display name
@@ -409,6 +463,8 @@ class NetBoxClient:
             cloud_name: Parent cloud name
             site_id: Optional site ID to assign cluster to
             description: Optional description
+            cluster_type_slug: Optional cluster type slug (default: "yandex-cloud")
+            tag_slug: Optional tag slug (default: "synced-from-yc")
 
         Returns:
             Cluster ID
@@ -465,7 +521,8 @@ class NetBoxClient:
             updates = {}
 
             # Check cluster type
-            cluster_type_id = self.ensure_cluster_type()
+            ct_kwargs = {"slug": cluster_type_slug} if cluster_type_slug else {}
+            cluster_type_id = self.ensure_cluster_type(**ct_kwargs)
             if hasattr(cluster, 'type') and cluster.type:
                 current_type_id = cluster.type.id if hasattr(cluster.type, 'id') else cluster.type
                 if current_type_id != cluster_type_id:
@@ -487,7 +544,8 @@ class NetBoxClient:
             self._safe_update_object(cluster, updates)
 
             # Add sync tag
-            tag_id = self.ensure_sync_tag()
+            tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
+            tag_id = self.ensure_sync_tag(**tag_kwargs)
             if tag_id:
                 self._add_tag_to_object(cluster, tag_id)
 
@@ -499,8 +557,10 @@ class NetBoxClient:
             return 1  # Mock ID for dry run
 
         # Ensure cluster type and tag exist
-        cluster_type_id = self.ensure_cluster_type()
-        tag_id = self.ensure_sync_tag()
+        ct_kwargs = {"slug": cluster_type_slug} if cluster_type_slug else {}
+        cluster_type_id = self.ensure_cluster_type(**ct_kwargs)
+        tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
+        tag_id = self.ensure_sync_tag(**tag_kwargs)
 
         cluster_data = {
             "name": cluster_name,
@@ -933,13 +993,14 @@ class NetBoxClient:
         logger.info(f"Fetched {len(result)} VMs from NetBox as VMInfo")
         return result
 
-    def create_vm(self, vm_data: Dict[str, Any]) -> Optional[Record]:
+    def create_vm(self, vm_data: Dict[str, Any], tag_slug: Optional[str] = None) -> Optional[Record]:
         """
         Create VM in NetBox.
 
         Args:
             vm_data: VM data dictionary with name, cluster, vcpus, memory, status
                      Note: disk field should not be set directly, it's calculated from virtual disks
+            tag_slug: Optional tag slug (default: "synced-from-yc")
 
         Returns:
             Created VM object or None
@@ -957,7 +1018,8 @@ class NetBoxClient:
             return MockVM()
 
         # Ensure tag exists
-        tag_id = self.ensure_sync_tag()
+        tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
+        tag_id = self.ensure_sync_tag(**tag_kwargs)
 
         # Add tag to VM data if available
         if tag_id:
