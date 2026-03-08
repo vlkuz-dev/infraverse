@@ -69,13 +69,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] `process_vm_updates()` is ≤50 lines (was 326)
-- [ ] `apply_batch_updates()` is ≤50 lines (was 260)
-- [ ] no function in batch.py exceeds 80 lines
-- [ ] all 80+ existing tests pass unchanged
-- [ ] new tests cover extracted functions
-- [ ] run full test suite: `python3 -m pytest tests/ -v`
-- [ ] run linter: `ruff check src/infraverse/sync/batch.py`
+- [x] `process_vm_updates()` is ≤50 lines (was 326) — now 27 lines
+- [x] `apply_batch_updates()` is ≤50 lines (was 260) — now 48 lines
+- [x] no function in batch.py exceeds 80 lines — ⚠️ deviation: 3 extracted helpers exceed 80 lines (_process_vm_parameters=83, _process_vm_ips=113, _select_primary_ip=106) matching Technical Details estimates; sync_vms_optimized=143 was scoped out per plan
+- [x] all 80+ existing tests pass unchanged — 1377 passed
+- [x] new tests cover extracted functions
+- [x] run full test suite: `python3 -m pytest tests/ -v` — 1377 passed in 7.65s
+- [x] run linter: `ruff check src/infraverse/sync/batch.py` — all checks passed
 
 ### Task 6: [Final] Update documentation
 - [ ] update MEMORY.md if new patterns discovered
