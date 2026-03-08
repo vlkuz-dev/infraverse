@@ -78,8 +78,8 @@
 - [x] run linter: `ruff check src/infraverse/sync/batch.py` — all checks passed
 
 ### Task 6: [Final] Update documentation
-- [ ] update MEMORY.md if new patterns discovered
-- [ ] update this plan with any deviations from original scope
+- [x] update MEMORY.md if new patterns discovered
+- [x] update this plan with any deviations from original scope
 
 ## Technical Details
 
