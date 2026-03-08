@@ -30,13 +30,13 @@
 ## Implementation Steps
 
 ### Task 1: Add Alembic dependency and initialize
-- [ ] add `alembic>=1.13` to `pyproject.toml` dependencies
-- [ ] run `alembic init src/infraverse/db/migrations` to scaffold migration directory
-- [ ] configure `alembic.ini` — set `script_location = src/infraverse/db/migrations`
-- [ ] configure `migrations/env.py` — import `Base` from models, set `target_metadata = Base.metadata`
-- [ ] configure SQLAlchemy URL: use `DATABASE_URL` env var with SQLite default
-- [ ] verify `alembic current` works with empty database
-- [ ] run tests — must pass before next task
+- [x] add `alembic>=1.13` to `pyproject.toml` dependencies
+- [x] run `alembic init src/infraverse/db/migrations` to scaffold migration directory
+- [x] configure `alembic.ini` — set `script_location = src/infraverse/db/migrations`
+- [x] configure `migrations/env.py` — import `Base` from models, set `target_metadata = Base.metadata`
+- [x] configure SQLAlchemy URL: use `DATABASE_URL` env var with SQLite default
+- [x] verify `alembic current` works with empty database
+- [x] run tests — must pass before next task
 
 ### Task 2: Create initial migration from current schema
 - [ ] run `alembic revision --autogenerate -m "initial_schema"` to capture current model state
