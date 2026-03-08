@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, Query, Request
 
+from infraverse.comparison.diagnostics import compute_sync_reasons
 from infraverse.comparison.engine import ComparisonEngine
 from infraverse.comparison.models import ComparisonResult
-from infraverse.db.models import VM, NetBoxHost
+from infraverse.db.models import SyncRun, VM, NetBoxHost
 from infraverse.db.repository import Repository
 from infraverse.providers.base import VMInfo
 from infraverse.web.app import get_templates
@@ -107,6 +108,26 @@ def _run_comparison(
         netbox_configured=netbox_configured,
         monitored_vm_names=monitored_vm_names,
     )
+
+    # Annotate VMState objects with monitoring exemption data from DB
+    exempt_vms = {
+        vm.name.lower(): vm.monitoring_exempt_reason
+        for vm in db_vms if vm.monitoring_exempt
+    }
+    if exempt_vms:
+        for state in result.all_vms:
+            if state.vm_name.lower() in exempt_vms:
+                state.is_monitoring_exempt = True
+                state.monitoring_exempt_reason = exempt_vms[state.vm_name.lower()]
+        # Re-compute discrepancies and summary since exempt flag changes results
+        for state in result.all_vms:
+            state.discrepancies = engine._compute_discrepancies(
+                state,
+                monitoring_configured=monitoring_configured,
+                netbox_configured=netbox_configured,
+            )
+        result.summary = engine.build_summary(result.all_vms)
+
     return result, vm_name_to_id, netbox_configured, monitoring_configured
 
 
@@ -134,7 +155,12 @@ def _filter_results(
     elif status == "missing_from_cloud":
         filtered = [s for s in filtered if s.in_netbox and not s.in_cloud]
     elif status == "missing_from_monitoring":
-        filtered = [s for s in filtered if s.in_cloud and not s.in_monitoring]
+        filtered = [
+            s for s in filtered
+            if s.in_cloud and not s.in_monitoring and not s.is_monitoring_exempt
+        ]
+    elif status == "monitoring_exempt":
+        filtered = [s for s in filtered if s.is_monitoring_exempt]
     elif status == "in_cloud_only":
         filtered = [s for s in filtered if s.in_cloud and not s.in_netbox and not s.in_monitoring]
 
@@ -151,6 +177,19 @@ def _get_providers(repo: Repository) -> list[str]:
     """Get distinct provider types from cloud accounts."""
     accounts = repo.list_cloud_accounts()
     return sorted({a.provider_type for a in accounts})
+
+
+def _sync_run_to_banner(source: str, label: str, run: SyncRun | None) -> dict:
+    """Build a sync status banner entry for a source."""
+    if run is None:
+        return {"source": source, "label": label, "status": "never", "time": None, "error": None}
+    return {
+        "source": source,
+        "label": label,
+        "status": run.status,
+        "time": run.finished_at or run.started_at,
+        "error": run.error_message,
+    }
 
 
 def _build_context(request: Request, provider, status, search, tenant_id=None):
@@ -175,6 +214,32 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
         )
         providers = _get_providers(repo)
 
+        # Query latest SyncRuns for diagnostics
+        latest_netbox = repo.get_latest_sync_run_by_source("netbox", tenant_id=selected_tenant_id)
+        latest_zabbix = repo.get_latest_sync_run_by_source("zabbix", tenant_id=selected_tenant_id)
+        latest_sync_runs: dict[str, SyncRun | None] = {
+            "netbox": latest_netbox,
+            "zabbix": latest_zabbix,
+        }
+
+        # Build per-VM sync error map from cloud VMs
+        db_vms = repo.get_all_vms(tenant_id=selected_tenant_id)
+        vm_sync_errors = {
+            vm.name: vm.last_sync_error
+            for vm in db_vms
+            if vm.last_sync_error
+        }
+
+        # Annotate sync reasons BEFORE filtering
+        compute_sync_reasons(result.all_vms, latest_sync_runs, vm_sync_errors)
+
+        # Build sync status banner entries
+        sync_status = []
+        if netbox_configured or latest_netbox is not None:
+            sync_status.append(_sync_run_to_banner("netbox", "NetBox", latest_netbox))
+        if monitoring_configured or latest_zabbix is not None:
+            sync_status.append(_sync_run_to_banner("zabbix", "Мониторинг", latest_zabbix))
+
     result = _filter_results(result, provider=provider, status=status, search=search)
 
     return {
@@ -188,6 +253,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
         "vm_name_to_id": vm_name_to_id,
         "tenants": tenants,
         "selected_tenant_id": selected_tenant_id,
+        "sync_status": sync_status,
     }
 
 

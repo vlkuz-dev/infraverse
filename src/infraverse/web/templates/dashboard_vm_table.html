@@ -18,7 +18,7 @@
             <tbody>
                 {% for vm in vms %}
                 <tr>
-                    <td><a href="/vms/{{ vm.id }}">{{ vm.name }}</a></td>
+                    <td class="td-copyable"><a href="/vms/{{ vm.id }}">{{ vm.name }}</a><button class="btn-copy" data-copy="{{ vm.name }}" title="Copy name"><i class="ti ti-copy copy-icon"></i><i class="ti ti-check copy-done"></i></button></td>
                     <td>
                         {% if vm.status == "active" %}
                         <span class="badge bg-success-lt">Active</span>
@@ -28,7 +28,7 @@
                         <span class="badge bg-secondary-lt">{{ vm.status }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ vm.ip_addresses | join(", ") if vm.ip_addresses else "-" }}</td>
+                    <td>{% if vm.ip_addresses %}{% for ip in vm.ip_addresses %}<span class="copyable" data-copy="{{ ip }}" title="Click to copy">{{ ip }}<i class="ti ti-copy copy-icon ms-1"></i><i class="ti ti-check copy-done ms-1"></i></span>{{ ", " if not loop.last else "" }}{% endfor %}{% else %}-{% endif %}</td>
                     <td>{{ vm.account_name or "-" }}</td>
                     <td>{{ vm.vcpus if vm.vcpus else "-" }}</td>
                     <td>{{ (vm.memory_mb | string) + " MB" if vm.memory_mb else "-" }}</td>

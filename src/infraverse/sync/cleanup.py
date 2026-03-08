@@ -1,12 +1,22 @@
 """Cleanup of orphaned objects in NetBox that no longer exist in the source cloud."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.provider_profile import ProviderProfile, YC_PROFILE
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_cloud_names(yc_data: Dict[str, Any]) -> Set[str]:
+    """Extract cloud names from yc_data folders for scoping cleanup to this account."""
+    return {f["cloud_name"] for f in yc_data.get("folders", []) if f.get("cloud_name")}
+
+
+def _belongs_to_clouds(name: str, cloud_names: Set[str]) -> bool:
+    """Check if a cluster/object name starts with one of the cloud names (cloud_name/ prefix)."""
+    return any(name.startswith(f"{cn}/") for cn in cloud_names)
 
 
 def cleanup_orphaned_infrastructure(
@@ -70,10 +80,20 @@ def cleanup_orphaned_infrastructure(
         yc_folders = {folder["id"] for folder in yc_data.get("folders", [])}
         logger.debug(f"YC folders found: {yc_folders}")
 
+        cloud_names = _extract_cloud_names(yc_data)
+        if cloud_names:
+            logger.debug(f"Scoping cluster cleanup to clouds: {cloud_names}")
+
         all_clusters = list(netbox.nb.virtualization.clusters.all())
         logger.debug(f"Checking {len(all_clusters)} clusters in NetBox")
 
         for cluster in all_clusters:
+            # Skip clusters that don't belong to this account's clouds
+            if cloud_names and not _belongs_to_clouds(cluster.name, cloud_names):
+                logger.debug(
+                    f"Skipping cluster {cluster.name}: not in this account's clouds"
+                )
+                continue
             cluster_tags = [t.id if hasattr(t, 'id') else t for t in (cluster.tags or [])]
             has_sync_tag = tag_id in cluster_tags
 
@@ -110,25 +130,31 @@ def cleanup_orphaned_infrastructure(
                     except Exception as e:
                         logger.error(f"Failed to delete orphaned cluster {cluster.name}: {e}")
 
-        # Check prefixes
-        yc_subnet_cidrs = {subnet.get("cidr") for subnet in yc_data.get("subnets", []) if subnet.get("cidr")}
-        all_prefixes = list(netbox.nb.ipam.prefixes.all())
+        # Check prefixes — skip in multi-account mode since prefixes don't carry cloud_name
+        if cloud_names:
+            logger.debug(
+                "Skipping prefix cleanup in multi-account mode "
+                "(prefixes cannot be attributed to a specific cloud)"
+            )
+        else:
+            yc_subnet_cidrs = {subnet.get("cidr") for subnet in yc_data.get("subnets", []) if subnet.get("cidr")}
+            all_prefixes = list(netbox.nb.ipam.prefixes.all())
 
-        for prefix in all_prefixes:
-            prefix_tags = [t.id if hasattr(t, 'id') else t for t in (prefix.tags or [])]
-            prefix_cidr = str(prefix.prefix) if hasattr(prefix, 'prefix') else None
+            for prefix in all_prefixes:
+                prefix_tags = [t.id if hasattr(t, 'id') else t for t in (prefix.tags or [])]
+                prefix_cidr = str(prefix.prefix) if hasattr(prefix, 'prefix') else None
 
-            if tag_id in prefix_tags and prefix_cidr and prefix_cidr not in yc_subnet_cidrs:
-                if dry_run:
-                    logger.info(f"[DRY-RUN] Would delete orphaned prefix: {prefix.prefix}")
-                    deleted_counts["prefixes"] += 1
-                else:
-                    try:
-                        prefix.delete()
-                        logger.info(f"Deleted orphaned prefix: {prefix.prefix}")
+                if tag_id in prefix_tags and prefix_cidr and prefix_cidr not in yc_subnet_cidrs:
+                    if dry_run:
+                        logger.info(f"[DRY-RUN] Would delete orphaned prefix: {prefix.prefix}")
                         deleted_counts["prefixes"] += 1
-                    except Exception as e:
-                        logger.error(f"Failed to delete orphaned prefix {prefix.prefix}: {e}")
+                    else:
+                        try:
+                            prefix.delete()
+                            logger.info(f"Deleted orphaned prefix: {prefix.prefix}")
+                            deleted_counts["prefixes"] += 1
+                        except Exception as e:
+                            logger.error(f"Failed to delete orphaned prefix {prefix.prefix}: {e}")
 
         total_deleted = sum(deleted_counts.values())
         if total_deleted > 0:
@@ -147,6 +173,7 @@ def cleanup_orphaned_vms(
     netbox: NetBoxClient,
     dry_run: bool = False,
     provider_profile: Optional[ProviderProfile] = None,
+    cloud_names: Optional[Set[str]] = None,
 ) -> int:
     """
     Delete VMs that have the provider's sync tag but don't exist in the source.
@@ -156,6 +183,7 @@ def cleanup_orphaned_vms(
         netbox: NetBox client
         dry_run: If True, only log what would be deleted
         provider_profile: Provider-specific profile (defaults to YC_PROFILE)
+        cloud_names: If set, only consider VMs in clusters belonging to these clouds
 
     Returns:
         Number of VMs deleted
@@ -179,6 +207,21 @@ def cleanup_orphaned_vms(
             vm_tags = []
             if hasattr(vm, 'tags') and vm.tags:
                 vm_tags = [t.id if hasattr(t, 'id') else t for t in vm.tags]
+
+            # Skip VMs that don't belong to this account's clouds
+            if cloud_names:
+                cluster = getattr(vm, 'cluster', None)
+                if not cluster or not hasattr(cluster, 'name'):
+                    logger.debug(
+                        f"Skipping VM {vm.name}: no cluster, cannot determine cloud ownership"
+                    )
+                    continue
+                if not _belongs_to_clouds(cluster.name, cloud_names):
+                    logger.debug(
+                        f"Skipping VM {vm.name}: cluster {cluster.name} "
+                        f"not in this account's clouds"
+                    )
+                    continue
 
             if tag_id in vm_tags and vm.name not in yc_vm_names:
                 if dry_run:

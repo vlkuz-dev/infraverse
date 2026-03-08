@@ -366,7 +366,7 @@ class ComparisonEngine:
                 discs.append("in cloud but not in NetBox")
             if state.in_netbox and not state.in_cloud:
                 discs.append("in NetBox but not in cloud")
-        if monitoring_configured:
+        if monitoring_configured and not state.is_monitoring_exempt:
             if state.in_cloud and not state.in_monitoring:
                 discs.append("in cloud but not in monitoring")
             if state.in_monitoring and not state.in_cloud:
@@ -406,7 +406,12 @@ class ComparisonEngine:
                 1 for s in states if s.in_netbox and not s.in_cloud
             ),
             "missing_from_monitoring": sum(
-                1 for s in states if s.in_cloud and not s.in_monitoring
+                1 for s in states
+                if s.in_cloud and not s.in_monitoring
+                and not s.is_monitoring_exempt
+            ),
+            "monitoring_exempt": sum(
+                1 for s in states if s.is_monitoring_exempt
             ),
         }
         return summary

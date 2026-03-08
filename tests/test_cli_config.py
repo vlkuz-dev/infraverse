@@ -424,15 +424,21 @@ class TestCmdSyncWithConfig:
                         {"name": "acme-yc", "provider": "yandex_cloud", "token": "t1"}
                     ]
                 }
-            }
+            },
+            "netbox": {"url": "https://netbox.test/api", "token": "nb-tok"},
         }
         config_path = self._write_config_file(config_data)
         try:
             with patch("infraverse.cli._ingest_to_db_with_config"), \
-                 patch("infraverse.config.Config.from_env") as mock_from_env, \
+                 patch("infraverse.db.engine.create_engine"), \
+                 patch("infraverse.db.engine.create_session_factory") as mock_sf, \
+                 patch("infraverse.db.repository.Repository") as mock_repo, \
+                 patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[]), \
+                 patch("infraverse.providers.netbox.NetBoxClient"), \
                  patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-                mock_config = MagicMock()
-                mock_from_env.return_value = mock_config
+                mock_sf.return_value.return_value.__enter__ = MagicMock(return_value=MagicMock())
+                mock_sf.return_value.return_value.__exit__ = MagicMock(return_value=False)
+                mock_repo.return_value.list_cloud_accounts.return_value = []
                 mock_engine = MagicMock()
                 mock_engine.run.return_value = {}
                 mock_engine_cls.return_value = mock_engine
@@ -446,7 +452,8 @@ class TestCmdSyncWithConfig:
         finally:
             os.unlink(config_path)
 
-    def test_cmd_sync_with_config_skips_netbox_if_env_missing(self):
+    def test_cmd_sync_with_config_skips_netbox_if_not_configured(self):
+        """Without netbox section in YAML, NetBox sync is skipped."""
         config_data = {
             "tenants": {
                 "acme": {
@@ -458,12 +465,11 @@ class TestCmdSyncWithConfig:
         }
         config_path = self._write_config_file(config_data)
         try:
-            with patch("infraverse.cli._ingest_to_db_with_config"), \
-                 patch("infraverse.config.Config.from_env", side_effect=ValueError("Missing")):
+            with patch("infraverse.cli._ingest_to_db_with_config"):
                 args = argparse.Namespace(
                     config=config_path, dry_run=False, no_batch=False, no_cleanup=False
                 )
-                # Should NOT exit - config file mode works without NetBox env vars
+                # Should NOT exit - just skips NetBox sync
                 cmd_sync(args)
         finally:
             os.unlink(config_path)
@@ -495,52 +501,13 @@ class TestCmdSyncWithConfig:
 
 
 class TestBackwardCompatibility:
-    """Tests that CLI works without --config using current env var behavior."""
+    """Tests that CLI requires --config for sync command."""
 
-    @patch("infraverse.cli._ingest_to_db")
-    @patch("infraverse.config.Config.from_env")
-    def test_sync_without_config_uses_env_vars(self, mock_from_env, mock_ingest):
-        """Without --config, cmd_sync should use Config.from_env and _ingest_to_db."""
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
-
-        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {}
-            mock_engine_cls.return_value = mock_engine
-
-            args = argparse.Namespace(
-                config=None, dry_run=False, no_batch=False, no_cleanup=False
-            )
+    def test_sync_without_config_exits(self):
+        """Without --config, cmd_sync should exit with error."""
+        args = argparse.Namespace(
+            config=None, dry_run=False, no_batch=False, no_cleanup=False
+        )
+        with pytest.raises(SystemExit) as exc_info:
             cmd_sync(args)
-
-        mock_from_env.assert_called_once_with(dry_run=False)
-        mock_ingest.assert_called_once_with(mock_config)
-
-    @patch("infraverse.cli._ingest_to_db")
-    @patch("infraverse.config.Config.from_env")
-    def test_sync_without_config_passes_dry_run(self, mock_from_env, mock_ingest):
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
-
-        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {}
-            mock_engine_cls.return_value = mock_engine
-
-            args = argparse.Namespace(
-                config=None, dry_run=True, no_batch=True, no_cleanup=True
-            )
-            cmd_sync(args)
-
-        mock_from_env.assert_called_once_with(dry_run=True)
-
-    def test_sync_without_config_exits_on_missing_env(self):
-        """Without --config, missing env vars should exit."""
-        with patch("infraverse.config.Config.from_env", side_effect=ValueError("Missing")):
-            args = argparse.Namespace(
-                config=None, dry_run=False, no_batch=False, no_cleanup=False
-            )
-            with pytest.raises(SystemExit) as exc_info:
-                cmd_sync(args)
-            assert exc_info.value.code == 1
+        assert exc_info.value.code == 1

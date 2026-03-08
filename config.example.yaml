@@ -74,29 +74,68 @@ tenants:
 #   required_role: "infraverse-admin"
 
 # =============================================================================
-# Settings managed via environment variables (not in this config file)
+# Monitoring Exclusions (optional)
 # =============================================================================
-# The following settings are NOT managed by this YAML config file.
-# Set them as environment variables alongside the config file.
-#
-# Yandex Cloud (env-var mode, single-tenant):
-#   YC_TOKEN=ya-oauth-token-here                # Plain OAuth/IAM token
-#   YC_SA_KEY_FILE=/path/to/sa-key.json         # SA key file (takes precedence over YC_TOKEN)
-#
-# Database:
-#   DATABASE_URL=sqlite:///infraverse.db        # Database connection URL
-#
-# NetBox sync (optional — omit if not syncing to NetBox):
-#   NETBOX_URL=https://netbox.example.com/api   # NetBox API URL
-#   NETBOX_TOKEN=your_token                     # NetBox API token
-#
-# Scheduler:
-#   SYNC_INTERVAL_MINUTES=30                    # Background ingestion interval (0=disabled)
-#
-# External link URL templates (optional — for detail page links):
-#   YC_CONSOLE_URL=https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}
-#   ZABBIX_HOST_URL={zabbix_url}/hosts.php?form=update&hostid={host_id}
-#   NETBOX_VM_URL={netbox_url}/virtualization/virtual-machines/{vm_id}/
-#
-# Logging:
-#   LOG_LEVEL=INFO                              # DEBUG, INFO, WARNING, ERROR
+# VMs matching these rules are marked as monitoring-exempt and excluded from
+# "missing from monitoring" reports. Each rule must have at least name_pattern
+# or status, and a non-empty reason.
+
+# monitoring_exclusions:
+#   - name_pattern: "cl1*"
+#     reason: "K8s worker nodes monitored via Prometheus"
+#   - status: "stopped"
+#     reason: "Intentionally stopped VMs don't need monitoring"
+#   - name_pattern: "*-template"
+#     reason: "VM templates are not real instances"
+
+# =============================================================================
+# Database (optional)
+# =============================================================================
+# Connection URL for the application database.
+# Default: sqlite:///infraverse.db
+
+# database_url: "sqlite:///infraverse.db"
+
+# =============================================================================
+# NetBox Sync (optional)
+# =============================================================================
+# NetBox API credentials for syncing cloud VMs to NetBox.
+# Omit this section to skip NetBox sync entirely.
+
+# netbox:
+#   url: "https://netbox.example.com/api"
+#   token: "${NETBOX_TOKEN}"
+
+# =============================================================================
+# Scheduler (optional)
+# =============================================================================
+# Background ingestion interval in minutes. 0 = disabled (default).
+
+# sync_interval_minutes: 30
+
+# =============================================================================
+# External Links (optional)
+# =============================================================================
+# URL templates for detail page links. Use {placeholder} for dynamic values.
+
+# external_links:
+#   yc_console_url: "https://console.yandex.cloud/folders/{folder_id}/compute/instances/{vm_id}"
+#   zabbix_host_url: "{zabbix_url}/hosts.php?form=update&hostid={host_id}"
+#   netbox_vm_url: "{netbox_url}/virtualization/virtual-machines/{vm_id}/"
+
+# =============================================================================
+# Logging (optional)
+# =============================================================================
+# Log level: DEBUG, INFO, WARNING, ERROR. Default: INFO.
+
+# log_level: "INFO"
+
+# =============================================================================
+# Timezone (optional)
+# =============================================================================
+# Timezone offset for the web UI timestamps.
+# label is auto-generated from offset if omitted (e.g. "UTC+3").
+
+# timezone:
+#   offset_hours: 3
+#   label: "MSK"

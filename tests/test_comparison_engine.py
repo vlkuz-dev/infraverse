@@ -3,6 +3,7 @@
 from infraverse.providers.base import VMInfo
 from infraverse.providers.zabbix import ZabbixHost
 from infraverse.comparison.engine import ComparisonEngine
+from infraverse.comparison.models import VMState
 
 
 def _vm(name, ips=None, provider="yandex_cloud"):
@@ -687,3 +688,114 @@ class TestMonitoredVMNames:
         assert result.summary["total"] == 2
         assert result.summary["in_sync"] == 1  # vm-a: cloud + monitoring
         assert result.summary["with_discrepancies"] == 1  # vm-b: cloud only
+
+
+class TestMonitoringExemption:
+    """Tests for monitoring exemption flag on VMState."""
+
+    def test_exempt_vm_no_monitoring_discrepancy(self):
+        """VM in cloud, not in monitoring, but exempt -> no monitoring discrepancy."""
+        engine = ComparisonEngine()
+        state = VMState(
+            vm_name="exempt-vm",
+            in_cloud=True,
+            in_netbox=True,
+            in_monitoring=False,
+            is_monitoring_exempt=True,
+            monitoring_exempt_reason="Service VM",
+        )
+        discs = engine._compute_discrepancies(state, monitoring_configured=True)
+        assert "in cloud but not in monitoring" not in discs
+        assert "in NetBox but not in monitoring" not in discs
+        assert discs == []
+
+    def test_exempt_vm_still_gets_netbox_discrepancy(self):
+        """Exempt VM missing from NetBox still gets NetBox discrepancy."""
+        engine = ComparisonEngine()
+        state = VMState(
+            vm_name="exempt-no-nb",
+            in_cloud=True,
+            in_netbox=False,
+            in_monitoring=False,
+            is_monitoring_exempt=True,
+        )
+        discs = engine._compute_discrepancies(
+            state, monitoring_configured=True, netbox_configured=True,
+        )
+        assert "in cloud but not in NetBox" in discs
+        assert "in cloud but not in monitoring" not in discs
+
+    def test_exempt_vm_in_sync_when_in_cloud_and_netbox(self):
+        """Exempt VM in cloud + netbox -> in_sync (no monitoring discrepancy)."""
+        engine = ComparisonEngine()
+        state = VMState(
+            vm_name="exempt-synced",
+            in_cloud=True,
+            in_netbox=True,
+            in_monitoring=False,
+            is_monitoring_exempt=True,
+        )
+        discs = engine._compute_discrepancies(
+            state, monitoring_configured=True, netbox_configured=True,
+        )
+        assert discs == []
+
+    def test_summary_monitoring_exempt_count(self):
+        """summary['monitoring_exempt'] counts correctly."""
+        engine = ComparisonEngine()
+        states = [
+            VMState(vm_name="vm-a", in_cloud=True, in_netbox=True, in_monitoring=True),
+            VMState(
+                vm_name="vm-b", in_cloud=True, in_netbox=True, in_monitoring=False,
+                is_monitoring_exempt=True, monitoring_exempt_reason="Infra VM",
+            ),
+            VMState(
+                vm_name="vm-c", in_cloud=True, in_netbox=True, in_monitoring=False,
+                is_monitoring_exempt=True, monitoring_exempt_reason="Test VM",
+            ),
+            VMState(vm_name="vm-d", in_cloud=True, in_netbox=True, in_monitoring=False),
+        ]
+        # Compute discrepancies so summary counts work properly
+        for s in states:
+            s.discrepancies = engine._compute_discrepancies(s)
+        summary = engine.build_summary(states)
+        assert summary["monitoring_exempt"] == 2
+
+    def test_summary_missing_from_monitoring_excludes_exempt(self):
+        """summary['missing_from_monitoring'] does NOT count exempt VMs."""
+        engine = ComparisonEngine()
+        states = [
+            VMState(vm_name="vm-a", in_cloud=True, in_netbox=True, in_monitoring=True),
+            VMState(
+                vm_name="vm-b", in_cloud=True, in_netbox=True, in_monitoring=False,
+                is_monitoring_exempt=True,
+            ),
+            VMState(vm_name="vm-c", in_cloud=True, in_netbox=True, in_monitoring=False),
+            VMState(
+                vm_name="vm-d", in_cloud=True, in_netbox=True, in_monitoring=False,
+                is_monitoring_exempt=True,
+            ),
+        ]
+        for s in states:
+            s.discrepancies = engine._compute_discrepancies(s)
+        summary = engine.build_summary(states)
+        # Only vm-c is missing from monitoring (not exempt)
+        assert summary["missing_from_monitoring"] == 1
+        # vm-b and vm-d are exempt
+        assert summary["monitoring_exempt"] == 2
+
+    def test_non_exempt_vm_still_gets_monitoring_discrepancy(self):
+        """Non-exempt VM without monitoring is still flagged."""
+        engine = ComparisonEngine()
+        state = VMState(
+            vm_name="normal-vm",
+            in_cloud=True,
+            in_netbox=True,
+            in_monitoring=False,
+            is_monitoring_exempt=False,
+        )
+        discs = engine._compute_discrepancies(
+            state, monitoring_configured=True, netbox_configured=True,
+        )
+        assert "in cloud but not in monitoring" in discs
+        assert "in NetBox but not in monitoring" in discs

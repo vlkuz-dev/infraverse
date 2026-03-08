@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from infraverse.config import Config
-from infraverse.config_file import InfraverseConfig, MonitoringConfig, TenantConfig, CloudAccountConfig
+from infraverse.config_file import InfraverseConfig, MonitoringConfig, MonitoringExclusionRule, NetBoxConfig, TenantConfig, CloudAccountConfig
 from infraverse.scheduler import SchedulerService
 
 
@@ -201,7 +201,7 @@ class TestRunIngestion:
         svc = SchedulerService(_make_session_factory(session), _make_config())
         svc._run_ingestion()
 
-        mock_ingestor_cls.assert_called_once_with(session)
+        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=[])
         mock_ingestor.ingest_all.assert_called_once()
         assert svc._last_result == {"yc": "success"}
         assert svc._last_run_time is not None
@@ -424,7 +424,7 @@ class TestBuildZabbixClient:
         assert svc._build_zabbix_client() is None
 
 
-def _make_infraverse_config(tenants=None, monitoring=None):
+def _make_infraverse_config(tenants=None, monitoring=None, monitoring_exclusions=None, netbox=None):
     """Create an InfraverseConfig for testing."""
     t = {}
     for tname, accounts in (tenants or {}).items():
@@ -433,7 +433,11 @@ def _make_infraverse_config(tenants=None, monitoring=None):
             for a in accounts
         ]
         t[tname] = TenantConfig(name=tname, cloud_accounts=accs)
-    return InfraverseConfig(tenants=t, monitoring=monitoring)
+    return InfraverseConfig(
+        tenants=t, monitoring=monitoring,
+        monitoring_exclusions=monitoring_exclusions or [],
+        netbox=netbox,
+    )
 
 
 class TestSchedulerWithInfraverseConfig:
@@ -902,8 +906,10 @@ def _make_real_config(**overrides):
 class TestRunNetboxSync:
     """Tests for _run_netbox_sync method."""
 
+    @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
+    @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
-    def test_runs_when_config_is_real(self, mock_engine_cls):
+    def test_runs_when_config_is_real(self, mock_engine_cls, mock_nb_cls, mock_build):
         mock_engine = MagicMock()
         mock_engine.run.return_value = {"vms_synced": 5}
         mock_engine_cls.return_value = mock_engine
@@ -913,7 +919,7 @@ class TestRunNetboxSync:
         result = svc._run_netbox_sync()
 
         assert result == {"vms_synced": 5}
-        mock_engine_cls.assert_called_once_with(cfg)
+        mock_engine_cls.assert_called_once()
         mock_engine.run.assert_called_once()
 
     def test_skipped_when_config_is_mock(self):
@@ -930,8 +936,10 @@ class TestRunNetboxSync:
 
         assert result is None
 
+    @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
+    @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
-    def test_failure_returns_error_dict(self, mock_engine_cls):
+    def test_failure_returns_error_dict(self, mock_engine_cls, mock_nb_cls, mock_build):
         mock_engine_cls.side_effect = RuntimeError("netbox unreachable")
 
         cfg = _make_real_config()
@@ -940,8 +948,10 @@ class TestRunNetboxSync:
 
         assert result == {"error": "netbox unreachable"}
 
+    @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
+    @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
-    def test_run_failure_returns_error_dict(self, mock_engine_cls):
+    def test_run_failure_returns_error_dict(self, mock_engine_cls, mock_nb_cls, mock_build):
         mock_engine = MagicMock()
         mock_engine.run.side_effect = RuntimeError("sync failed")
         mock_engine_cls.return_value = mock_engine
@@ -952,10 +962,12 @@ class TestRunNetboxSync:
 
         assert result == {"error": "sync failed"}
 
+    @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
+    @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_ingestion_result_includes_netbox_sync(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls):
+    def test_ingestion_result_includes_netbox_sync(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build):
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
@@ -976,10 +988,12 @@ class TestRunNetboxSync:
         assert svc._last_result["netbox_sync"] == {"vms_synced": 3}
         assert svc._last_result["netbox_ingestion"] == "success"
 
+    @patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[])
+    @patch("infraverse.providers.netbox.NetBoxClient")
     @patch("infraverse.sync.engine.SyncEngine")
     @patch("infraverse.scheduler.DataIngestor")
     @patch("infraverse.scheduler.Repository")
-    def test_netbox_failure_does_not_affect_ingestion_result(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls):
+    def test_netbox_failure_does_not_affect_ingestion_result(self, mock_repo_cls, mock_ingestor_cls, mock_engine_cls, mock_nb_cls, mock_build):
         mock_repo = MagicMock()
         mock_repo.list_cloud_accounts.return_value = []
         mock_repo_cls.return_value = mock_repo
@@ -1014,3 +1028,287 @@ class TestRunNetboxSync:
 
         assert svc._last_result == {"yc": "ok"}
         assert "netbox_sync" not in svc._last_result
+
+
+class TestRunNetboxSyncConfigFileMode:
+    """Tests for _run_netbox_sync in config-file mode (per-account sync)."""
+
+    def _make_account(self, name="acme-yc", provider_type="yandex_cloud", is_active=True, config=None):
+        account = MagicMock()
+        account.name = name
+        account.provider_type = provider_type
+        account.is_active = is_active
+        account.config = config or {"token": "t1"}
+        return account
+
+    def _make_svc(self, netbox_url="https://netbox.example.com", netbox_token="nb-token"):
+        nb = NetBoxConfig(url=netbox_url, token=netbox_token) if netbox_url and netbox_token else None
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]}, netbox=nb)
+        cfg = SimpleNamespace(netbox_url=None, netbox_token=None)
+        return SchedulerService(_make_session_factory(), cfg, infraverse_config=ic)
+
+    @patch("infraverse.sync.batch.sync_vms_optimized")
+    @patch("infraverse.sync.infrastructure.sync_infrastructure")
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_syncs_active_account(self, mock_nb_cls, mock_sync_infra, mock_sync_vms):
+        mock_nb = MagicMock()
+        mock_nb_cls.return_value = mock_nb
+        mock_sync_infra.return_value = {"zones": {}, "folders": {}}
+        mock_sync_vms.return_value = {
+            "created": 2, "updated": 1, "errors": 0,
+            "vm_errors": {}, "synced_vms": {"vm1", "vm2"},
+        }
+
+        svc = self._make_svc()
+        account = self._make_account()
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build:
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.return_value = {"vms": [{"name": "vm1"}, {"name": "vm2"}]}
+            mock_build.return_value = mock_client
+
+            result = svc._run_netbox_sync(accounts=[account])
+
+        assert "acme-yc" in result
+        assert result["acme-yc"]["created"] == 2
+        mock_sync_infra.assert_called_once()
+        mock_sync_vms.assert_called_once()
+
+    @patch("infraverse.sync.batch.sync_vms_optimized")
+    @patch("infraverse.sync.infrastructure.sync_infrastructure")
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_skips_inactive_account(self, mock_nb_cls, mock_sync_infra, mock_sync_vms):
+        mock_nb_cls.return_value = MagicMock()
+        svc = self._make_svc()
+        account = self._make_account(is_active=False)
+
+        result = svc._run_netbox_sync(accounts=[account])
+
+        assert result == {}
+        mock_sync_infra.assert_not_called()
+        mock_sync_vms.assert_not_called()
+
+    @patch("infraverse.sync.batch.sync_vms_optimized")
+    @patch("infraverse.sync.infrastructure.sync_infrastructure")
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_collects_vm_errors(self, mock_nb_cls, mock_sync_infra, mock_sync_vms):
+        mock_nb_cls.return_value = MagicMock()
+        mock_sync_infra.return_value = {"zones": {}, "folders": {}}
+        mock_sync_vms.return_value = {
+            "created": 0, "errors": 1,
+            "vm_errors": {"broken-vm": "400 duplicate key"},
+            "synced_vms": set(),
+        }
+
+        svc = self._make_svc()
+        account = self._make_account()
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build:
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.return_value = {"vms": [{"name": "broken-vm"}]}
+            mock_build.return_value = mock_client
+
+            result = svc._run_netbox_sync(accounts=[account])
+
+        assert result["acme-yc"]["vm_errors"] == {"broken-vm": "400 duplicate key"}
+
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_handles_fetch_data_failure(self, mock_nb_cls):
+        mock_nb_cls.return_value = MagicMock()
+        svc = self._make_svc()
+        account = self._make_account()
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build:
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.return_value = None
+            mock_build.return_value = mock_client
+
+            result = svc._run_netbox_sync(accounts=[account])
+
+        assert result["acme-yc"]["error"] == "failed to fetch cloud data"
+
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_handles_provider_exception(self, mock_nb_cls):
+        mock_nb_cls.return_value = MagicMock()
+        svc = self._make_svc()
+        account = self._make_account()
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build:
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.side_effect = RuntimeError("API timeout")
+            mock_build.return_value = mock_client
+
+            result = svc._run_netbox_sync(accounts=[account])
+
+        assert "API timeout" in result["acme-yc"]["error"]
+
+    def test_returns_none_when_no_netbox_url(self):
+        svc = self._make_svc(netbox_url=None, netbox_token="nb-token")
+        result = svc._run_netbox_sync(accounts=[self._make_account()])
+        assert result is None
+
+    def test_returns_none_when_no_netbox_token(self):
+        svc = self._make_svc(netbox_url="https://netbox.example.com", netbox_token=None)
+        result = svc._run_netbox_sync(accounts=[self._make_account()])
+        assert result is None
+
+    def test_returns_none_when_no_accounts(self):
+        svc = self._make_svc()
+        result = svc._run_netbox_sync(accounts=[])
+        assert result is None
+
+    def test_returns_none_when_accounts_is_none(self):
+        svc = self._make_svc()
+        result = svc._run_netbox_sync(accounts=None)
+        assert result is None
+
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_skips_unknown_provider_type(self, mock_nb_cls):
+        mock_nb_cls.return_value = MagicMock()
+        svc = self._make_svc()
+        account = self._make_account(provider_type="aws")
+
+        result = svc._run_netbox_sync(accounts=[account])
+
+        assert result == {}
+
+    @patch("infraverse.sync.batch.sync_vms_optimized")
+    @patch("infraverse.sync.infrastructure.sync_infrastructure")
+    @patch("infraverse.providers.netbox.NetBoxClient")
+    def test_multiple_accounts(self, mock_nb_cls, mock_sync_infra, mock_sync_vms):
+        mock_nb_cls.return_value = MagicMock()
+        mock_sync_infra.return_value = {"zones": {}, "folders": {}}
+        mock_sync_vms.side_effect = [
+            {"created": 3, "errors": 0, "vm_errors": {}, "synced_vms": {"vm1"}},
+            {"created": 1, "errors": 0, "vm_errors": {}, "synced_vms": {"vm2"}},
+        ]
+
+        svc = self._make_svc()
+        acct1 = self._make_account(name="yc-acct")
+        acct2 = self._make_account(name="vcd-acct", provider_type="vcloud", config={"url": "u", "username": "u", "password": "p"})
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build:
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.return_value = {"vms": [{"name": "vm1"}]}
+            mock_build.return_value = mock_client
+
+            result = svc._run_netbox_sync(accounts=[acct1, acct2])
+
+        assert "yc-acct" in result
+        assert "vcd-acct" in result
+        assert mock_sync_vms.call_count == 2
+
+    @patch("infraverse.sync.batch.sync_vms_optimized")
+    @patch("infraverse.sync.infrastructure.sync_infrastructure")
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_ingestion_stores_vm_sync_errors_config_file_mode(
+        self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg,
+        mock_sync_infra, mock_sync_vms,
+    ):
+        """Full integration: _run_ingestion → _run_netbox_sync → _store_vm_sync_errors."""
+        account = MagicMock()
+        account.id = 1
+        account.is_active = True
+        account.provider_type = "yandex_cloud"
+        account.config = {"token": "t1"}
+        account.name = "yc-acct"
+
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = [account]
+        mock_repo_cls.return_value = mock_repo
+
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        mock_sync_infra.return_value = {"zones": {}, "folders": {}}
+        mock_sync_vms.return_value = {
+            "created": 0, "errors": 1,
+            "vm_errors": {"broken-vm": "RequestError: 400"},
+            "synced_vms": {"ok-vm"},
+        }
+
+        nb = NetBoxConfig(url="https://netbox.example.com", token="nb-token")
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]}, netbox=nb)
+        cfg = SimpleNamespace(netbox_url=None, netbox_token=None)
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), cfg, infraverse_config=ic)
+
+        with patch.object(svc, "_build_provider_from_account") as mock_build, \
+             patch("infraverse.providers.netbox.NetBoxClient"):
+            mock_client = MagicMock()
+            mock_client.fetch_all_data.return_value = {"vms": [{"name": "broken-vm"}, {"name": "ok-vm"}]}
+            mock_build.return_value = mock_client
+
+            svc._run_ingestion()
+
+        # Verify update_vm_sync_errors was called with correct data
+        mock_repo.update_vm_sync_errors.assert_called_once()
+        call_args = mock_repo.update_vm_sync_errors.call_args[0]
+        assert call_args[0] == {"broken-vm": "RequestError: 400"}
+        assert call_args[1] == {"ok-vm"}
+
+
+class TestSchedulerExclusionRules:
+    """Tests for exclusion rules being passed from config to DataIngestor."""
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_exclusion_rules_passed_to_ingestor(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        rules = [
+            MonitoringExclusionRule(name_pattern="cl1*", reason="K8s workers"),
+        ]
+        ic = _make_infraverse_config(
+            tenants={"t": [("a", "yandex_cloud")]},
+            monitoring_exclusions=rules,
+        )
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = []
+        mock_repo_cls.return_value = mock_repo
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        svc._run_ingestion()
+
+        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=rules)
+
+    @patch("infraverse.scheduler.sync_config_to_db")
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_no_exclusion_rules_passes_empty_list(self, mock_repo_cls, mock_ingestor_cls, mock_sync_cfg):
+        ic = _make_infraverse_config(tenants={"t": [("a", "yandex_cloud")]})
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = []
+        mock_repo_cls.return_value = mock_repo
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        session = MagicMock()
+        svc = SchedulerService(_make_session_factory(session), _make_config(), infraverse_config=ic)
+        svc._run_ingestion()
+
+        mock_ingestor_cls.assert_called_once_with(session, exclusion_rules=[])
+
+    @patch("infraverse.scheduler.DataIngestor")
+    @patch("infraverse.scheduler.Repository")
+    def test_no_infraverse_config_passes_empty_rules(self, mock_repo_cls, mock_ingestor_cls):
+        mock_repo = MagicMock()
+        mock_repo.list_cloud_accounts.return_value = []
+        mock_repo_cls.return_value = mock_repo
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_all.return_value = {}
+        mock_ingestor_cls.return_value = mock_ingestor
+
+        svc = SchedulerService(_make_session_factory(), _make_config())
+        svc._run_ingestion()
+
+        # Without infraverse_config, empty exclusion rules are passed
+        call_kwargs = mock_ingestor_cls.call_args[1]
+        assert call_kwargs["exclusion_rules"] == []

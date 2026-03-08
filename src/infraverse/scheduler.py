@@ -98,7 +98,10 @@ class SchedulerService:
                 sync_config_to_db(self._infraverse_config, session)
                 session.commit()
 
-            ingestor = DataIngestor(session)
+            exclusion_rules = []
+            if self._infraverse_config is not None:
+                exclusion_rules = self._infraverse_config.monitoring_exclusions
+            ingestor = DataIngestor(session, exclusion_rules=exclusion_rules)
 
             repo = Repository(session)
             accounts = repo.list_cloud_accounts()
@@ -114,9 +117,11 @@ class SchedulerService:
 
             self._run_netbox_ingestion(ingestor, results)
 
-            netbox_stats = self._run_netbox_sync()
+            netbox_stats = self._run_netbox_sync(accounts=accounts)
             if netbox_stats is not None:
                 results["netbox_sync"] = netbox_stats
+                self._store_vm_sync_errors(repo, netbox_stats)
+                session.commit()
 
             self._last_result = results
             self._last_run_time = datetime.now(timezone.utc)
@@ -239,10 +244,9 @@ class SchedulerService:
         netbox_url = None
         netbox_token = None
 
-        if self._infraverse_config is not None:
-            # Config-file mode: check for netbox settings in config
-            netbox_url = getattr(self._infraverse_config, "netbox_url", None)
-            netbox_token = getattr(self._infraverse_config, "netbox_token", None)
+        if self._infraverse_config is not None and self._infraverse_config.netbox_configured:
+            netbox_url = self._infraverse_config.netbox.url
+            netbox_token = self._infraverse_config.netbox.token
 
         if not netbox_url:
             # Env-var / SimpleNamespace mode
@@ -263,26 +267,147 @@ class SchedulerService:
             results["netbox_ingestion"] = f"error: {exc}"
             logger.error("NetBox ingestion failed: %s", exc)
 
-    def _run_netbox_sync(self) -> dict | None:
-        """Run NetBox sync if env-var Config is available.
+    @staticmethod
+    def _store_vm_sync_errors(repo: Repository, netbox_stats: dict) -> None:
+        """Write per-VM sync errors from SyncEngine results to DB."""
+        all_errors: dict[str, str] = {}
+        all_synced: set[str] = set()
+        for provider_key, provider_stats in netbox_stats.items():
+            if not isinstance(provider_stats, dict):
+                continue
+            all_errors.update(provider_stats.get("vm_errors", {}))
+            all_synced.update(provider_stats.get("synced_vms", set()))
+        if all_errors or all_synced:
+            repo.update_vm_sync_errors(all_errors, all_synced)
 
-        Only runs when self._config is a real Config instance (which guarantees
-        netbox_url, netbox_token, and yc_token are set).
+    def _run_netbox_sync(self, accounts=None) -> dict | None:
+        """Run NetBox sync (Cloud → NetBox push).
+
+        In env-var mode, delegates to SyncEngine.
+        In config-file mode, iterates over active accounts and syncs each
+        using sync_infrastructure + sync_vms_optimized directly.
+
+        Args:
+            accounts: List of CloudAccount DB objects (used in config-file mode).
 
         Returns:
-            Stats dict from SyncEngine.run(), or None if skipped/failed.
+            Stats dict keyed by provider/account, or None if skipped/failed.
         """
-        if not isinstance(self._config, Config):
+        # Env-var mode: use SyncEngine with legacy Config
+        if isinstance(self._config, Config):
+            try:
+                from infraverse.providers.netbox import NetBoxClient
+                from infraverse.sync.engine import SyncEngine
+                from infraverse.sync.providers import build_providers_from_accounts
+
+                netbox_url = self._config.netbox_url
+                netbox_token = self._config.netbox_token
+                if not netbox_url or not netbox_token:
+                    logger.info("NetBox sync skipped: no NETBOX_URL/NETBOX_TOKEN configured")
+                    return None
+
+                netbox = NetBoxClient(
+                    url=netbox_url, token=netbox_token,
+                    dry_run=self._config.dry_run,
+                )
+                providers = build_providers_from_accounts(accounts or [])
+                logger.info("Starting NetBox sync after ingestion")
+                engine = SyncEngine(netbox, providers, dry_run=self._config.dry_run)
+                stats = engine.run()
+                logger.info("NetBox sync completed: %s", stats)
+                return stats
+            except Exception as exc:
+                logger.error("NetBox sync failed: %s", exc)
+                return {"error": str(exc)}
+
+        # Config-file mode: sync per-account
+        if self._infraverse_config is None or not accounts:
             return None
 
-        try:
-            from infraverse.sync.engine import SyncEngine
+        netbox_url = None
+        netbox_token = None
+        if self._infraverse_config.netbox_configured:
+            netbox_url = self._infraverse_config.netbox.url
+            netbox_token = self._infraverse_config.netbox.token
+        if not netbox_url:
+            netbox_url = getattr(self._config, "netbox_url", None)
+            netbox_token = getattr(self._config, "netbox_token", None)
+        if not netbox_url or not netbox_token:
+            logger.info("NetBox sync skipped: no NETBOX_URL/NETBOX_TOKEN configured")
+            return None
 
-            logger.info("Starting NetBox sync after ingestion")
-            engine = SyncEngine(self._config)
-            stats = engine.run()
-            logger.info("NetBox sync completed: %s", stats)
-            return stats
-        except Exception as exc:
-            logger.error("NetBox sync failed: %s", exc)
-            return {"error": str(exc)}
+        return self._run_netbox_sync_per_account(accounts, netbox_url, netbox_token)
+
+    def _run_netbox_sync_per_account(
+        self, accounts, netbox_url: str, netbox_token: str,
+    ) -> dict:
+        """Sync each active cloud account to NetBox individually.
+
+        Returns:
+            Stats dict keyed by account name.
+        """
+        from infraverse.providers.netbox import NetBoxClient
+        from infraverse.sync.infrastructure import sync_infrastructure
+        from infraverse.sync.batch import sync_vms_optimized
+        from infraverse.sync.provider_profile import get_profile
+
+        netbox = NetBoxClient(url=netbox_url, token=netbox_token)
+        all_stats: dict = {}
+
+        for account in accounts:
+            if not account.is_active:
+                continue
+
+            try:
+                profile = get_profile(account.provider_type)
+            except KeyError:
+                logger.warning(
+                    "No provider profile for '%s', skipping NetBox sync for %s",
+                    account.provider_type, account.name,
+                )
+                continue
+
+            try:
+                client = self._build_provider_from_account(account)
+                if client is None:
+                    logger.warning("Could not build provider for account %s", account.name)
+                    continue
+
+                logger.info(
+                    "NetBox sync: fetching data from %s (%s)",
+                    account.name, profile.display_name,
+                )
+                data = client.fetch_all_data()
+                if not data or not isinstance(data, dict):
+                    logger.error("Failed to fetch data from %s", account.name)
+                    all_stats[account.name] = {"error": "failed to fetch cloud data"}
+                    continue
+
+                do_cleanup = not data.get("_has_fetch_errors", False)
+
+                netbox.ensure_sync_tag(
+                    tag_name=profile.tag_name,
+                    tag_slug=profile.tag_slug,
+                    tag_color=profile.tag_color,
+                    tag_description=profile.tag_description,
+                )
+
+                id_mapping = sync_infrastructure(
+                    data, netbox, cleanup_orphaned=do_cleanup,
+                    provider_profile=profile,
+                )
+
+                stats = sync_vms_optimized(
+                    data, netbox, id_mapping,
+                    cleanup_orphaned=do_cleanup,
+                    provider_profile=profile,
+                )
+                all_stats[account.name] = stats
+                logger.info("NetBox sync for %s completed: %s", account.name, stats)
+
+            except Exception as exc:
+                logger.error("NetBox sync failed for account %s: %s", account.name, exc)
+                all_stats[account.name] = {"error": str(exc)}
+
+        logger.info("NetBox sync (config-file mode) completed: %s", all_stats)
+        return all_stats

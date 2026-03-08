@@ -72,6 +72,31 @@
     outline-offset: -2px;
 }
 
+/* Copy-to-clipboard */
+.copyable { cursor: pointer; position: relative; }
+button.btn-copy,
+button.btn-copy:hover,
+button.btn-copy:focus,
+button.btn-copy:active {
+    all: unset;
+    display: inline-flex; align-items: center;
+    padding: 0 0 0 4px; margin: 0;
+    cursor: pointer; color: var(--tblr-secondary);
+    opacity: 0; transition: opacity 0.15s;
+    vertical-align: middle; font-size: 0.85em;
+    background: none !important; border: none !important;
+    box-shadow: none !important; outline: none !important;
+    line-height: 1;
+}
+.td-copyable:hover button.btn-copy { opacity: 0.4; }
+button.btn-copy:hover { opacity: 0.8 !important; }
+.copy-icon { opacity: 0; transition: opacity 0.15s; font-size: 0.85em; }
+.copyable:hover .copy-icon { opacity: 0.4; }
+.copyable:hover .copy-icon:hover { opacity: 0.8; }
+.copy-done { display: none; color: var(--tblr-success); font-size: 0.85em; }
+.copied .copy-icon { display: none; }
+.copied .copy-done { display: inline; }
+
 /* HTMX loading transitions */
 .htmx-settling {
     opacity: 0.8;

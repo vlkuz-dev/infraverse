@@ -4,9 +4,15 @@ import os
 import logging
 
 
-def setup_logging() -> None:
-    """Configure logging from LOG_LEVEL env var."""
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+def setup_logging(log_level: str | None = None) -> None:
+    """Configure logging level.
+
+    Uses the provided log_level, falling back to LOG_LEVEL env var.
+    """
+    if log_level is None:
+        log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    else:
+        log_level = log_level.upper()
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

@@ -108,95 +108,122 @@ class TestDbCommand:
 class TestCmdSync:
     """Tests for sync command execution."""
 
-    @patch("infraverse.cli._ingest_to_db")
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_sync_calls_engine(self, mock_from_env, mock_ingest):
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
+    def _make_mock_infraverse_config(self):
+        cfg = MagicMock()
+        cfg.netbox_configured = True
+        cfg.netbox.url = "https://netbox.test/api"
+        cfg.netbox.token = "nb-token"
+        cfg.database_url = "sqlite:///test.db"
+        cfg.log_level = None
+        return cfg
 
-        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {"created": 5}
-            mock_engine_cls.return_value = mock_engine
-
-            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
-            cmd_sync(args)
-
-        mock_config.setup_logging.assert_called_once()
-        mock_engine.run.assert_called_once_with(use_batch=True, cleanup=True)
-
-    @patch("infraverse.cli._ingest_to_db")
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_sync_passes_dry_run(self, mock_from_env, mock_ingest):
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
-
-        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {}
-            mock_engine_cls.return_value = mock_engine
-
-            args = argparse.Namespace(dry_run=True, no_batch=True, no_cleanup=True)
-            cmd_sync(args)
-
-        mock_from_env.assert_called_once_with(dry_run=True)
-        mock_engine.run.assert_called_once_with(use_batch=False, cleanup=False)
-
-    def test_cmd_sync_config_error_exits(self):
-        with patch("infraverse.config.Config.from_env", side_effect=ValueError("Missing YC_TOKEN")):
-            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+    def test_cmd_sync_requires_config(self):
+        """cmd_sync exits with error when --config is not provided."""
+        args = argparse.Namespace(
+            dry_run=False, no_batch=False, no_cleanup=False, config=None,
+        )
+        with patch("infraverse.cli._load_infraverse_config", return_value=None):
             with pytest.raises(SystemExit) as exc_info:
                 cmd_sync(args)
             assert exc_info.value.code == 1
 
-    @patch("infraverse.cli._ingest_to_db")
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_sync_engine_error_exits(self, mock_from_env, mock_ingest):
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
+    def _patch_sync_deps(self):
+        """Context manager to patch all NetBox sync dependencies."""
+        from contextlib import ExitStack
+        stack = ExitStack()
+        mocks = {}
+        mocks["db_engine"] = stack.enter_context(
+            patch("infraverse.db.engine.create_engine"))
+        mocks["session_factory"] = stack.enter_context(
+            patch("infraverse.db.engine.create_session_factory"))
+        mocks["repo"] = stack.enter_context(
+            patch("infraverse.db.repository.Repository"))
+        mocks["nb_cls"] = stack.enter_context(
+            patch("infraverse.providers.netbox.NetBoxClient"))
+        mocks["build_providers"] = stack.enter_context(
+            patch("infraverse.sync.providers.build_providers_from_accounts", return_value=[]))
+        mocks["engine_cls"] = stack.enter_context(
+            patch("infraverse.sync.engine.SyncEngine"))
 
-        with patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.side_effect = RuntimeError("API down")
-            mock_engine_cls.return_value = mock_engine
+        mock_session = MagicMock()
+        mocks["session_factory"].return_value.return_value.__enter__ = MagicMock(return_value=mock_session)
+        mocks["session_factory"].return_value.return_value.__exit__ = MagicMock(return_value=False)
+        mocks["repo"].return_value.list_cloud_accounts.return_value = []
+        mocks["engine_cls"].return_value.run.return_value = {}
+        return stack, mocks
 
-            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
-            with pytest.raises(SystemExit) as exc_info:
+    def test_cmd_sync_calls_engine(self):
+        mock_cfg = self._make_mock_infraverse_config()
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.cli._setup_logging"), \
+             patch("infraverse.cli._ingest_to_db_with_config"):
+            stack, mocks = self._patch_sync_deps()
+            with stack:
+                mocks["engine_cls"].return_value.run.return_value = {"yandex_cloud": {"created": 5}}
+                args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
                 cmd_sync(args)
-            assert exc_info.value.code == 1
 
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_sync_calls_ingest_to_db(self, mock_from_env):
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
+            mocks["engine_cls"].return_value.run.assert_called_once_with(use_batch=True, cleanup=True)
 
-        with patch("infraverse.cli._ingest_to_db") as mock_ingest, \
-             patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {}
-            mock_engine_cls.return_value = mock_engine
+    def test_cmd_sync_passes_dry_run(self):
+        mock_cfg = self._make_mock_infraverse_config()
 
-            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
-            cmd_sync(args)
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.cli._setup_logging"), \
+             patch("infraverse.cli._ingest_to_db_with_config"):
+            stack, mocks = self._patch_sync_deps()
+            with stack:
+                args = argparse.Namespace(dry_run=True, no_batch=True, no_cleanup=True)
+                cmd_sync(args)
 
-        mock_ingest.assert_called_once_with(mock_config)
+            mocks["nb_cls"].assert_called_once_with(
+                url="https://netbox.test/api", token="nb-token", dry_run=True,
+            )
+            mocks["engine_cls"].return_value.run.assert_called_once_with(use_batch=False, cleanup=False)
 
-    @patch("infraverse.config.Config.from_env")
-    def test_cmd_sync_continues_on_ingest_error(self, mock_from_env):
+    def test_cmd_sync_engine_error_exits(self):
+        mock_cfg = self._make_mock_infraverse_config()
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.cli._setup_logging"), \
+             patch("infraverse.cli._ingest_to_db_with_config"):
+            stack, mocks = self._patch_sync_deps()
+            with stack:
+                mocks["engine_cls"].return_value.run.side_effect = RuntimeError("API down")
+                args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+                with pytest.raises(SystemExit) as exc_info:
+                    cmd_sync(args)
+                assert exc_info.value.code == 1
+
+    def test_cmd_sync_calls_ingest(self):
+        mock_cfg = self._make_mock_infraverse_config()
+
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.cli._setup_logging"), \
+             patch("infraverse.cli._ingest_to_db_with_config") as mock_ingest:
+            stack, mocks = self._patch_sync_deps()
+            with stack:
+                args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+                cmd_sync(args)
+
+            mock_ingest.assert_called_once_with(
+                mock_cfg, database_url=mock_cfg.database_url,
+            )
+
+    def test_cmd_sync_continues_on_ingest_error(self):
         """Sync to NetBox should proceed even if DB ingestion fails."""
-        mock_config = MagicMock()
-        mock_from_env.return_value = mock_config
+        mock_cfg = self._make_mock_infraverse_config()
 
-        with patch("infraverse.cli._ingest_to_db", side_effect=RuntimeError("DB error")), \
-             patch("infraverse.sync.engine.SyncEngine") as mock_engine_cls:
-            mock_engine = MagicMock()
-            mock_engine.run.return_value = {}
-            mock_engine_cls.return_value = mock_engine
+        with patch("infraverse.cli._load_infraverse_config", return_value=mock_cfg), \
+             patch("infraverse.cli._setup_logging"), \
+             patch("infraverse.cli._ingest_to_db_with_config", side_effect=RuntimeError("DB err")):
+            stack, mocks = self._patch_sync_deps()
+            with stack:
+                args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
+                cmd_sync(args)
 
-            args = argparse.Namespace(dry_run=False, no_batch=False, no_cleanup=False)
-            cmd_sync(args)
-
-        mock_engine.run.assert_called_once()
+            mocks["engine_cls"].return_value.run.assert_called_once()
 
 
 class TestCmdServe:

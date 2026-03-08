@@ -706,7 +706,9 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
         "updated": 0,
         "skipped": 0,
         "deleted": 0,
-        "errors": 0
+        "errors": 0,
+        "vm_errors": {},
+        "synced_vms": set(),
     }
 
     yc_vms = yc_data.get("vms", [])
@@ -721,8 +723,13 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
 
     # Process orphaned VMs if requested
     if cleanup_orphaned:
+        from infraverse.sync.cleanup import _extract_cloud_names, _belongs_to_clouds
+
         logger.info("Checking for orphaned VMs...")
         yc_vm_names = {vm.get("name") for vm in yc_vms if vm.get("name")}
+        cloud_names = _extract_cloud_names(yc_data)
+        if cloud_names:
+            logger.debug(f"Scoping VM cleanup to clouds: {cloud_names}")
         tag_id = netbox.ensure_sync_tag(
             tag_name=profile.tag_name,
             tag_slug=profile.tag_slug,
@@ -734,6 +741,22 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
             vm_tags = []
             if hasattr(vm, 'tags') and vm.tags:
                 vm_tags = [t.id if hasattr(t, 'id') else t for t in vm.tags]
+
+            # Skip VMs that don't belong to this account's clouds
+            if cloud_names:
+                cluster = getattr(vm, 'cluster', None)
+                if not cluster or not hasattr(cluster, 'name'):
+                    logger.debug(
+                        f"Skipping VM {vm_name}: no cluster, "
+                        f"cannot determine cloud ownership"
+                    )
+                    continue
+                if not _belongs_to_clouds(cluster.name, cloud_names):
+                    logger.debug(
+                        f"Skipping VM {vm_name}: cluster {cluster.name} "
+                        f"not in this account's clouds"
+                    )
+                    continue
 
             if tag_id in vm_tags and vm_name not in yc_vm_names:
                 if not netbox.dry_run:
@@ -765,6 +788,7 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
                     stats["updated"] += 1
                 else:
                     stats["skipped"] += 1
+                stats["synced_vms"].add(vm_name)
             else:
                 # Create new VM
                 vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, provider_profile=profile)
@@ -774,18 +798,22 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
                     if created_vm:
                         logger.info(f"Created VM: {vm_name}")
                         stats["created"] += 1
+                        stats["synced_vms"].add(vm_name)
                         cache.vms[created_vm.id] = created_vm
                         cache.vms_by_name[vm_name] = created_vm
                         process_vm_updates(created_vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile)
                     else:
                         stats["errors"] += 1
+                        stats["vm_errors"][vm_name] = "NetBox API returned None when creating VM"
                 else:
                     logger.info(f"[DRY-RUN] Would create VM: {vm_name}")
                     stats["created"] += 1
+                    stats["synced_vms"].add(vm_name)
 
         except Exception as e:
             logger.error(f"Failed to process VM {vm_name}: {e}")
             stats["errors"] += 1
+            stats["vm_errors"][vm_name] = str(e)
 
     # Apply all cached updates in batch
     batch_stats = apply_batch_updates(cache, netbox, dry_run=netbox.dry_run)

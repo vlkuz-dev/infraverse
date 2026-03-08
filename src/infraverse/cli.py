@@ -8,15 +8,31 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-def _setup_logging() -> None:
-    """Configure logging from LOG_LEVEL env var."""
+def _load_infraverse_config(args):
+    """Load YAML config if --config was provided, or return None."""
+    if not getattr(args, "config", None):
+        return None
+    from infraverse.config_file import load_config
+
+    try:
+        return load_config(args.config)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Config file error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _setup_logging(infraverse_config=None) -> None:
+    """Configure logging, preferring YAML config log_level if available."""
     from infraverse.config import setup_logging
 
-    setup_logging()
+    log_level = infraverse_config.log_level if infraverse_config else None
+    setup_logging(log_level=log_level)
 
 
-def _get_database_url() -> str:
-    """Get database URL from environment with default."""
+def _get_database_url(infraverse_config=None) -> str:
+    """Get database URL from YAML config or environment with default."""
+    if infraverse_config is not None:
+        return infraverse_config.database_url
     return os.getenv("DATABASE_URL", "sqlite:///infraverse.db")
 
 
@@ -64,8 +80,16 @@ def build_parser() -> argparse.ArgumentParser:
     # db command group
     db_parser = subparsers.add_parser("db", help="Database management")
     db_sub = db_parser.add_subparsers(dest="db_command")
-    db_sub.add_parser("init", help="Initialize database tables")
-    db_sub.add_parser("seed", help="Create default tenant")
+    db_init_parser = db_sub.add_parser("init", help="Initialize database tables")
+    db_init_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file",
+    )
+    db_seed_parser = db_sub.add_parser("seed", help="Create default tenant")
+    db_seed_parser.add_argument(
+        "--config", "-c", default=None,
+        help="Path to YAML config file",
+    )
 
     return parser
 
@@ -230,50 +254,44 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
 
 def cmd_sync(args: argparse.Namespace) -> None:
     """Execute sync command: fetch from providers, store in DB, sync to NetBox."""
-    _setup_logging()
-
-    # Load YAML config file if provided
-    infraverse_config = None
-    if getattr(args, "config", None):
-        from infraverse.config_file import load_config
-
-        try:
-            infraverse_config = load_config(args.config)
-        except (FileNotFoundError, ValueError) as exc:
-            print(f"Config file error: {exc}", file=sys.stderr)
-            sys.exit(1)
-
-    # Try to load env-var config (needed for NetBox sync)
-    config = None
-    from infraverse.config import Config
-
-    try:
-        config = Config.from_env(dry_run=args.dry_run)
-    except ValueError as exc:
-        if not infraverse_config:
-            print(f"Configuration error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        logger.info("NetBox env vars not configured, skipping NetBox sync")
-
-    if config:
-        config.setup_logging()
+    infraverse_config = _load_infraverse_config(args)
+    if not infraverse_config:
+        print("Error: --config is required for sync command.", file=sys.stderr)
+        sys.exit(1)
+    _setup_logging(infraverse_config)
 
     # Populate database with provider data
     try:
-        if infraverse_config:
-            _ingest_to_db_with_config(infraverse_config)
-        elif config:
-            _ingest_to_db(config)
+        _ingest_to_db_with_config(
+            infraverse_config,
+            database_url=infraverse_config.database_url,
+        )
         logger.info("Database ingestion complete")
     except Exception:
         logger.exception("Database ingestion had errors, continuing with NetBox sync")
 
-    # Sync to NetBox (only if env var config available)
-    if config:
+    # Sync to NetBox using per-account credentials
+    if infraverse_config and infraverse_config.netbox_configured:
+        from infraverse.db.engine import create_engine as create_db_engine
+        from infraverse.db.engine import create_session_factory
+        from infraverse.db.repository import Repository
+        from infraverse.providers.netbox import NetBoxClient
         from infraverse.sync.engine import SyncEngine
+        from infraverse.sync.providers import build_providers_from_accounts
 
+        nb_cfg = infraverse_config.netbox
         try:
-            engine = SyncEngine(config)
+            netbox = NetBoxClient(
+                url=nb_cfg.url, token=nb_cfg.token, dry_run=args.dry_run,
+            )
+
+            db_engine = create_db_engine(infraverse_config.database_url)
+            session_factory = create_session_factory(db_engine)
+            with session_factory() as session:
+                accounts = Repository(session).list_cloud_accounts()
+
+            providers = build_providers_from_accounts(accounts)
+            engine = SyncEngine(netbox, providers, dry_run=args.dry_run)
             stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
             for provider, provider_stats in stats.items():
                 logger.info("Sync complete for %s: %s", provider, provider_stats)
@@ -286,50 +304,60 @@ def cmd_serve(args: argparse.Namespace) -> None:
     """Execute serve command: start web UI."""
     import uvicorn
 
-    _setup_logging()
-    database_url = _get_database_url()
-
-    # Load YAML config file if provided
-    infraverse_config = None
-    if getattr(args, "config", None):
-        from infraverse.config_file import load_config
-
-        try:
-            infraverse_config = load_config(args.config)
-        except (FileNotFoundError, ValueError) as exc:
-            print(f"Config file error: {exc}", file=sys.stderr)
-            sys.exit(1)
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
 
     config = None
-    try:
-        sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
-    except ValueError:
-        sync_interval = 0
-    if sync_interval > 0:
-        from infraverse.config import Config
 
+    if infraverse_config is not None:
+        # Config-file mode: build SimpleNamespace from YAML settings
+        import types
+
+        ext = infraverse_config.external_links
+        nb = infraverse_config.netbox
+        config = types.SimpleNamespace(
+            yc_console_url=ext.yc_console_url if ext else None,
+            zabbix_host_url=ext.zabbix_host_url if ext else None,
+            netbox_vm_url=ext.netbox_vm_url if ext else None,
+            zabbix_url=(
+                infraverse_config.monitoring.zabbix_url
+                if infraverse_config.monitoring_configured
+                else None
+            ),
+            netbox_url=nb.url if nb else None,
+            netbox_token=nb.token if nb else None,
+            sync_interval_minutes=infraverse_config.sync_interval_minutes,
+        )
+    else:
+        # Env-var mode: try full Config, fall back to SimpleNamespace
         try:
-            config = Config.from_env()
-        except ValueError as exc:
-            if not infraverse_config:
+            sync_interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "0"))
+        except ValueError:
+            sync_interval = 0
+        if sync_interval > 0:
+            from infraverse.config import Config
+
+            try:
+                config = Config.from_env()
+            except ValueError as exc:
                 logger.warning(
                     "Scheduler disabled - config incomplete: %s", exc,
                 )
-            config = None
+                config = None
 
-    # Always provide external link config for detail pages, even without scheduler
-    if config is None:
-        import types
+        if config is None:
+            import types
 
-        config = types.SimpleNamespace(
-            yc_console_url=os.getenv("YC_CONSOLE_URL") or None,
-            zabbix_host_url=os.getenv("ZABBIX_HOST_URL") or None,
-            netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
-            zabbix_url=os.getenv("ZABBIX_URL") or None,
-            netbox_url=os.getenv("NETBOX_URL") or None,
-            netbox_token=os.getenv("NETBOX_TOKEN") or None,
-            sync_interval_minutes=sync_interval if infraverse_config else 0,
-        )
+            config = types.SimpleNamespace(
+                yc_console_url=os.getenv("YC_CONSOLE_URL") or None,
+                zabbix_host_url=os.getenv("ZABBIX_HOST_URL") or None,
+                netbox_vm_url=os.getenv("NETBOX_VM_URL") or None,
+                zabbix_url=os.getenv("ZABBIX_URL") or None,
+                netbox_url=os.getenv("NETBOX_URL") or None,
+                netbox_token=os.getenv("NETBOX_TOKEN") or None,
+                sync_interval_minutes=sync_interval,
+            )
 
     # Sync YAML config to DB on startup so data is available immediately
     if infraverse_config is not None:
@@ -356,8 +384,9 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 def cmd_db_init(args: argparse.Namespace) -> None:
     """Execute db init command: create all database tables."""
-    _setup_logging()
-    database_url = _get_database_url()
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
 
     from infraverse.db.engine import create_engine, init_db
 
@@ -369,8 +398,9 @@ def cmd_db_init(args: argparse.Namespace) -> None:
 
 def cmd_db_seed(args: argparse.Namespace) -> None:
     """Execute db seed command: create default tenant."""
-    _setup_logging()
-    database_url = _get_database_url()
+    infraverse_config = _load_infraverse_config(args)
+    _setup_logging(infraverse_config)
+    database_url = _get_database_url(infraverse_config)
 
     from infraverse.db.engine import create_engine, create_session_factory, init_db
     from infraverse.db.repository import Repository

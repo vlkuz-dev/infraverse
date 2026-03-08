@@ -108,7 +108,7 @@
                     <tbody>
                         {% for vm in vms %}
                         <tr>
-                            <td><a href="/vms/{{ vm.id }}">{{ vm.name }}</a></td>
+                            <td class="td-copyable"><a href="/vms/{{ vm.id }}">{{ vm.name }}</a><button class="btn-copy" data-copy="{{ vm.name }}" title="Copy name"><i class="ti ti-copy copy-icon"></i><i class="ti ti-check copy-done"></i></button></td>
                             <td>
                                 {% if vm.status == "active" %}
                                 <span class="badge bg-success-lt">Active</span>
@@ -120,7 +120,7 @@
                             </td>
                             <td>
                                 {% for ip in vm.ip_addresses %}
-                                <span class="badge bg-azure-lt me-1">{{ ip }}</span>
+                                <span class="badge bg-azure-lt me-1 copyable" data-copy="{{ ip }}" title="Click to copy">{{ ip }}<i class="ti ti-copy copy-icon ms-1"></i><i class="ti ti-check copy-done ms-1"></i></span>
                                 {% endfor %}
                             </td>
                             <td>{{ vm.vcpus if vm.vcpus is not none else "-" }}</td>

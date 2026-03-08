@@ -5,10 +5,14 @@ import yaml
 
 from infraverse.config_file import (
     CloudAccountConfig,
+    ExternalLinksConfig,
     InfraverseConfig,
     MonitoringConfig,
+    MonitoringExclusionRule,
+    NetBoxConfig,
     OidcConfig,
     TenantConfig,
+    TimezoneConfig,
     load_config,
 )
 
@@ -66,6 +70,22 @@ FULL_CONFIG = {
         "client_secret": "oidc-secret",
         "required_role": "infraverse-admin",
     },
+    "database_url": "sqlite:///custom.db",
+    "netbox": {
+        "url": "https://netbox.example.com/api",
+        "token": "nb-token-123",
+    },
+    "sync_interval_minutes": 30,
+    "external_links": {
+        "yc_console_url": "https://console.yandex.cloud/folders/{folder_id}",
+        "zabbix_host_url": "{zabbix_url}/hosts.php?hostid={host_id}",
+        "netbox_vm_url": "{netbox_url}/vms/{vm_id}/",
+    },
+    "log_level": "DEBUG",
+    "timezone": {
+        "offset_hours": 3,
+        "label": "MSK",
+    },
 }
 
 MINIMAL_CONFIG = {
@@ -95,6 +115,16 @@ class TestLoadConfigValid:
         assert len(cfg.tenants) == 2
         assert "acme-corp" in cfg.tenants
         assert "beta-inc" in cfg.tenants
+        assert cfg.database_url == "sqlite:///custom.db"
+        assert cfg.netbox is not None
+        assert cfg.netbox.url == "https://netbox.example.com/api"
+        assert cfg.netbox.token == "nb-token-123"
+        assert cfg.sync_interval_minutes == 30
+        assert cfg.external_links is not None
+        assert cfg.log_level == "DEBUG"
+        assert cfg.timezone is not None
+        assert cfg.timezone.offset_hours == 3
+        assert cfg.timezone.label == "MSK"
 
     def test_tenant_fields(self, tmp_path):
         path = _write_yaml(tmp_path, FULL_CONFIG)
@@ -541,3 +571,325 @@ class TestInfraverseConfigProperties:
         path = _write_yaml(tmp_path, MINIMAL_CONFIG)
         cfg = load_config(path)
         assert cfg.monitoring_configured is False
+
+    def test_netbox_configured_true(self, tmp_path):
+        path = _write_yaml(tmp_path, FULL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.netbox_configured is True
+
+    def test_netbox_configured_false(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.netbox_configured is False
+
+
+# ── monitoring exclusion rules ──────────────────────────────────────
+
+
+class TestMonitoringExclusionsParsing:
+    def test_parse_valid_exclusion_rules(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"name_pattern": "test-vm-*", "reason": "Test VMs excluded"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+
+        assert len(cfg.monitoring_exclusions) == 1
+        rule = cfg.monitoring_exclusions[0]
+        assert isinstance(rule, MonitoringExclusionRule)
+        assert rule.name_pattern == "test-vm-*"
+        assert rule.status is None
+        assert rule.reason == "Test VMs excluded"
+
+    def test_parse_status_only_rule(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"status": "STOPPED", "reason": "Stopped VMs not monitored"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+
+        assert len(cfg.monitoring_exclusions) == 1
+        rule = cfg.monitoring_exclusions[0]
+        assert rule.name_pattern is None
+        assert rule.status == "STOPPED"
+        assert rule.reason == "Stopped VMs not monitored"
+
+    def test_parse_both_fields(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {
+                    "name_pattern": "dev-*",
+                    "status": "STOPPED",
+                    "reason": "Dev stopped VMs",
+                },
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+
+        assert len(cfg.monitoring_exclusions) == 1
+        rule = cfg.monitoring_exclusions[0]
+        assert rule.name_pattern == "dev-*"
+        assert rule.status == "STOPPED"
+        assert rule.reason == "Dev stopped VMs"
+
+    def test_parse_missing_reason_raises(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"name_pattern": "test-*"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="reason"):
+            load_config(path)
+
+    def test_parse_missing_both_fields_raises(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"reason": "No filter specified"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="name_pattern.*status|status.*name_pattern"):
+            load_config(path)
+
+    def test_parse_empty_reason_raises(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"name_pattern": "test-*", "reason": ""},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="reason"):
+            load_config(path)
+
+    def test_load_config_with_exclusions(self, tmp_path):
+        data = {
+            **FULL_CONFIG,
+            "monitoring_exclusions": [
+                {"name_pattern": "tmp-*", "reason": "Temporary VMs"},
+                {"status": "STOPPED", "reason": "Stopped instances"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+
+        assert len(cfg.monitoring_exclusions) == 2
+        assert cfg.monitoring_exclusions[0].name_pattern == "tmp-*"
+        assert cfg.monitoring_exclusions[0].reason == "Temporary VMs"
+        assert cfg.monitoring_exclusions[1].status == "STOPPED"
+        assert cfg.monitoring_exclusions[1].reason == "Stopped instances"
+
+    def test_load_config_without_exclusions(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+
+        assert cfg.monitoring_exclusions == []
+
+    def test_exclusion_env_var_expansion(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("EXCLUSION_REASON", "Expanded reason text")
+        data = {
+            **MINIMAL_CONFIG,
+            "monitoring_exclusions": [
+                {"name_pattern": "ci-*", "reason": "${EXCLUSION_REASON}"},
+            ],
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+
+        assert cfg.monitoring_exclusions[0].reason == "Expanded reason text"
+
+
+# ── database_url parsing ────────────────────────────────────────────
+
+
+class TestDatabaseUrlParsing:
+    def test_default_database_url(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.database_url == "sqlite:///infraverse.db"
+
+    def test_custom_database_url(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "database_url": "postgresql://localhost/infraverse"}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.database_url == "postgresql://localhost/infraverse"
+
+    def test_database_url_env_expansion(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DB_URL", "sqlite:///expanded.db")
+        data = {**MINIMAL_CONFIG, "database_url": "${DB_URL}"}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.database_url == "sqlite:///expanded.db"
+
+
+# ── netbox config parsing ──────────────────────────────────────────
+
+
+class TestNetBoxConfigParsing:
+    def test_full_netbox_config(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "netbox": {"url": "https://nb.example.com/api", "token": "tok-123"},
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert isinstance(cfg.netbox, NetBoxConfig)
+        assert cfg.netbox.url == "https://nb.example.com/api"
+        assert cfg.netbox.token == "tok-123"
+
+    def test_no_netbox_section(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.netbox is None
+
+    def test_missing_url_raises(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "netbox": {"token": "tok"}}
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="url"):
+            load_config(path)
+
+    def test_missing_token_raises(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "netbox": {"url": "https://nb.example.com"}}
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="token"):
+            load_config(path)
+
+    def test_env_expansion(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("NB_TOKEN", "secret-token")
+        data = {
+            **MINIMAL_CONFIG,
+            "netbox": {"url": "https://nb.example.com/api", "token": "${NB_TOKEN}"},
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.netbox.token == "secret-token"
+
+
+# ── sync_interval_minutes parsing ──────────────────────────────────
+
+
+class TestSyncIntervalParsing:
+    def test_default_sync_interval(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.sync_interval_minutes == 0
+
+    def test_custom_sync_interval(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "sync_interval_minutes": 15}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.sync_interval_minutes == 15
+
+    def test_negative_sync_interval_raises(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "sync_interval_minutes": -5}
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="sync_interval_minutes"):
+            load_config(path)
+
+
+# ── external_links parsing ─────────────────────────────────────────
+
+
+class TestExternalLinksParsing:
+    def test_full_external_links(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "external_links": {
+                "yc_console_url": "https://console.yandex.cloud/{folder_id}",
+                "zabbix_host_url": "{zabbix_url}/hosts/{host_id}",
+                "netbox_vm_url": "{netbox_url}/vms/{vm_id}/",
+            },
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert isinstance(cfg.external_links, ExternalLinksConfig)
+        assert cfg.external_links.yc_console_url == "https://console.yandex.cloud/{folder_id}"
+        assert cfg.external_links.zabbix_host_url == "{zabbix_url}/hosts/{host_id}"
+        assert cfg.external_links.netbox_vm_url == "{netbox_url}/vms/{vm_id}/"
+
+    def test_partial_external_links(self, tmp_path):
+        data = {
+            **MINIMAL_CONFIG,
+            "external_links": {"yc_console_url": "https://example.com"},
+        }
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.external_links.yc_console_url == "https://example.com"
+        assert cfg.external_links.zabbix_host_url is None
+        assert cfg.external_links.netbox_vm_url is None
+
+    def test_no_external_links_section(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.external_links is None
+
+
+# ── log_level parsing ──────────────────────────────────────────────
+
+
+class TestLogLevelParsing:
+    def test_default_log_level(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.log_level == "INFO"
+
+    def test_custom_log_level(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "log_level": "WARNING"}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.log_level == "WARNING"
+
+
+# ── timezone parsing ───────────────────────────────────────────────
+
+
+class TestTimezoneParsing:
+    def test_full_timezone(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "timezone": {"offset_hours": 3, "label": "MSK"}}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert isinstance(cfg.timezone, TimezoneConfig)
+        assert cfg.timezone.offset_hours == 3
+        assert cfg.timezone.label == "MSK"
+        assert cfg.timezone.resolved_label == "MSK"
+
+    def test_auto_label_from_offset(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "timezone": {"offset_hours": 5}}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.timezone.label is None
+        assert cfg.timezone.resolved_label == "UTC+5"
+
+    def test_zero_offset_utc_label(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "timezone": {"offset_hours": 0}}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.timezone.resolved_label == "UTC"
+
+    def test_negative_offset(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "timezone": {"offset_hours": -5}}
+        path = _write_yaml(tmp_path, data)
+        cfg = load_config(path)
+        assert cfg.timezone.resolved_label == "UTC-5"
+
+    def test_no_timezone_section(self, tmp_path):
+        path = _write_yaml(tmp_path, MINIMAL_CONFIG)
+        cfg = load_config(path)
+        assert cfg.timezone is None
+
+    def test_non_int_offset_raises(self, tmp_path):
+        data = {**MINIMAL_CONFIG, "timezone": {"offset_hours": "three"}}
+        path = _write_yaml(tmp_path, data)
+        with pytest.raises(ValueError, match="integer"):
+            load_config(path)

@@ -1014,3 +1014,299 @@ def test_netbox_tenant_filter_no_false_missing_in_cloud():
     resp = client.get(f"/comparison?tenant_id={ids['t1']}")
     html = resp.text
     assert "in NetBox but not in cloud" not in html
+
+
+# --- Sync diagnostics tests ---
+
+
+def _create_diagnostics_app(sync_status="success", error_message=None, items_found=5):
+    """Create app with cloud VMs, NetBox hosts, and a SyncRun for diagnostics testing."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        tenant = repo.create_tenant("Diag Corp")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Diag")
+
+        # Cloud VM not in NetBox
+        repo.upsert_vm(account.id, "vm-001", "missing-vm", status="active")
+
+        # NetBox host to make netbox_configured=True
+        repo.upsert_netbox_host(external_id="nb-1", name="other-vm", status="active")
+
+        # SyncRun for netbox source
+        if sync_status is not None:
+            run = repo.create_sync_run("netbox", cloud_account_id=account.id)
+            repo.update_sync_run(
+                run.id, status=sync_status, error_message=error_message,
+                items_found=items_found,
+            )
+
+        session.commit()
+    return app
+
+
+def test_diagnostics_reason_shown_for_success():
+    """When netbox sync succeeded, shows actionable reason with item count."""
+    app = _create_diagnostics_app(sync_status="success", items_found=42)
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "необходимо создать" in html
+    assert "42 хостов" in html
+
+
+def test_diagnostics_reason_shown_for_failure():
+    """When netbox sync failed, reason includes error and warns about stale data."""
+    app = _create_diagnostics_app(sync_status="failed", error_message="Connection refused")
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Connection refused" in html
+    assert "устаревшими" in html
+
+
+def test_diagnostics_reason_shown_for_never_ran():
+    """When netbox sync never ran, reason warns about unreliable data."""
+    app = _create_diagnostics_app(sync_status=None)
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "не запускался" in html
+    assert "неточным" in html
+
+
+def test_diagnostics_reason_in_htmx_partial():
+    """Sync reasons appear in HTMX table partial too."""
+    app = _create_diagnostics_app(sync_status="success", items_found=10)
+    client = TestClient(app)
+    resp = client.get("/comparison/table")
+    html = resp.text
+    assert "необходимо создать" in html
+
+
+def test_sync_status_banner_shown():
+    """Sync status banner shows on comparison page when sync data exists."""
+    app = _create_diagnostics_app(sync_status="success")
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Последний импорт" in html
+    assert "NetBox" in html
+
+
+def test_sync_status_banner_shows_never_ran():
+    """Sync status banner shows 'не запускался' when no sync runs exist."""
+    app = _create_diagnostics_app(sync_status=None)
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "не запускался" in html
+
+
+def test_sync_status_banner_shows_error():
+    """Sync status banner shows error badge when last sync failed."""
+    app = _create_diagnostics_app(sync_status="failed", error_message="Auth error")
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "ошибка" in html.lower() or "Auth error" in html
+
+
+# --- Per-VM sync error tests ---
+
+
+def _create_vm_error_app():
+    """Create app with a VM that has a last_sync_error set."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        tenant = repo.create_tenant("Error Corp")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Err")
+
+        # VM with sync error
+        vm, _ = repo.upsert_vm(account.id, "vm-001", "broken-vm", status="active")
+        vm.last_sync_error = "RequestError: 400 duplicate key value"
+        session.flush()
+
+        # VM without sync error
+        repo.upsert_vm(account.id, "vm-002", "ok-vm", status="active")
+
+        # NetBox host to make netbox_configured=True (only ok-vm is there)
+        repo.upsert_netbox_host(external_id="nb-1", name="ok-vm", status="active")
+
+        # Successful netbox SyncRun
+        run = repo.create_sync_run("netbox", cloud_account_id=account.id)
+        repo.update_sync_run(run.id, status="success", items_found=1)
+
+        session.commit()
+    return app
+
+
+def test_per_vm_sync_error_shown_in_comparison():
+    """VM with last_sync_error shows the specific error, not generic reason."""
+    app = _create_vm_error_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    # broken-vm should show its specific sync error
+    assert "duplicate key value" in html
+    assert "Ошибка синхронизации в NetBox" in html
+
+
+def test_per_vm_sync_error_in_htmx_partial():
+    """Per-VM sync error appears in HTMX table partial."""
+    app = _create_vm_error_app()
+    client = TestClient(app)
+    resp = client.get("/comparison/table")
+    html = resp.text
+    assert "duplicate key value" in html
+
+
+# --- Monitoring exemption tests ---
+
+
+def _create_exempt_app():
+    """Create app with exempt and non-exempt VMs for comparison testing."""
+    app = create_app("sqlite:///:memory:")
+    with app.state.session_factory() as session:
+        repo = Repository(session)
+        tenant = repo.create_tenant("Exempt Corp")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC")
+
+        # Exempt VM (k8s worker)
+        vm1, _ = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="vm-001",
+            name="cl1abcdef123",
+            status="active",
+            monitoring_exempt=True,
+            monitoring_exempt_reason="K8s worker nodes monitored via Prometheus",
+        )
+
+        # Exempt VM (stopped)
+        vm2, _ = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="vm-002",
+            name="DS-CA-ROOT",
+            status="stopped",
+            monitoring_exempt=True,
+            monitoring_exempt_reason="Intentionally stopped root CA",
+        )
+
+        # Normal VM without monitoring (should show as missing)
+        repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="vm-003",
+            name="web-server-1",
+            status="active",
+        )
+
+        # Normal VM with monitoring (should show as OK)
+        repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="vm-004",
+            name="db-server-1",
+            status="active",
+        )
+        repo.upsert_monitoring_host(
+            source="zabbix",
+            external_id="z-001",
+            name="db-server-1",
+            status="active",
+            cloud_account_id=account.id,
+        )
+
+        session.commit()
+    return app
+
+
+def test_exempt_vm_shows_shield_badge():
+    """Exempt VMs show shield badge instead of red X in monitoring column."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "ti-shield-check" in html
+    assert "Exempt" in html
+
+
+def test_exempt_vm_not_counted_as_missing_from_monitoring():
+    """Exempt VMs are excluded from missing_from_monitoring count."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    # Only web-server-1 should be missing from monitoring (not the exempt ones)
+    assert "Missing from Monitoring" in html
+
+
+def test_exempt_vm_no_monitoring_discrepancy():
+    """Exempt VMs should not have monitoring discrepancy labels."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    # cl1abcdef123 is exempt, so it should NOT have "in cloud but not in monitoring"
+    # but web-server-1 should
+    assert "in cloud but not in monitoring" in html  # for web-server-1
+
+
+def test_exempt_badge_has_tooltip():
+    """Exempt badge includes reason as tooltip."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "K8s worker nodes monitored via Prometheus" in html
+
+
+def test_exempt_summary_card_shown():
+    """Monitoring Exempt summary card appears when exempt VMs exist."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert "Monitoring Exempt" in html
+    assert 'data-status="monitoring_exempt"' in html
+
+
+def test_exempt_filter_shows_only_exempt_vms():
+    """Status filter monitoring_exempt returns only exempt VMs."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=monitoring_exempt")
+    html = resp.text
+    assert "cl1abcdef123" in html
+    assert "DS-CA-ROOT" in html
+    assert "web-server-1" not in html
+    assert "db-server-1" not in html
+
+
+def test_missing_from_monitoring_filter_excludes_exempt():
+    """Status filter missing_from_monitoring excludes exempt VMs."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison?status=missing_from_monitoring")
+    html = resp.text
+    assert "web-server-1" in html
+    assert "cl1abcdef123" not in html
+    assert "DS-CA-ROOT" not in html
+
+
+def test_exempt_dropdown_option_shown():
+    """Status dropdown includes Monitoring Exempt option."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison")
+    html = resp.text
+    assert 'value="monitoring_exempt"' in html
+
+
+def test_exempt_htmx_partial():
+    """Exempt badge appears in HTMX table partial."""
+    app = _create_exempt_app()
+    client = TestClient(app)
+    resp = client.get("/comparison/table")
+    html = resp.text
+    assert "ti-shield-check" in html
+    assert "Exempt" in html

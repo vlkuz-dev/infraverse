@@ -130,6 +130,8 @@ class Repository:
         memory_mb: int | None = None,
         cloud_name: str | None = None,
         folder_name: str | None = None,
+        monitoring_exempt: bool = False,
+        monitoring_exempt_reason: str | None = None,
     ) -> tuple[VM, bool]:
         """Upsert a VM record.
 
@@ -157,6 +159,8 @@ class Repository:
                 memory_mb=memory_mb,
                 cloud_name=cloud_name,
                 folder_name=folder_name,
+                monitoring_exempt=monitoring_exempt,
+                monitoring_exempt_reason=monitoring_exempt_reason,
                 last_seen_at=now,
             )
             self.session.add(vm)
@@ -168,6 +172,8 @@ class Repository:
             vm.memory_mb = memory_mb
             vm.cloud_name = cloud_name
             vm.folder_name = folder_name
+            vm.monitoring_exempt = monitoring_exempt
+            vm.monitoring_exempt_reason = monitoring_exempt_reason
             vm.last_seen_at = now
         self.session.flush()
         return vm, created
@@ -208,6 +214,34 @@ class Repository:
         if status:
             query = query.filter(VM.status == status)
         return query.order_by(VM.name).all()
+
+    def update_vm_sync_errors(
+        self,
+        vm_errors: dict[str, str],
+        synced_vm_names: set[str],
+    ) -> None:
+        """Update last_sync_error on VM records after a NetBox sync.
+
+        Args:
+            vm_errors: Map of vm_name -> error_message for VMs that failed.
+            synced_vm_names: Set of VM names that synced successfully
+                (their errors should be cleared).
+        """
+        if not vm_errors and not synced_vm_names:
+            return
+
+        all_names = set(vm_errors.keys()) | synced_vm_names
+        vms = (
+            self.session.query(VM)
+            .filter(VM.name.in_(all_names))
+            .all()
+        )
+        for vm in vms:
+            if vm.name in vm_errors:
+                vm.last_sync_error = vm_errors[vm.name]
+            elif vm.name in synced_vm_names:
+                vm.last_sync_error = None
+        self.session.flush()
 
     def mark_vms_stale(
         self, cloud_account_id: int, seen_before: datetime
@@ -478,6 +512,26 @@ class Repository:
             .limit(limit)
             .all()
         )
+
+    def get_latest_sync_run_by_source(
+        self, source: str, tenant_id: int | None = None,
+    ) -> SyncRun | None:
+        """Get the most recent SyncRun for a given source.
+
+        Args:
+            source: Sync source (e.g. "netbox", "zabbix").
+            tenant_id: If provided, only consider runs for this tenant's accounts
+                (plus global runs with no account).
+        """
+        query = self.session.query(SyncRun).filter(SyncRun.source == source)
+        if tenant_id is not None:
+            query = query.outerjoin(
+                CloudAccount, SyncRun.cloud_account_id == CloudAccount.id
+            ).filter(
+                (CloudAccount.tenant_id == tenant_id)
+                | (SyncRun.cloud_account_id.is_(None))
+            )
+        return query.order_by(SyncRun.started_at.desc()).first()
 
     def get_latest_sync_runs(
         self, limit: int = 10, tenant_id: int | None = None,

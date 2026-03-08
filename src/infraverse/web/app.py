@@ -33,9 +33,14 @@ def _get_user_from_request(request):
         return None
 
 
-def _make_localtime_filter():
-    offset_hours = int(os.getenv("TZ_OFFSET_HOURS", "0"))
-    tz_label = os.getenv("TZ_LABEL", f"UTC{offset_hours:+d}" if offset_hours else "UTC")
+def _make_localtime_filter(infraverse_config=None):
+    if infraverse_config is not None and infraverse_config.timezone is not None:
+        tz = infraverse_config.timezone
+        offset_hours = tz.offset_hours
+        tz_label = tz.resolved_label
+    else:
+        offset_hours = int(os.getenv("TZ_OFFSET_HOURS", "0"))
+        tz_label = os.getenv("TZ_LABEL", f"UTC{offset_hours:+d}" if offset_hours else "UTC")
     offset = timedelta(hours=offset_hours)
 
     def localtime(dt: datetime | None, fmt: str = "%Y-%m-%d %H:%M") -> str:
@@ -46,13 +51,13 @@ def _make_localtime_filter():
     return localtime
 
 
-def get_templates() -> Jinja2Templates:
+def get_templates(infraverse_config=None) -> Jinja2Templates:
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
         _templates.env.globals["version"] = __version__
         _templates.env.globals["get_user"] = _get_user_from_request
-        _templates.env.filters["localtime"] = _make_localtime_filter()
+        _templates.env.filters["localtime"] = _make_localtime_filter(infraverse_config)
     return _templates
 
 
@@ -118,6 +123,9 @@ def create_app(
         )
     else:
         app.state.scheduler = None
+
+    # Initialize templates with config (for timezone etc.)
+    get_templates(infraverse_config)
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

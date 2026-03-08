@@ -78,6 +78,9 @@ class VM(Base):
     cloud_name = Column(String, nullable=True)
     folder_name = Column(String, nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
+    last_sync_error = Column(String, nullable=True)
+    monitoring_exempt = Column(Boolean, default=False, nullable=False)
+    monitoring_exempt_reason = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 

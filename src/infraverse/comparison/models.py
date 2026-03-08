@@ -13,6 +13,9 @@ class VMState:
     in_monitoring: bool = False
     cloud_provider: str | None = None
     discrepancies: list[str] = field(default_factory=list)
+    sync_reasons: dict[str, str] = field(default_factory=dict)
+    is_monitoring_exempt: bool = False
+    monitoring_exempt_reason: str | None = None
 
 
 @dataclass

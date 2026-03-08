@@ -40,13 +40,13 @@
 - Modify: `src/infraverse/sync/engine.py`
 - Create: `tests/sync/test_engine.py`
 
-- [ ] Change SyncEngine.__init__ to accept `netbox: NetBoxClient` and `providers: list[tuple[client, ProviderProfile]]` instead of `Config`
-- [ ] Remove provider construction logic from __init__ (lines 29-50 that create YC/vCD clients)
-- [ ] Keep `self.nb` and `self._providers` as instance attributes, keep `run()` and `_sync_provider()` unchanged
-- [ ] Store `dry_run` flag directly (passed from caller)
-- [ ] Write tests: SyncEngine with mock providers runs sync cycle correctly
-- [ ] Write tests: SyncEngine with empty providers list returns empty stats
-- [ ] Run tests — must pass before next task
+- [x] Change SyncEngine.__init__ to accept `netbox: NetBoxClient` and `providers: list[tuple[client, ProviderProfile]]` instead of `Config`
+- [x] Remove provider construction logic from __init__ (lines 29-50 that create YC/vCD clients)
+- [x] Keep `self.nb` and `self._providers` as instance attributes, keep `run()` and `_sync_provider()` unchanged
+- [x] Store `dry_run` flag directly (passed from caller)
+- [x] Write tests: SyncEngine with mock providers runs sync cycle correctly
+- [x] Write tests: SyncEngine with empty providers list returns empty stats
+- [x] Run tests — must pass before next task
 
 ### Task 2: Add provider builder utility
 
@@ -54,29 +54,26 @@
 - Create: `src/infraverse/sync/providers.py`
 - Create: `tests/sync/test_providers.py`
 
-- [ ] Create `build_provider(account: CloudAccount) -> tuple[client, ProviderProfile]` function
-- [ ] Reuse existing `_build_provider_from_account()` logic from cli.py for client creation
-- [ ] Map `account.provider_type` to ProviderProfile (`yandex_cloud` → YC_PROFILE, `vcloud` → VCLOUD_PROFILE)
-- [ ] Create `build_providers_from_db(session) -> list[tuple[client, ProviderProfile]]` that queries active CloudAccounts
-- [ ] Write tests: build_provider creates YC client from sa_key_file credentials
-- [ ] Write tests: build_provider creates vCloud client from url/username/password credentials
-- [ ] Write tests: build_provider raises on unknown provider_type
-- [ ] Write tests: build_providers_from_db skips inactive accounts
-- [ ] Run tests — must pass before next task
+- [x] Create `build_provider(account: CloudAccount) -> tuple[client, ProviderProfile]` function
+- [x] Reuse existing `_build_provider_from_account()` logic from cli.py for client creation
+- [x] Map `account.provider_type` to ProviderProfile (`yandex_cloud` → YC_PROFILE, `vcloud` → VCLOUD_PROFILE)
+- [x] Create `build_providers_from_accounts(accounts) -> list[tuple[client, ProviderProfile]]`
+- [x] Write tests: build_provider creates YC client from sa_key_file credentials
+- [x] Write tests: build_provider creates vCloud client from url/username/password credentials
+- [x] Write tests: build_provider raises on unknown provider_type
+- [x] Write tests: build_providers_from_accounts skips inactive accounts
+- [x] Run tests — must pass before next task
 
 ### Task 3: Update CLI cmd_sync to use per-account sync
 
 **Files:**
 - Modify: `src/infraverse/cli.py`
 
-- [ ] In cmd_sync YAML path (lines 289-306): replace `Config(yc_token="")` + `SyncEngine(config)` with:
-  - Build NetBoxClient directly from `infraverse_config.netbox`
-  - Build providers via `build_providers_from_db(session)`
-  - Create `SyncEngine(netbox, providers, dry_run=args.dry_run)`
-- [ ] Remove legacy env-var Config path from cmd_sync (the `elif config:` block, lines 307-318)
-- [ ] Keep Config.from_env() usage only where still needed (e.g., `infraverse serve` if applicable)
-- [ ] Remove now-unused `_build_provider_from_account()` from cli.py (moved to sync/providers.py)
-- [ ] Run tests — must pass before next task
+- [x] In cmd_sync YAML path: replace `Config(yc_token="")` + `SyncEngine(config)` with per-account flow
+- [x] Remove legacy env-var Config path from cmd_sync — require `--config`
+- [x] Update scheduler env-var mode to use new SyncEngine interface
+- [x] Update CLI and scheduler tests for new interface
+- [x] Run tests — 1298 pass
 
 ### Task 4: Clean up Config class
 

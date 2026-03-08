@@ -334,6 +334,130 @@ class TestVMOperations:
         assert vm2.status == "active"  # Unaffected - different account
 
 
+# --- VM sync error operations ---
+
+
+class TestVMSyncErrors:
+    @pytest.fixture
+    def account(self, repo):
+        tenant = repo.create_tenant("Sync Error Tenant")
+        return repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Sync Errors")
+
+    def test_update_vm_sync_errors_sets_error(self, repo, account):
+        vm, _ = repo.upsert_vm(account.id, "vm-001", "broken-vm", status="active")
+        repo.update_vm_sync_errors({"broken-vm": "400 Bad Request"}, set())
+        repo.session.refresh(vm)
+        assert vm.last_sync_error == "400 Bad Request"
+
+    def test_update_vm_sync_errors_clears_on_success(self, repo, account):
+        vm, _ = repo.upsert_vm(account.id, "vm-001", "fixed-vm", status="active")
+        vm.last_sync_error = "old error"
+        repo.session.flush()
+        repo.update_vm_sync_errors({}, {"fixed-vm"})
+        repo.session.refresh(vm)
+        assert vm.last_sync_error is None
+
+    def test_update_vm_sync_errors_error_wins_over_success(self, repo, account):
+        """If a VM appears in both errors and synced, error takes priority."""
+        vm, _ = repo.upsert_vm(account.id, "vm-001", "conflict-vm", status="active")
+        repo.update_vm_sync_errors(
+            {"conflict-vm": "new error"}, {"conflict-vm"},
+        )
+        repo.session.refresh(vm)
+        assert vm.last_sync_error == "new error"
+
+    def test_update_vm_sync_errors_no_op_when_empty(self, repo, account):
+        vm, _ = repo.upsert_vm(account.id, "vm-001", "untouched-vm", status="active")
+        repo.update_vm_sync_errors({}, set())
+        repo.session.refresh(vm)
+        assert vm.last_sync_error is None
+
+    def test_update_vm_sync_errors_unknown_vm_ignored(self, repo, account):
+        """VMs not in the database are silently ignored."""
+        repo.update_vm_sync_errors({"nonexistent-vm": "error"}, set())
+        # No exception raised
+
+
+# --- VM monitoring exempt operations ---
+
+
+class TestVMMonitoringExempt:
+    @pytest.fixture
+    def account(self, repo):
+        tenant = repo.create_tenant("Exempt Tenant")
+        return repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Exempt")
+
+    def test_upsert_vm_default_not_exempt(self, repo, account):
+        vm, created = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-def-exempt",
+            name="default-exempt-vm",
+            status="active",
+        )
+        assert created is True
+        assert vm.monitoring_exempt is False
+        assert vm.monitoring_exempt_reason is None
+
+    def test_upsert_vm_create_exempt(self, repo, account):
+        vm, created = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-exempt",
+            name="k8s-node",
+            status="active",
+            monitoring_exempt=True,
+            monitoring_exempt_reason="K8s node",
+        )
+        assert created is True
+        assert vm.monitoring_exempt is True
+        assert vm.monitoring_exempt_reason == "K8s node"
+
+    def test_upsert_vm_update_sets_exempt(self, repo, account):
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-set-exempt",
+            name="soon-exempt-vm",
+            status="active",
+        )
+        assert vm.monitoring_exempt is False
+        assert vm.monitoring_exempt_reason is None
+
+        vm, created = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-set-exempt",
+            name="soon-exempt-vm",
+            status="active",
+            monitoring_exempt=True,
+            monitoring_exempt_reason="K8s node",
+        )
+        assert created is False
+        assert vm.monitoring_exempt is True
+        assert vm.monitoring_exempt_reason == "K8s node"
+
+    def test_upsert_vm_update_clears_exempt(self, repo, account):
+        vm, _ = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-clear-exempt",
+            name="was-exempt-vm",
+            status="active",
+            monitoring_exempt=True,
+            monitoring_exempt_reason="K8s node",
+        )
+        assert vm.monitoring_exempt is True
+        assert vm.monitoring_exempt_reason == "K8s node"
+
+        vm, created = repo.upsert_vm(
+            cloud_account_id=account.id,
+            external_id="fhm-clear-exempt",
+            name="was-exempt-vm",
+            status="active",
+            monitoring_exempt=False,
+            monitoring_exempt_reason=None,
+        )
+        assert created is False
+        assert vm.monitoring_exempt is False
+        assert vm.monitoring_exempt_reason is None
+
+
 # --- MonitoringHost operations ---
 
 
@@ -665,3 +789,49 @@ class TestSyncRunOperations:
             repo.create_sync_run("yandex_cloud")
         runs = repo.get_latest_sync_runs()
         assert len(runs) == 10  # default limit
+
+    # --- get_latest_sync_run_by_source ---
+
+    def test_get_latest_sync_run_by_source_returns_most_recent(self, repo):
+        r1 = repo.create_sync_run("netbox")
+        r1.started_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        r2 = repo.create_sync_run("netbox")
+        r2.started_at = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        repo.session.flush()
+
+        result = repo.get_latest_sync_run_by_source("netbox")
+        assert result is not None
+        assert result.id == r2.id
+
+    def test_get_latest_sync_run_by_source_none_exists(self, repo):
+        assert repo.get_latest_sync_run_by_source("netbox") is None
+
+    def test_get_latest_sync_run_by_source_filters_by_source(self, repo):
+        repo.create_sync_run("netbox")
+        repo.create_sync_run("zabbix")
+        repo.session.flush()
+
+        result = repo.get_latest_sync_run_by_source("zabbix")
+        assert result is not None
+        assert result.source == "zabbix"
+
+    def test_get_latest_sync_run_by_source_tenant_scoping(self, repo, account):
+        """Tenant-scoped query returns runs for that tenant's accounts."""
+        r1 = repo.create_sync_run("netbox", cloud_account_id=account.id)
+        r1.started_at = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        repo.session.flush()
+
+        tenant_id = account.tenant_id
+        result = repo.get_latest_sync_run_by_source("netbox", tenant_id=tenant_id)
+        assert result is not None
+        assert result.id == r1.id
+
+    def test_get_latest_sync_run_by_source_global_visible_with_tenant(self, repo, account):
+        """Global runs (no cloud_account) are visible even with tenant filter."""
+        r1 = repo.create_sync_run("zabbix")  # global, no account
+        repo.session.flush()
+
+        tenant_id = account.tenant_id
+        result = repo.get_latest_sync_run_by_source("zabbix", tenant_id=tenant_id)
+        assert result is not None
+        assert result.id == r1.id

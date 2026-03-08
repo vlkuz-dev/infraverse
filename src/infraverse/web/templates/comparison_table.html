@@ -19,12 +19,13 @@
             <tbody>
                 {% for vm in result.all_vms %}
                 <tr>
-                    <td>
+                    <td class="td-copyable">
                         {% if vm_name_to_id and vm.vm_name in vm_name_to_id %}
                         <a href="/vms/{{ vm_name_to_id[vm.vm_name] }}">{{ vm.vm_name }}</a>
                         {% else %}
                         {{ vm.vm_name }}
                         {% endif %}
+                        <button class="btn-copy" data-copy="{{ vm.vm_name }}" title="Copy name"><i class="ti ti-copy copy-icon"></i><i class="ti ti-check copy-done"></i></button>
                     </td>
                     <td>
                         {% if vm.in_cloud %}
@@ -45,6 +46,10 @@
                     <td>
                         {% if vm.in_monitoring %}
                         <span class="badge bg-success-lt"><i class="ti ti-check"></i></span>
+                        {% elif vm.is_monitoring_exempt %}
+                        <span class="badge bg-secondary-lt" title="{{ vm.monitoring_exempt_reason or 'Exempt' }}">
+                            <i class="ti ti-shield-check"></i> Exempt
+                        </span>
                         {% else %}
                         <span class="badge bg-danger-lt"><i class="ti ti-x"></i></span>
                         {% endif %}
@@ -59,7 +64,14 @@
                     <td>
                         {% if vm.discrepancies %}
                         {% for d in vm.discrepancies %}
-                        <span class="badge badge-outline text-warning"><i class="ti ti-alert-triangle me-1"></i>{{ d }}</span>
+                        <div class="mb-1">
+                            <span class="badge badge-outline text-warning"><i class="ti ti-alert-triangle me-1"></i>{{ d }}</span>
+                            {% if vm.sync_reasons and d in vm.sync_reasons %}
+                            <div class="text-secondary small mt-1" style="font-size: 0.75em;">
+                                {{ vm.sync_reasons[d] }}
+                            </div>
+                            {% endif %}
+                        </div>
                         {% endfor %}
                         {% else %}
                         <span class="text-success"><i class="ti ti-circle-check me-1"></i>OK</span>

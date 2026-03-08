@@ -109,6 +109,8 @@ def vm_detail(request: Request, vm_id: int):
             "updated_at": vm.updated_at,
             "last_seen_at": vm.last_seen_at,
             "monitoring_host_id": monitoring_host.external_id if monitoring_host else "",
+            "monitoring_exempt": vm.monitoring_exempt,
+            "monitoring_exempt_reason": vm.monitoring_exempt_reason,
         }
         account_data = None
         tenant_data = None

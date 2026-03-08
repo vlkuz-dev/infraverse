@@ -1,7 +1,11 @@
 """Tests for infraverse.sync.cleanup module."""
 
 
-from infraverse.sync.cleanup import cleanup_orphaned_infrastructure, cleanup_orphaned_vms
+from infraverse.sync.cleanup import (
+    cleanup_orphaned_infrastructure,
+    cleanup_orphaned_vms,
+    _extract_cloud_names,
+)
 from infraverse.sync.provider_profile import VCLOUD_PROFILE
 from tests.conftest import MockRecord, MockTag, make_mock_netbox_client
 
@@ -311,3 +315,172 @@ class TestCleanupOrphanedVMs:
         result = cleanup_orphaned_vms([], netbox)
 
         assert result == 0
+
+
+class TestCloudNameScoping:
+    """Tests for multi-account cleanup scoping by cloud_name."""
+
+    def test_extract_cloud_names(self):
+        """_extract_cloud_names pulls cloud_name from folders."""
+        yc_data = {
+            "folders": [
+                {"id": "f1", "cloud_name": "cloud-alpha"},
+                {"id": "f2", "cloud_name": "cloud-beta"},
+                {"id": "f3"},  # no cloud_name
+            ]
+        }
+        assert _extract_cloud_names(yc_data) == {"cloud-alpha", "cloud-beta"}
+
+    def test_extract_cloud_names_empty_when_no_cloud_name(self):
+        """Returns empty set when folders lack cloud_name — backward compat."""
+        yc_data = {"folders": [{"id": "f1"}, {"id": "f2"}]}
+        assert _extract_cloud_names(yc_data) == set()
+
+    def test_cluster_cleanup_scoped_by_cloud_name(self):
+        """Cluster from another cloud is NOT deleted."""
+        netbox = make_mock_netbox_client()
+        yc_data = {
+            "zones": [],
+            "folders": [{"id": "folder-1", "cloud_name": "cloud-alpha"}],
+            "subnets": [],
+        }
+
+        # Cluster belongs to cloud-beta (different account)
+        other_cloud_cluster = MockRecord(
+            id=1,
+            name="cloud-beta/some-folder",
+            tags=[MockTag(id=1)],
+            comments="Folder ID: folder-other",
+        )
+        netbox.nb.dcim.sites.all.return_value = []
+        netbox.nb.virtualization.clusters.all.return_value = [other_cloud_cluster]
+        netbox.nb.ipam.prefixes.all.return_value = []
+
+        result = cleanup_orphaned_infrastructure(yc_data, netbox, dry_run=False)
+
+        assert result["clusters"] == 0
+        other_cloud_cluster.delete.assert_not_called()
+
+    def test_cluster_cleanup_deletes_orphaned_in_own_cloud(self):
+        """Cluster in own cloud IS deleted when orphaned."""
+        netbox = make_mock_netbox_client()
+        yc_data = {
+            "zones": [],
+            "folders": [{"id": "folder-1", "cloud_name": "cloud-alpha"}],
+            "subnets": [],
+        }
+
+        # Cluster belongs to cloud-alpha but folder is gone
+        orphan_cluster = MockRecord(
+            id=1,
+            name="cloud-alpha/dead-folder",
+            tags=[MockTag(id=1)],
+            comments="Folder ID: folder-gone",
+        )
+        netbox.nb.dcim.sites.all.return_value = []
+        netbox.nb.virtualization.clusters.all.return_value = [orphan_cluster]
+        netbox.nb.ipam.prefixes.all.return_value = []
+
+        result = cleanup_orphaned_infrastructure(yc_data, netbox, dry_run=False)
+
+        assert result["clusters"] == 1
+        orphan_cluster.delete.assert_called_once()
+
+    def test_vm_cleanup_scoped_by_cloud_name(self):
+        """VM in another cloud's cluster is NOT deleted."""
+        netbox = make_mock_netbox_client()
+
+        other_cluster = MockRecord(id=10, name="cloud-beta/folder-x")
+        vm_other = MockRecord(
+            id=1, name="vm-other", tags=[MockTag(id=1)], cluster=other_cluster,
+        )
+        netbox.fetch_vms.return_value = [vm_other]
+
+        result = cleanup_orphaned_vms(
+            [], netbox, dry_run=False, cloud_names={"cloud-alpha"},
+        )
+
+        assert result == 0
+        vm_other.delete.assert_not_called()
+
+    def test_vm_cleanup_skips_vm_without_cluster(self):
+        """VM with no cluster is NOT deleted when cloud_names is set."""
+        netbox = make_mock_netbox_client()
+
+        vm_no_cluster = MockRecord(
+            id=1, name="vm-no-cluster", tags=[MockTag(id=1)], cluster=None,
+        )
+        netbox.fetch_vms.return_value = [vm_no_cluster]
+
+        result = cleanup_orphaned_vms(
+            [], netbox, dry_run=False, cloud_names={"cloud-alpha"},
+        )
+
+        assert result == 0
+        vm_no_cluster.delete.assert_not_called()
+
+    def test_prefix_cleanup_skipped_in_multi_account(self):
+        """Prefixes are not deleted when cloud_names is non-empty."""
+        netbox = make_mock_netbox_client()
+        yc_data = {
+            "zones": [],
+            "folders": [{"id": "f1", "cloud_name": "cloud-alpha"}],
+            "subnets": [],  # no subnets — would trigger delete in global mode
+        }
+
+        orphaned_prefix = MockRecord(
+            id=1,
+            prefix="10.99.0.0/24",
+            tags=[MockTag(id=1)],
+            description="VPC: test",
+        )
+        netbox.nb.dcim.sites.all.return_value = []
+        netbox.nb.virtualization.clusters.all.return_value = []
+        netbox.nb.ipam.prefixes.all.return_value = [orphaned_prefix]
+
+        result = cleanup_orphaned_infrastructure(yc_data, netbox, dry_run=False)
+
+        assert result["prefixes"] == 0
+        orphaned_prefix.delete.assert_not_called()
+
+    def test_no_cloud_name_falls_back_to_global(self):
+        """When folders lack cloud_name, existing global behavior is preserved."""
+        netbox = make_mock_netbox_client()
+        yc_data = {
+            "zones": [],
+            "folders": [{"id": "folder-1"}],  # no cloud_name
+            "subnets": [],
+        }
+
+        # Cluster from any cloud is considered — global behavior
+        orphan_cluster = MockRecord(
+            id=1,
+            name="cloud-beta/dead-folder",
+            tags=[MockTag(id=1)],
+            comments="Folder ID: folder-gone",
+        )
+        netbox.nb.dcim.sites.all.return_value = []
+        netbox.nb.virtualization.clusters.all.return_value = [orphan_cluster]
+        netbox.nb.ipam.prefixes.all.return_value = []
+
+        result = cleanup_orphaned_infrastructure(yc_data, netbox, dry_run=False)
+
+        assert result["clusters"] == 1
+        orphan_cluster.delete.assert_called_once()
+
+    def test_vm_cleanup_deletes_orphan_in_own_cloud(self):
+        """VM in own cloud's cluster IS deleted when orphaned."""
+        netbox = make_mock_netbox_client()
+
+        own_cluster = MockRecord(id=10, name="cloud-alpha/my-folder")
+        vm_orphan = MockRecord(
+            id=1, name="vm-orphan", tags=[MockTag(id=1)], cluster=own_cluster,
+        )
+        netbox.fetch_vms.return_value = [vm_orphan]
+
+        result = cleanup_orphaned_vms(
+            [], netbox, dry_run=False, cloud_names={"cloud-alpha"},
+        )
+
+        assert result == 1
+        vm_orphan.delete.assert_called_once()

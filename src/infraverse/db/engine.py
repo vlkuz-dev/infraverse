@@ -38,6 +38,21 @@ def _migrate_schema(engine) -> None:
                 conn.execute(
                     text("ALTER TABLE netbox_hosts ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)")
                 )
+    if "vms" in insp.get_table_names():
+        columns = {c["name"] for c in insp.get_columns("vms")}
+        if "last_sync_error" not in columns:
+            logger.info("Migrating vms: adding last_sync_error column")
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE vms ADD COLUMN last_sync_error TEXT"))
+        if "monitoring_exempt" not in columns:
+            logger.info("Migrating vms: adding monitoring_exempt columns")
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE vms ADD COLUMN monitoring_exempt BOOLEAN NOT NULL DEFAULT 0"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE vms ADD COLUMN monitoring_exempt_reason TEXT"
+                ))
 
 
 def init_db(engine) -> None:

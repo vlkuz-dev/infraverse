@@ -31,6 +31,35 @@
     </div>
     {% endif %}
 
+    <!-- Sync status banner -->
+    {% if sync_status %}
+    <div class="col-12">
+        <div class="card card-sm">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <span class="text-secondary fw-bold" style="font-size: 0.8em;">Последний импорт:</span>
+                    {% for s in sync_status %}
+                    <span style="font-size: 0.8em;">
+                        {{ s.label }}:
+                        {% if s.status == 'never' %}
+                        <span class="badge bg-secondary-lt">не запускался</span>
+                        {% elif s.status == 'running' %}
+                        <span class="badge bg-blue-lt">выполняется...</span>
+                        {% elif s.status == 'success' %}
+                        <span class="badge bg-success-lt">{{ s.time|localtime }}</span>
+                        {% elif s.status == 'failed' %}
+                        <span class="badge bg-danger-lt" title="{{ s.error or '' }}">ошибка {{ s.time|localtime }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary-lt">{{ s.status }}</span>
+                        {% endif %}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Summary cards (clickable filters) -->
     <div class="col-sm-6 col-lg-3">
         <div class="card card-stat-primary card-filter{% if current_status == '' %} card-filter-active{% endif %}"
@@ -154,6 +183,25 @@
             </div>
         </div>
     </div>
+    {% if result.summary.get('monitoring_exempt', 0) > 0 %}
+    <div class="col-sm-6 col-lg-3">
+        <div class="card card-filter{% if current_status == 'monitoring_exempt' %} card-filter-active{% endif %}"
+             role="button" data-status="monitoring_exempt"
+             hx-get="/comparison/table" hx-target="#comparison-table"
+             hx-include="[name=provider],[name=search],[name=tenant_id]"
+             hx-vals='{"status": "monitoring_exempt"}'>
+            <div class="card-stamp">
+                <div class="card-stamp-icon bg-secondary">
+                    <i class="ti ti-shield-check"></i>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="subheader">Monitoring Exempt</div>
+                <div class="h1 mb-0 text-secondary">{{ result.summary.get('monitoring_exempt', 0) }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% endif %}
 
     <!-- Filters -->
@@ -184,6 +232,7 @@
                             {% endif %}
                             {% if monitoring_configured %}
                             <option value="missing_from_monitoring" {% if current_status == 'missing_from_monitoring' %}selected{% endif %}>Missing from Monitoring</option>
+                            <option value="monitoring_exempt" {% if current_status == 'monitoring_exempt' %}selected{% endif %}>Monitoring Exempt</option>
                             {% endif %}
                         </select>
                     </div>

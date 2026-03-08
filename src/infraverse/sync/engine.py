@@ -1,53 +1,32 @@
 """Top-level sync engine that orchestrates the full sync cycle."""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
-from infraverse.config import Config
-from infraverse.providers.yandex import YandexCloudClient
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.infrastructure import sync_infrastructure
 from infraverse.sync.vms import sync_vms
 from infraverse.sync.batch import sync_vms_optimized
-from infraverse.sync.provider_profile import YC_PROFILE, VCLOUD_PROFILE
+from infraverse.sync.provider_profile import ProviderProfile
 
 logger = logging.getLogger(__name__)
+
+# Type alias for a cloud provider client (YandexCloudClient, VCloudDirectorClient, etc.)
+CloudClient = Any
 
 
 class SyncEngine:
     """Orchestrates the full Cloud -> NetBox sync cycle for all configured providers."""
 
-    def __init__(self, config: Config):
-        self.config = config
-        self.nb = NetBoxClient(
-            url=config.netbox_url,
-            token=config.netbox_token,
-            dry_run=config.dry_run,
-        )
-        self._providers = []  # list of (client, ProviderProfile)
-
-        # Always add YC
-        from infraverse.providers.yc_auth import resolve_token_provider
-
-        yc_creds: dict = {}
-        if config.yc_sa_key_file:
-            yc_creds["sa_key_file"] = config.yc_sa_key_file
-        else:
-            yc_creds["token"] = config.yc_token
-        yc_client = YandexCloudClient(token_provider=resolve_token_provider(yc_creds))
-        self._providers.append((yc_client, YC_PROFILE))
-
-        # Add vCloud if configured
-        if config.vcd_configured:
-            from infraverse.providers.vcloud import VCloudDirectorClient
-
-            vcd_client = VCloudDirectorClient(
-                url=config.vcd_url,
-                username=config.vcd_user,
-                password=config.vcd_password,
-                org=config.vcd_org or "System",
-            )
-            self._providers.append((vcd_client, VCLOUD_PROFILE))
+    def __init__(
+        self,
+        netbox: NetBoxClient,
+        providers: List[Tuple[CloudClient, ProviderProfile]],
+        dry_run: bool = False,
+    ):
+        self.nb = netbox
+        self._providers = providers
+        self.dry_run = dry_run
 
     def run(self, use_batch: bool = True, cleanup: bool = True) -> Dict[str, Any]:
         """Execute full sync cycle for all configured providers.
@@ -60,7 +39,7 @@ class SyncEngine:
             Summary statistics keyed by provider key.
         """
         logger.info("Starting Cloud to NetBox sync...")
-        logger.info("Dry run mode: %s", self.config.dry_run)
+        logger.info("Dry run mode: %s", self.dry_run)
         logger.info("Providers configured: %s", [p.display_name for _, p in self._providers])
 
         all_stats: Dict[str, Any] = {}

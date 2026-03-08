@@ -5,9 +5,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from infraverse.config_file import MonitoringExclusionRule
 from infraverse.db.models import CloudAccount
 from infraverse.db.repository import Repository
 from infraverse.providers.base import CloudProvider, VMInfo
+from infraverse.sync.exclusions import check_monitoring_exclusion
 from infraverse.sync.monitoring import check_all_vms_monitoring
 
 logger = logging.getLogger(__name__)
@@ -20,9 +22,14 @@ class DataIngestor:
     Provider failures are isolated - one failing provider doesn't stop others.
     """
 
-    def __init__(self, session: Session):
+    def __init__(
+        self,
+        session: Session,
+        exclusion_rules: list[MonitoringExclusionRule] | None = None,
+    ):
         self.session = session
         self.repo = Repository(session)
+        self.exclusion_rules = exclusion_rules or []
 
     def ingest_cloud_vms(
         self,
@@ -69,6 +76,9 @@ class DataIngestor:
 
         try:
             for vm_info in vms:
+                is_exempt, exempt_reason = check_monitoring_exclusion(
+                    vm_info.name, vm_info.status, self.exclusion_rules,
+                )
                 _, created = self.repo.upsert_vm(
                     cloud_account_id=cloud_account.id,
                     external_id=vm_info.id,
@@ -79,6 +89,8 @@ class DataIngestor:
                     memory_mb=vm_info.memory_mb,
                     cloud_name=vm_info.cloud_name,
                     folder_name=vm_info.folder_name,
+                    monitoring_exempt=is_exempt,
+                    monitoring_exempt_reason=exempt_reason,
                 )
                 if created:
                     items_created += 1
@@ -321,11 +333,12 @@ class DataIngestor:
                 logger.error("Account %s: ingestion failed: %s", account.name, exc)
 
         if zabbix_client is not None:
-            # Only check VMs from active accounts (those with providers)
+            # Only check VMs from active accounts, excluding monitoring-exempt VMs
             active_account_ids = set(providers.keys())
             all_vms = [
                 vm for vm in self.repo.get_all_vms()
                 if vm.cloud_account_id in active_account_ids
+                and not vm.monitoring_exempt
             ]
             if not all_vms:
                 logger.info("No VMs to check for monitoring, skipping")

@@ -10,6 +10,7 @@ from infraverse.db.models import Base, VM, MonitoringHost, SyncRun
 from infraverse.db.repository import Repository
 from infraverse.providers.base import VMInfo
 from infraverse.providers.zabbix import ZabbixHost
+from infraverse.config_file import MonitoringExclusionRule
 from infraverse.sync.ingest import DataIngestor
 
 
@@ -559,3 +560,105 @@ class TestIngestAll:
         mon_host = session.query(MonitoringHost).one()
         assert mon_host.name == "web-1"
         assert mon_host.cloud_account_id == account.id
+
+
+# --- exclusion rules tests ---
+
+
+class TestIngestExclusionRules:
+    @pytest.fixture
+    def tenant_and_account(self, repo, session):
+        tenant = repo.create_tenant("Exempt Corp")
+        account = repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Exempt")
+        session.commit()
+        return tenant, account
+
+    def test_ingest_sets_exempt_flag(self, session, tenant_and_account):
+        """VM matching a name_pattern rule gets monitoring_exempt=True in DB."""
+        _, account = tenant_and_account
+        rules = [MonitoringExclusionRule(name_pattern="test-*", reason="test VMs excluded")]
+        ingestor = DataIngestor(session, exclusion_rules=rules)
+
+        provider = _make_mock_provider(vms=[
+            VMInfo(name="test-vm-1", id="ext-1", status="active"),
+        ])
+
+        ingestor.ingest_cloud_vms(account, provider)
+
+        vm = session.query(VM).one()
+        assert vm.monitoring_exempt is True
+        assert vm.monitoring_exempt_reason == "test VMs excluded"
+
+    def test_ingest_non_matching_vm_not_exempt(self, session, tenant_and_account):
+        """VM not matching any rule stays exempt=False."""
+        _, account = tenant_and_account
+        rules = [MonitoringExclusionRule(name_pattern="test-*", reason="test VMs excluded")]
+        ingestor = DataIngestor(session, exclusion_rules=rules)
+
+        provider = _make_mock_provider(vms=[
+            VMInfo(name="prod-web-1", id="ext-1", status="active"),
+        ])
+
+        ingestor.ingest_cloud_vms(account, provider)
+
+        vm = session.query(VM).one()
+        assert vm.monitoring_exempt is False
+        assert vm.monitoring_exempt_reason is None
+
+    def test_exempt_vms_skipped_for_monitoring(self, session, tenant_and_account):
+        """In ingest_all, exempt VMs are not passed to monitoring check."""
+        _, account = tenant_and_account
+        rules = [MonitoringExclusionRule(name_pattern="test-*", reason="test VMs excluded")]
+        ingestor = DataIngestor(session, exclusion_rules=rules)
+
+        provider = _make_mock_provider(vms=[
+            VMInfo(name="test-vm-1", id="ext-1", status="active"),
+            VMInfo(name="prod-vm-1", id="ext-2", status="active", ip_addresses=["10.0.0.1"]),
+        ])
+
+        # Zabbix finds prod-vm-1 by name; test-vm-1 should never be queried
+        z_host = ZabbixHost(name="prod-vm-1", hostid="z1", status="active", ip_addresses=["10.0.0.1"])
+        zabbix = _make_mock_zabbix(name_results={"prod-vm-1": z_host})
+
+        results = ingestor.ingest_all(
+            providers={account.id: provider},
+            zabbix_client=zabbix,
+        )
+
+        assert results["YC Exempt"] == "success"
+        assert results["zabbix"] == "success"
+
+        # Only prod-vm-1 should have been checked (1 MonitoringHost created)
+        assert session.query(MonitoringHost).count() == 1
+        mon_host = session.query(MonitoringHost).one()
+        assert mon_host.name == "prod-vm-1"
+
+        # Verify that Zabbix was only called for the non-exempt VM
+        zabbix.search_host_by_name.assert_called_once_with("prod-vm-1")
+
+    def test_ingest_updates_exempt_on_rule_change(self, session, tenant_and_account):
+        """First ingest without rules (not exempt), second with matching rule (now exempt)."""
+        _, account = tenant_and_account
+
+        # First ingest: no exclusion rules
+        ingestor1 = DataIngestor(session)
+        provider = _make_mock_provider(vms=[
+            VMInfo(name="test-vm-1", id="ext-1", status="active"),
+        ])
+        ingestor1.ingest_cloud_vms(account, provider)
+
+        vm = session.query(VM).one()
+        assert vm.monitoring_exempt is False
+        assert vm.monitoring_exempt_reason is None
+
+        # Second ingest: with matching exclusion rule
+        rules = [MonitoringExclusionRule(name_pattern="test-*", reason="test VMs excluded")]
+        ingestor2 = DataIngestor(session, exclusion_rules=rules)
+        provider2 = _make_mock_provider(vms=[
+            VMInfo(name="test-vm-1", id="ext-1", status="active"),
+        ])
+        ingestor2.ingest_cloud_vms(account, provider2)
+
+        session.refresh(vm)
+        assert vm.monitoring_exempt is True
+        assert vm.monitoring_exempt_reason == "test VMs excluded"

@@ -863,8 +863,14 @@ def sync_vms(
     # Clean up orphaned VMs first if requested
     deleted_count = 0
     if cleanup_orphaned:
+        from infraverse.sync.cleanup import _extract_cloud_names
+
         logger.info("Checking for orphaned VMs to clean up...")
-        deleted_count = cleanup_orphaned_vms(yc_vms, netbox, netbox.dry_run, provider_profile=profile)
+        cloud_names = _extract_cloud_names(yc_data)
+        deleted_count = cleanup_orphaned_vms(
+            yc_vms, netbox, netbox.dry_run,
+            provider_profile=profile, cloud_names=cloud_names,
+        )
         if deleted_count > 0:
             logger.info(f"Cleanup complete: removed {deleted_count} orphaned VMs")
 
