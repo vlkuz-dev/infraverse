@@ -86,19 +86,19 @@
 - [x] run tests — must pass before next task
 
 ### Task 6: Verify acceptance criteria
-- [ ] no `_build_provider_from_account()` function in cli.py or scheduler.py
-- [ ] no `_build_zabbix_client()` method in SchedulerService
-- [ ] scheduler uses SyncEngine instead of reimplementing sync loop
-- [ ] `sync/providers.py` is the single source for provider/client building
-- [ ] `sync/orchestrator.py` is the single source for ingestion cycle
-- [ ] scheduler jobs have `max_instances=1` and `coalesce=True`
-- [ ] manual trigger cannot overlap with running job
-- [ ] all tests pass: `python3 -m pytest tests/ -v`
-- [ ] run linter: `ruff check src/ tests/`
+- [x] no `_build_provider_from_account()` function in cli.py or scheduler.py
+- [x] no `_build_zabbix_client()` method in SchedulerService
+- [x] scheduler uses SyncEngine instead of reimplementing sync loop
+- [x] `sync/providers.py` is the single source for provider/client building
+- [x] `sync/orchestrator.py` is the single source for ingestion cycle
+- [x] scheduler jobs have `max_instances=1` and `coalesce=True`
+- [x] manual trigger cannot overlap with running job
+- [x] all tests pass: `python3 -m pytest tests/ -v`
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 7: [Final] Update documentation
-- [ ] update MEMORY.md with new module paths (orchestrator.py)
-- [ ] update this plan with any deviations
+- [x] update MEMORY.md with new module paths (orchestrator.py)
+- [x] update this plan with any deviations
 
 ## Technical Details
 
@@ -125,7 +125,7 @@ cmd_sync() → SyncEngine          _run_netbox_sync_per_account()   → use Sync
 |------|--------|
 | `sync/providers.py` | Add `build_zabbix_client()` |
 | `sync/orchestrator.py` | **NEW** — `run_ingestion_cycle()` |
-| `cli.py` | Remove `_build_provider_from_account`, `_ingest_to_db`, simplify `_ingest_to_db_with_config` |
+| `cli.py` | Remove `_build_provider_from_account`; simplify `_ingest_to_db_with_config` to use `run_ingestion_cycle()`; `_ingest_to_db` retained for legacy env-var serve path |
 | `scheduler.py` | Remove `_build_provider_from_account`, `_build_providers`, `_build_zabbix_client`, `_run_netbox_sync_per_account`; simplify `_run_ingestion`, `_run_netbox_sync` |
 | `tests/sync/test_providers.py` | Add tests for `build_zabbix_client()` |
 | `tests/sync/test_orchestrator.py` | **NEW** — tests for `run_ingestion_cycle()` |

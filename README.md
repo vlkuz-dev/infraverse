@@ -232,21 +232,20 @@ When using a YAML config file, tenants and cloud accounts are synced to the data
 
 ### Sync to NetBox
 
+The `sync` command requires a YAML config file (`--config`):
+
 ```bash
-# Full sync with YAML config
+# Full sync
 infraverse sync --config config.yaml
 
-# Full sync with env vars (legacy single-tenant)
-infraverse sync
-
 # Preview changes without applying
-infraverse sync --dry-run
+infraverse sync --config config.yaml --dry-run
 
 # Skip orphaned object cleanup
-infraverse sync --no-cleanup
+infraverse sync --config config.yaml --no-cleanup
 
 # Use standard (non-batch) sync mode
-infraverse sync --no-batch
+infraverse sync --config config.yaml --no-batch
 ```
 
 ### Web UI
@@ -285,8 +284,7 @@ The web UI provides:
 docker run --rm -v ./config.yaml:/app/config.yaml --env-file .env infraverse sync --config /app/config.yaml
 docker run --rm -p 8000:8000 -v ./config.yaml:/app/config.yaml --env-file .env infraverse serve --config /app/config.yaml --host 0.0.0.0
 
-# With env vars (legacy)
-docker run --rm --env-file .env infraverse sync
+# With env vars (legacy, serve only — sync requires --config)
 docker run --rm -p 8000:8000 --env-file .env infraverse serve --host 0.0.0.0
 ```
 
@@ -312,6 +310,9 @@ src/infraverse/
     netbox.py              # NetBox API wrapper (pynetbox)
   sync/
     engine.py              # Top-level sync orchestrator
+    orchestrator.py        # Shared ingestion cycle for CLI + scheduler
+    providers.py           # Cloud client + Zabbix client builders
+    provider_profile.py    # ProviderProfile dataclass + per-provider constants
     ingest.py              # DataIngestor: providers -> DB
     config_sync.py         # YAML config to DB sync (tenants, accounts)
     monitoring.py          # Per-VM monitoring check via Zabbix
@@ -365,7 +366,7 @@ ruff check src/ tests/
 ### Debug logging
 
 ```bash
-LOG_LEVEL=DEBUG infraverse sync --dry-run
+LOG_LEVEL=DEBUG infraverse sync --config config.yaml --dry-run
 ```
 
 ## How It Works

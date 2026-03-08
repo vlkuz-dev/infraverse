@@ -184,7 +184,7 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
     from infraverse.sync.orchestrator import run_ingestion_cycle
 
     if database_url is None:
-        database_url = _get_database_url()
+        database_url = _get_database_url(infraverse_config)
 
     engine = create_engine(database_url)
     init_db(engine)

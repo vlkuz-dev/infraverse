@@ -191,6 +191,7 @@ class TestJobOverlapPrevention:
         svc._run_ingestion()
         t1.join(timeout=5)
 
+        assert not t1.is_alive(), "First ingestion thread did not complete"
         assert mock_cycle.call_count == 1
         assert not svc._job_lock.locked()
 
@@ -812,7 +813,7 @@ class TestRunNetboxSyncConfigFileMode:
         svc._run_netbox_sync(accounts=[self._make_account()])
 
         _, kwargs = mock_engine_cls.call_args
-        assert kwargs.get("dry_run", False) is False
+        assert "dry_run" in kwargs and kwargs["dry_run"] is False
 
     @patch("infraverse.scheduler.run_ingestion_cycle")
     @patch("infraverse.sync.providers.build_providers_from_accounts")
