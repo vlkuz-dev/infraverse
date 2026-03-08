@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-from infraverse.sync.providers import build_provider, build_providers_from_accounts
+from infraverse.sync.providers import build_provider, build_providers_from_accounts, build_zabbix_client
 from infraverse.sync.provider_profile import YC_PROFILE, VCLOUD_PROFILE
 
 
@@ -146,3 +146,133 @@ class TestBuildProvidersFromAccounts:
         result = build_providers_from_accounts(accounts)
 
         assert len(result) == 1
+
+
+class TestBuildZabbixClient:
+    """Tests for build_zabbix_client() shared function."""
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_with_infraverse_config(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        infraverse_config = SimpleNamespace(
+            monitoring_configured=True,
+            monitoring=SimpleNamespace(
+                zabbix_url="https://zabbix.config.com/api",
+                zabbix_username="config-user",
+                zabbix_password="config-pass",
+            ),
+        )
+        result = build_zabbix_client(infraverse_config=infraverse_config)
+
+        assert result is mock_client
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.config.com/api",
+            username="config-user",
+            password="config-pass",
+        )
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_with_legacy_config(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        legacy_config = SimpleNamespace(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.env.com",
+            zabbix_user="Admin",
+            zabbix_password="zabbix-pass",
+        )
+        result = build_zabbix_client(legacy_config=legacy_config)
+
+        assert result is mock_client
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.env.com",
+            username="Admin",
+            password="zabbix-pass",
+        )
+
+    def test_returns_none_when_no_config(self):
+        assert build_zabbix_client() is None
+
+    def test_returns_none_when_infraverse_no_monitoring(self):
+        infraverse_config = SimpleNamespace(monitoring_configured=False)
+        assert build_zabbix_client(infraverse_config=infraverse_config) is None
+
+    def test_returns_none_when_legacy_not_configured(self):
+        legacy_config = SimpleNamespace(zabbix_configured=False)
+        assert build_zabbix_client(legacy_config=legacy_config) is None
+
+    def test_infraverse_config_prevents_legacy_fallback(self):
+        """When infraverse_config is set but has no monitoring, don't use legacy_config."""
+        infraverse_config = SimpleNamespace(monitoring_configured=False)
+        legacy_config = SimpleNamespace(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.env.com",
+            zabbix_user="Admin",
+            zabbix_password="pass",
+        )
+        result = build_zabbix_client(
+            infraverse_config=infraverse_config,
+            legacy_config=legacy_config,
+        )
+        assert result is None
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_infraverse_config_error_returns_none(self, mock_zabbix_cls):
+        mock_zabbix_cls.side_effect = RuntimeError("connection refused")
+
+        infraverse_config = SimpleNamespace(
+            monitoring_configured=True,
+            monitoring=SimpleNamespace(
+                zabbix_url="https://zabbix.com",
+                zabbix_username="u",
+                zabbix_password="p",
+            ),
+        )
+        result = build_zabbix_client(infraverse_config=infraverse_config)
+        assert result is None
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_legacy_config_error_returns_none(self, mock_zabbix_cls):
+        mock_zabbix_cls.side_effect = RuntimeError("connection refused")
+
+        legacy_config = SimpleNamespace(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.com",
+            zabbix_user="u",
+            zabbix_password="p",
+        )
+        result = build_zabbix_client(legacy_config=legacy_config)
+        assert result is None
+
+    @patch("infraverse.providers.zabbix.ZabbixClient")
+    def test_infraverse_takes_precedence_over_legacy(self, mock_zabbix_cls):
+        mock_client = MagicMock()
+        mock_zabbix_cls.return_value = mock_client
+
+        infraverse_config = SimpleNamespace(
+            monitoring_configured=True,
+            monitoring=SimpleNamespace(
+                zabbix_url="https://zabbix.config.com",
+                zabbix_username="config-user",
+                zabbix_password="config-pass",
+            ),
+        )
+        legacy_config = SimpleNamespace(
+            zabbix_configured=True,
+            zabbix_url="https://zabbix.env.com",
+            zabbix_user="env-user",
+            zabbix_password="env-pass",
+        )
+        build_zabbix_client(
+            infraverse_config=infraverse_config,
+            legacy_config=legacy_config,
+        )
+
+        mock_zabbix_cls.assert_called_once_with(
+            url="https://zabbix.config.com",
+            username="config-user",
+            password="config-pass",
+        )

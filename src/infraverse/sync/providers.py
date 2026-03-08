@@ -48,6 +48,54 @@ def build_provider(account) -> Optional[Tuple[CloudClient, ProviderProfile]]:
         return None
 
 
+def build_zabbix_client(infraverse_config=None, legacy_config=None):
+    """Build a ZabbixClient if monitoring is configured, otherwise return None.
+
+    Checks infraverse_config.monitoring first (config-file mode).
+    If infraverse_config is set but has no monitoring section, returns None
+    without falling back to legacy_config (env-var mode).
+
+    Args:
+        infraverse_config: InfraverseConfig from YAML config file.
+        legacy_config: Legacy Config from environment variables.
+
+    Returns:
+        ZabbixClient instance, or None if not configured or on error.
+    """
+    # Config-file mode: use InfraverseConfig monitoring section
+    if infraverse_config is not None:
+        if not getattr(infraverse_config, "monitoring_configured", False):
+            return None
+        try:
+            from infraverse.providers.zabbix import ZabbixClient
+
+            monitoring = infraverse_config.monitoring
+            return ZabbixClient(
+                url=monitoring.zabbix_url,
+                username=monitoring.zabbix_username,
+                password=monitoring.zabbix_password,
+            )
+        except Exception as exc:
+            logger.error("Failed to build Zabbix client: %s", exc)
+            return None
+
+    # Env-var mode fallback
+    if legacy_config is not None and getattr(legacy_config, "zabbix_configured", False):
+        try:
+            from infraverse.providers.zabbix import ZabbixClient
+
+            return ZabbixClient(
+                url=legacy_config.zabbix_url,
+                username=legacy_config.zabbix_user,
+                password=legacy_config.zabbix_password,
+            )
+        except Exception as exc:
+            logger.error("Failed to build Zabbix client: %s", exc)
+            return None
+
+    return None
+
+
 def build_providers_from_accounts(accounts) -> List[Tuple[CloudClient, ProviderProfile]]:
     """Build provider list from a sequence of CloudAccount objects.
 

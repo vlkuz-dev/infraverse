@@ -183,42 +183,14 @@ class SchedulerService:
     def _build_zabbix_client(self):
         """Build a ZabbixClient if configured, otherwise return None.
 
-        Checks InfraverseConfig.monitoring first (config-file mode),
-        falls back to env-var-based self._config.
+        Delegates to sync.providers.build_zabbix_client().
         """
-        # Config-file mode: use InfraverseConfig monitoring section
-        if self._infraverse_config is not None and self._infraverse_config.monitoring_configured:
-            try:
-                from infraverse.providers.zabbix import ZabbixClient
+        from infraverse.sync.providers import build_zabbix_client
 
-                monitoring = self._infraverse_config.monitoring
-                return ZabbixClient(
-                    url=monitoring.zabbix_url,
-                    username=monitoring.zabbix_username,
-                    password=monitoring.zabbix_password,
-                )
-            except Exception as exc:
-                logger.error("Failed to build Zabbix client: %s", exc)
-                return None
-
-        # When using YAML config mode, don't fall back to env vars for monitoring
-        if self._infraverse_config is not None:
-            return None
-
-        # Env-var mode fallback
-        if not self._config.zabbix_configured:
-            return None
-        try:
-            from infraverse.providers.zabbix import ZabbixClient
-
-            return ZabbixClient(
-                url=self._config.zabbix_url,
-                username=self._config.zabbix_user,
-                password=self._config.zabbix_password,
-            )
-        except Exception as exc:
-            logger.error("Failed to build Zabbix client: %s", exc)
-            return None
+        return build_zabbix_client(
+            infraverse_config=self._infraverse_config,
+            legacy_config=self._config,
+        )
 
     def _run_netbox_ingestion(self, ingestor, results: dict) -> None:
         """Ingest NetBox VMs into local DB if NetBox is configured."""

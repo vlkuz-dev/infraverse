@@ -39,13 +39,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Extract Zabbix client builder to `sync/providers.py`
-- [ ] add `build_zabbix_client(infraverse_config=None, legacy_config=None) -> ZabbixClient | None` to `sync/providers.py`
-- [ ] consolidate logic from CLI (lines 195-203) and Scheduler (lines 202-240): both config modes in one function
-- [ ] replace CLI Zabbix building with `build_zabbix_client(legacy_config=config)`
-- [ ] replace Scheduler `_build_zabbix_client()` with call to `build_zabbix_client(infraverse_config=..., legacy_config=...)`
-- [ ] verify all tests pass
-- [ ] write tests for `build_zabbix_client()` — YAML config mode, env-var mode, no config case
-- [ ] run tests — must pass before next task
+- [x] add `build_zabbix_client(infraverse_config=None, legacy_config=None) -> ZabbixClient | None` to `sync/providers.py`
+- [x] consolidate logic from CLI (lines 195-203) and Scheduler (lines 202-240): both config modes in one function
+- [x] replace CLI Zabbix building with `build_zabbix_client(legacy_config=config)`
+- [x] replace Scheduler `_build_zabbix_client()` with call to `build_zabbix_client(infraverse_config=..., legacy_config=...)`
+- [x] verify all tests pass
+- [x] write tests for `build_zabbix_client()` — YAML config mode, env-var mode, no config case
+- [x] run tests — must pass before next task
 
 ### Task 3: Extract ingestion cycle to shared function
 - [ ] create `sync/orchestrator.py` with function:

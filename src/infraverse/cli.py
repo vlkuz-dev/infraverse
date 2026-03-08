@@ -171,15 +171,9 @@ def _ingest_to_db(config) -> None:
             )
             providers[vcd_account.id] = vcd_client
 
-        zabbix_client = None
-        if config.zabbix_configured:
-            from infraverse.providers.zabbix import ZabbixClient
+        from infraverse.sync.providers import build_zabbix_client
 
-            zabbix_client = ZabbixClient(
-                url=config.zabbix_url,
-                username=config.zabbix_user,
-                password=config.zabbix_password,
-            )
+        zabbix_client = build_zabbix_client(legacy_config=config)
 
         ingestor.ingest_all(providers, zabbix_client)
 
@@ -190,7 +184,7 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
     from infraverse.db.repository import Repository
     from infraverse.sync.config_sync import sync_config_to_db
     from infraverse.sync.ingest import DataIngestor
-    from infraverse.sync.providers import build_provider
+    from infraverse.sync.providers import build_provider, build_zabbix_client
 
     if database_url is None:
         database_url = _get_database_url()
@@ -220,15 +214,7 @@ def _ingest_to_db_with_config(infraverse_config, database_url=None) -> None:
                     account.name, exc,
                 )
 
-        zabbix_client = None
-        if infraverse_config.monitoring_configured:
-            from infraverse.providers.zabbix import ZabbixClient
-
-            zabbix_client = ZabbixClient(
-                url=infraverse_config.monitoring.zabbix_url,
-                username=infraverse_config.monitoring.zabbix_username,
-                password=infraverse_config.monitoring.zabbix_password,
-            )
+        zabbix_client = build_zabbix_client(infraverse_config=infraverse_config)
 
         ingestor = DataIngestor(session)
         ingestor.ingest_all(providers, zabbix_client)
