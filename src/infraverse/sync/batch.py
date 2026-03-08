@@ -235,32 +235,20 @@ def _process_vm_disks(vm_id: int, yc_vm: Dict[str, Any], cache: NetBoxCache) -> 
     return changes_made
 
 
-def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
-                       id_mapping: Dict[str, Dict[str, int]],
-                       netbox: NetBoxClient = None,
-                       provider_profile=None) -> bool:
-    """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
-    from infraverse.sync.provider_profile import YC_PROFILE
-    profile = provider_profile or YC_PROFILE
+def _process_vm_ips(vm: Any, yc_vm: Dict[str, Any],
+                    cache: NetBoxCache) -> tuple:
+    """Process interfaces and IP addresses for a VM.
+
+    Returns (changes_made, private_ip_candidate, public_ip_candidate).
+    """
     vm_id = vm.id
-    vm_name = vm.name
-    changes_made = False
-
-    # 1. Check VM parameters
-    if _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
-        changes_made = True
-
-    # 2. Process disks
-    if _process_vm_disks(vm_id, yc_vm, cache):
-        changes_made = True
-
-    # 3. Process interfaces and IPs
     yc_interfaces = yc_vm.get("network_interfaces", [])
     existing_interfaces = cache.interfaces_by_vm[vm_id]
     existing_interface_map = {iface.name: iface for iface in existing_interfaces}
 
     private_ip_candidate = None
     public_ip_candidate = None
+    changes_made = False
 
     for idx, yc_iface in enumerate(yc_interfaces):
         if not isinstance(yc_iface, dict):
@@ -359,7 +347,21 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                 if not private_ip_candidate and public_ip_candidate is None:
                     public_ip_candidate = existing_public_ip.id
 
-    # 4. Queue primary IP update if needed - ALWAYS prefer private IPs
+    return changes_made, private_ip_candidate, public_ip_candidate
+
+
+def _select_primary_ip(vm: Any, cache: NetBoxCache,
+                       private_ip_candidate: Any,
+                       public_ip_candidate: Any) -> bool:
+    """Select and queue primary IP for a VM based on candidates.
+
+    Prefers private IPs over public. Keeps current primary stable when valid.
+    Returns True if any primary IP change was queued.
+    """
+    vm_id = vm.id
+    vm_name = vm.name
+    existing_interfaces = cache.interfaces_by_vm[vm_id]
+
     primary_ip_to_set = None
 
     if private_ip_candidate and private_ip_candidate != "pending":
@@ -372,7 +374,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     if not vm.primary_ip4 and primary_ip_to_set:
         cache.primary_ip_changes[vm_id] = primary_ip_to_set
         logger.debug(f"VM {vm_name}: Queued primary IP change to ID {primary_ip_to_set}")
-        changes_made = True
+        return True
     elif vm.primary_ip4 and primary_ip_to_set:
         current_primary_ip = cache.ips.get(vm.primary_ip4.id)
         if current_primary_ip:
@@ -390,7 +392,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                         f"VM {vm_name}: keeping current primary IP"
                         f" {current_ip_str} (still valid)"
                     )
-                    # Skip primary IP re-selection — current is stable
+                    return False
                 else:
                     # Current primary IP was moved to another VM's interface
                     logger.info(
@@ -398,7 +400,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                         f" no longer assigned to this VM, re-selecting"
                     )
                     cache.primary_ip_changes[vm_id] = primary_ip_to_set
-                    changes_made = True
+                    return True
             else:
                 # Current primary is public — switch to private if available
                 if private_ip_candidate:
@@ -408,21 +410,21 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                             f" {current_ip_str} to private IP (pending creation)"
                         )
                         cache.primary_ip_changes[vm_id] = "pending"
-                        changes_made = True
+                        return True
                     else:
                         logger.info(
                             f"VM {vm_name}: Switching primary from public"
                             f" IP {current_ip_str} to private IP"
                         )
                         cache.primary_ip_changes[vm_id] = private_ip_candidate
-                        changes_made = True
+                        return True
                 elif public_ip_candidate and vm.primary_ip4.id != public_ip_candidate:
                     logger.info(
                         f"VM {vm_name}: Updating primary to public IP"
                         f" {public_ip_candidate} (no private IP available)"
                     )
                     cache.primary_ip_changes[vm_id] = public_ip_candidate
-                    changes_made = True
+                    return True
     elif not vm.primary_ip4:
         # Fallback: find any existing IP, preferring private over public
         fallback_private = None
@@ -438,20 +440,49 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
         if fallback_ip:
             cache.primary_ip_changes[vm_id] = fallback_ip
             logger.debug(f"VM {vm_name}: Using fallback IP ID {fallback_ip} as primary")
-            changes_made = True
+            return True
         elif private_ip_candidate == "pending":
             cache.primary_ip_changes[vm_id] = "pending"
             logger.debug(f"VM {vm_name}: Queued pending primary IP (private IP not yet created)")
-            changes_made = True
+            return True
         elif public_ip_candidate == "pending":
             cache.primary_ip_changes[vm_id] = "pending"
             logger.debug(f"VM {vm_name}: Queued pending primary IP (public IP not yet created)")
-            changes_made = True
+            return True
         else:
             logger.debug(
                 f"VM {vm_name}: No primary IP candidate found"
                 f" (private={private_ip_candidate}, public={public_ip_candidate})"
             )
+
+    return False
+
+
+def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
+                       id_mapping: Dict[str, Dict[str, int]],
+                       netbox: NetBoxClient = None,
+                       provider_profile=None) -> bool:
+    """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
+    changes_made = False
+
+    # 1. Check VM parameters
+    if _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
+        changes_made = True
+
+    # 2. Process disks
+    if _process_vm_disks(vm.id, yc_vm, cache):
+        changes_made = True
+
+    # 3. Process interfaces and IPs
+    ips_changed, private_candidate, public_candidate = _process_vm_ips(vm, yc_vm, cache)
+    if ips_changed:
+        changes_made = True
+
+    # 4. Select primary IP
+    if _select_primary_ip(vm, cache, private_candidate, public_candidate):
+        changes_made = True
 
     return changes_made
 

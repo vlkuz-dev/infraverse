@@ -7,6 +7,8 @@ from infraverse.sync.batch import (
     _normalize_comments,
     _process_vm_parameters,
     _process_vm_disks,
+    _process_vm_ips,
+    _select_primary_ip,
     load_netbox_data,
     process_vm_updates,
     apply_batch_updates,
@@ -504,6 +506,217 @@ class TestProcessVmDisks:
 
         assert result is True
         assert cache.disks_to_create[0]["name"] == "disk0"
+
+
+# ════════════════════════════════════════════════════════════
+# Tests: _process_vm_ips
+# ════════════════════════════════════════════════════════════
+
+class TestProcessVmIps:
+    """Tests for _process_vm_ips interface and IP processing."""
+
+    def test_no_interfaces_returns_no_changes(self):
+        """VM with no network interfaces produces no changes."""
+        vm = make_mock_vm(1, "vm-1")
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+
+        yc_vm = {"network_interfaces": []}
+        changes, private, public = _process_vm_ips(vm, yc_vm, cache)
+
+        assert changes is False
+        assert private is None
+        assert public is None
+
+    def test_new_interface_queued(self):
+        """New interface (not in cache) is queued for creation."""
+        vm = make_mock_vm(1, "vm-1")
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+
+        yc_vm = {"network_interfaces": [{"primary_v4_address": "10.0.0.5"}]}
+        changes, private, public = _process_vm_ips(vm, yc_vm, cache)
+
+        assert changes is True
+        assert len(cache.interfaces_to_create) == 1
+        assert cache.interfaces_to_create[0]["name"] == "eth0"
+
+    def test_existing_ip_assigned_correctly_returns_candidates(self):
+        """Existing IP on correct interface returns candidates without queuing changes."""
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips_by_address["10.0.0.5"] = ip
+        cache.ips[10] = ip
+
+        yc_vm = {"network_interfaces": [{"primary_v4_address": "10.0.0.5"}]}
+        changes, private, public = _process_vm_ips(vm, yc_vm, cache)
+
+        assert changes is False
+        assert private == 10  # private IP candidate ID
+        assert public is None
+
+    def test_new_private_ip_returns_pending(self):
+        """New private IP creates IP and returns pending candidate."""
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+
+        yc_vm = {"network_interfaces": [{"primary_v4_address": "10.0.0.5"}]}
+        changes, private, public = _process_vm_ips(vm, yc_vm, cache)
+
+        assert changes is True
+        assert private == "pending"
+        assert len(cache.ips_to_create) == 1
+
+    def test_public_nat_ip_queued(self):
+        """Public NAT IP not in cache is queued for creation."""
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+
+        yc_vm = {"network_interfaces": [
+            {"primary_v4_address_one_to_one_nat": "51.250.1.10"}
+        ]}
+        changes, private, public = _process_vm_ips(vm, yc_vm, cache)
+
+        assert changes is True
+        assert private is None
+        assert public == "pending"
+        assert len(cache.ips_to_create) == 1
+        assert cache.ips_to_create[0]["description"] == "Public IP (NAT)"
+
+
+# ════════════════════════════════════════════════════════════
+# Tests: _select_primary_ip
+# ════════════════════════════════════════════════════════════
+
+class TestSelectPrimaryIp:
+    """Tests for _select_primary_ip primary IP selection logic."""
+
+    def test_prefer_private_over_public(self):
+        """Private IP candidate is selected over public."""
+        vm = make_mock_vm(1, "vm-1")
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=10, public_ip_candidate=11)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == 10
+
+    def test_fallback_to_public_when_no_private(self):
+        """Public IP used when no private candidate."""
+        vm = make_mock_vm(1, "vm-1")
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=None, public_ip_candidate=11)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == 11
+
+    def test_keep_valid_current_private_ip(self):
+        """VM with valid private primary IP keeps it unchanged."""
+        vm = make_mock_vm(1, "vm-1", primary_ip4_id=10)
+        iface = make_mock_interface(100, "eth0", 1)
+        current_ip = make_mock_ip(10, "10.0.0.50/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips[10] = current_ip
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=11, public_ip_candidate=None)
+
+        assert result is False
+        assert 1 not in cache.primary_ip_changes
+
+    def test_switch_public_to_private(self):
+        """VM with public primary switches to private when available."""
+        vm = make_mock_vm(1, "vm-1", primary_ip4_id=11)
+        iface = make_mock_interface(100, "eth0", 1)
+        public_ip = make_mock_ip(11, "51.250.1.10/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips[11] = public_ip
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=10, public_ip_candidate=11)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == 10
+
+    def test_pending_private_queued(self):
+        """Pending private IP candidate queues 'pending' change."""
+        vm = make_mock_vm(1, "vm-1", primary_ip4_id=11)
+        iface = make_mock_interface(100, "eth0", 1)
+        public_ip = make_mock_ip(11, "51.250.1.10/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips[11] = public_ip
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate="pending", public_ip_candidate=11)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == "pending"
+
+    def test_no_candidates_no_change(self):
+        """No candidates and no existing IPs means no change."""
+        vm = make_mock_vm(1, "vm-1")
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=None, public_ip_candidate=None)
+
+        assert result is False
+        assert 1 not in cache.primary_ip_changes
+
+    def test_fallback_to_existing_interface_ip(self):
+        """VM without primary or candidates falls back to existing interface IPs."""
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips_by_interface[100] = [ip]
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=None, public_ip_candidate=None)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == 10
+
+    def test_current_primary_moved_triggers_reselection(self):
+        """Primary IP moved to another VM triggers new selection."""
+        vm = make_mock_vm(1, "vm-1", primary_ip4_id=10)
+        iface = make_mock_interface(100, "eth0", 1)
+        # Current primary is assigned to a different interface (not on this VM)
+        old_ip = make_mock_ip(10, "10.0.0.50/32", assigned_object_id=999)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.ips[10] = old_ip
+
+        result = _select_primary_ip(vm, cache, private_ip_candidate=11, public_ip_candidate=None)
+
+        assert result is True
+        assert cache.primary_ip_changes[1] == 11
 
 
 # ════════════════════════════════════════════════════════════

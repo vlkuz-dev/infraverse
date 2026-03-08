@@ -46,13 +46,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Extract IP address handling from `process_vm_updates()`
-- [ ] create `_process_vm_ips(vm, yc_vm, cache) -> bool` function covering lines 228-332 (interface loop + IP processing)
-- [ ] create `_select_primary_ip(vm, cache, private_candidate, public_candidate) -> None` covering lines 334-420 (primary IP selection algorithm)
-- [ ] call both from `process_vm_updates()` in place of extracted code
-- [ ] `process_vm_updates()` should now be ~30-40 lines: param setup, call 3 helpers, return result
-- [ ] verify all existing tests pass without modification
-- [ ] write tests for `_select_primary_ip()` directly (prefer private, keep valid current, switch public→private, pending case)
-- [ ] run tests — must pass before next task
+- [x] create `_process_vm_ips(vm, yc_vm, cache) -> bool` function covering lines 228-332 (interface loop + IP processing)
+- [x] create `_select_primary_ip(vm, cache, private_candidate, public_candidate) -> None` covering lines 334-420 (primary IP selection algorithm)
+- [x] call both from `process_vm_updates()` in place of extracted code
+- [x] `process_vm_updates()` should now be ~30-40 lines: param setup, call 3 helpers, return result
+- [x] verify all existing tests pass without modification
+- [x] write tests for `_select_primary_ip()` directly (prefer private, keep valid current, switch public→private, pending case)
+- [x] run tests — must pass before next task
 
 ### Task 4: Extract batch apply steps from `apply_batch_updates()`
 - [ ] create `_step_unset_primary_ips(cache, netbox) -> int` (lines 468-481)
