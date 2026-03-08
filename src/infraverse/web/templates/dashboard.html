@@ -96,7 +96,8 @@
              hx-post="/sync/trigger"
              hx-target="#sync-status"
              hx-swap="innerHTML"
-             hx-indicator="#sync-spinner">
+             hx-indicator="#sync-spinner"
+             hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'>
             <div class="card-stamp">
                 <div class="card-stamp-icon bg-purple">
                     <i class="ti ti-refresh"></i>

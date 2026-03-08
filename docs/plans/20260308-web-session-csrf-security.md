@@ -39,15 +39,15 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Add CSRF protection to mutating routes
-- [ ] create `src/infraverse/web/csrf.py` with CSRF token generation (using `secrets.token_urlsafe()`) and validation
-- [ ] store CSRF token in session on page load (generate if absent)
-- [ ] add `csrf_token` to Jinja2 template context via middleware or dependency
-- [ ] add hidden `csrf_token` field to sync trigger form in template (or HTMX header)
-- [ ] validate CSRF token in `POST /sync/trigger` — reject with 403 if invalid/missing
-- [ ] write tests for CSRF token generation and session storage
-- [ ] write tests for POST rejection without valid CSRF token
-- [ ] write tests for POST success with valid CSRF token
-- [ ] run tests — must pass before next task
+- [x] create `src/infraverse/web/csrf.py` with CSRF token generation (using `secrets.token_urlsafe()`) and validation
+- [x] store CSRF token in session on page load (generate if absent)
+- [x] add `csrf_token` to Jinja2 template context via middleware or dependency
+- [x] add hidden `csrf_token` field to sync trigger form in template (or HTMX header)
+- [x] validate CSRF token in `POST /sync/trigger` — reject with 403 if invalid/missing
+- [x] write tests for CSRF token generation and session storage
+- [x] write tests for POST rejection without valid CSRF token
+- [x] write tests for POST success with valid CSRF token
+- [x] run tests — must pass before next task
 
 ### Task 3: Verify acceptance criteria
 - [ ] verify SessionMiddleware has `https_only=True` and `same_site='strict'` in non-debug mode

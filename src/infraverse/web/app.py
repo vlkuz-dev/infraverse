@@ -45,6 +45,14 @@ def _get_user_from_request(request):
         return None
 
 
+def _get_csrf_token_from_request(request):
+    """Get CSRF token from session for template rendering."""
+    try:
+        return request.session.get("csrf_token", "")
+    except Exception:
+        return ""
+
+
 def _make_localtime_filter(infraverse_config=None):
     if infraverse_config is not None and infraverse_config.timezone is not None:
         tz = infraverse_config.timezone
@@ -69,6 +77,7 @@ def get_templates(infraverse_config=None) -> Jinja2Templates:
         _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
         _templates.env.globals["version"] = __version__
         _templates.env.globals["get_user"] = _get_user_from_request
+        _templates.env.globals["csrf_token"] = _get_csrf_token_from_request
         _templates.env.filters["localtime"] = _make_localtime_filter(infraverse_config)
     return _templates
 
@@ -109,14 +118,16 @@ def create_app(
 
     # Set up OIDC auth if configured
     if infraverse_config is not None and infraverse_config.oidc_configured:
+        from infraverse.web.csrf import CSRFMiddleware
         from infraverse.web.middleware import AuthMiddleware
         from infraverse.web.routes.auth import router as auth_router, setup_oauth
 
         oidc = infraverse_config.oidc
         app.state.oauth = setup_oauth(oidc)
         app.include_router(auth_router)
-        # Auth middleware must be added before session middleware
-        # (Starlette processes middleware in reverse order of addition)
+        # Middleware added first = innermost (closest to route handler).
+        # Starlette processes in reverse order: Session -> Auth -> CSRF -> route.
+        app.add_middleware(CSRFMiddleware)
         app.add_middleware(AuthMiddleware)
         session_secret = _resolve_session_secret(oidc)
         debug_mode = os.getenv("INFRAVERSE_DEBUG", "").lower() in ("1", "true", "yes")
