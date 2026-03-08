@@ -100,30 +100,27 @@ def load_netbox_data(netbox: NetBoxClient) -> NetBoxCache:
     return cache
 
 
-def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
-                       id_mapping: Dict[str, Dict[str, int]],
-                       netbox: NetBoxClient = None,
-                       provider_profile=None) -> bool:
-    """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
-    from infraverse.sync.provider_profile import YC_PROFILE
-    profile = provider_profile or YC_PROFILE
-    vm_id = vm.id
-    vm_name = vm.name
-    changes_made = False
+def _process_vm_parameters(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
+                           id_mapping: Dict[str, Dict[str, int]],
+                           netbox: NetBoxClient = None,
+                           provider_profile=None) -> bool:
+    """Check and queue VM parameter updates (memory, CPU, status, cluster, site, platform, comments).
 
-    # 1. Check VM parameters
+    Returns True if any parameter changes were queued.
+    """
+    vm_id = vm.id
     updates = {}
 
     # Memory - use shared parser for type safety
     resources = yc_vm.get("resources", {})
     if not isinstance(resources, dict):
         resources = {}
-    memory_mb = parse_memory_mb(resources, vm_name)
+    memory_mb = parse_memory_mb(resources, vm.name)
     if memory_mb > 0 and vm.memory != memory_mb:
         updates["memory"] = memory_mb
 
     # CPU - use shared parser for type safety
-    cpu_count = parse_cores(resources, vm_name)
+    cpu_count = parse_cores(resources, vm.name)
     if cpu_count > 0 and vm.vcpus != cpu_count:
         updates["vcpus"] = cpu_count
 
@@ -171,7 +168,7 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     platform_id_str = yc_vm.get("platform_id", "")
     created_at = yc_vm.get("created_at", "")
     comments_parts = [
-        f"{profile.vm_comment_prefix}: {yc_vm_id}",
+        f"{provider_profile.vm_comment_prefix}: {yc_vm_id}",
         f"Zone: {zone_id}" if zone_id else None,
         f"Hardware Platform: {platform_id_str}" if platform_id_str else None,
         f"OS: {os_name}" if os_name else None,
@@ -184,6 +181,23 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
 
     if updates:
         cache.vms_to_update[vm_id] = updates
+        return True
+    return False
+
+
+def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
+                       id_mapping: Dict[str, Dict[str, int]],
+                       netbox: NetBoxClient = None,
+                       provider_profile=None) -> bool:
+    """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
+    from infraverse.sync.provider_profile import YC_PROFILE
+    profile = provider_profile or YC_PROFILE
+    vm_id = vm.id
+    vm_name = vm.name
+    changes_made = False
+
+    # 1. Check VM parameters
+    if _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
         changes_made = True
 
     # 2. Process disks

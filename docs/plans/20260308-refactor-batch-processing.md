@@ -30,12 +30,12 @@
 ## Implementation Steps
 
 ### Task 1: Extract VM parameter update logic from `process_vm_updates()`
-- [ ] create `_process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile) -> bool` function
-- [ ] move lines 113-186 (memory, CPU, status, cluster, site, platform, comments checks) into new function
-- [ ] call `_process_vm_parameters()` from `process_vm_updates()` in place of extracted code
-- [ ] verify all existing tests pass without modification
-- [ ] write tests for `_process_vm_parameters()` directly (memory change, CPU change, status change, no changes case)
-- [ ] run tests — must pass before next task
+- [x] create `_process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile) -> bool` function
+- [x] move lines 113-186 (memory, CPU, status, cluster, site, platform, comments checks) into new function
+- [x] call `_process_vm_parameters()` from `process_vm_updates()` in place of extracted code
+- [x] verify all existing tests pass without modification
+- [x] write tests for `_process_vm_parameters()` directly (memory change, CPU change, status change, no changes case)
+- [x] run tests — must pass before next task
 
 ### Task 2: Extract disk synchronization logic from `process_vm_updates()`
 - [ ] create `_process_vm_disks(vm_id, yc_vm, cache) -> bool` function

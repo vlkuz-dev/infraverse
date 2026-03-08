@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from infraverse.sync.batch import (
     NetBoxCache,
     _normalize_comments,
+    _process_vm_parameters,
     load_netbox_data,
     process_vm_updates,
     apply_batch_updates,
@@ -291,6 +292,106 @@ class TestLoadNetboxData:
         cache = load_netbox_data(netbox)
 
         assert len(cache.ips_by_interface[100]) == 2
+
+
+# ════════════════════════════════════════════════════════════
+# Tests: _process_vm_parameters
+# ════════════════════════════════════════════════════════════
+
+class TestProcessVmParameters:
+    """Tests for _process_vm_parameters — VM parameter change detection."""
+
+    def _run(self, vm, yc_vm, cache=None, id_mapping=None, netbox=None, profile=None):
+        from infraverse.sync.provider_profile import YC_PROFILE
+        if cache is None:
+            cache = NetBoxCache()
+            cache.vms[vm.id] = vm
+        if id_mapping is None:
+            id_mapping = {}
+        if netbox is None:
+            netbox = make_mock_netbox()
+        if profile is None:
+            profile = YC_PROFILE
+        return _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile)
+
+    def test_memory_change_detected(self):
+        """Memory difference queues update."""
+        vm = make_mock_vm(1, "vm-1", memory=2000)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "x", "resources": {"memory": 4 * 1024 * 1024 * 1024, "cores": 2}}
+        result = self._run(vm, yc_vm, cache=cache)
+        assert result is True
+        assert cache.vms_to_update[1]["memory"] == 4000
+
+    def test_cpu_change_detected(self):
+        """CPU difference queues update."""
+        vm = make_mock_vm(1, "vm-1", vcpus=2)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "x", "resources": {"memory": 2048 * 1024 * 1024, "cores": 4}}
+        result = self._run(vm, yc_vm, cache=cache)
+        assert result is True
+        assert cache.vms_to_update[1]["vcpus"] == 4
+
+    def test_status_change_detected(self):
+        """Status STOPPED -> offline queues update."""
+        vm = make_mock_vm(1, "vm-1", status="active")
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "x", "status": "STOPPED", "resources": {"memory": 2048 * 1024 * 1024, "cores": 2}}
+        result = self._run(vm, yc_vm, cache=cache)
+        assert result is True
+        assert cache.vms_to_update[1]["status"] == "offline"
+
+    def test_no_changes_returns_false(self):
+        """When all params match, returns False and no updates queued."""
+        vm = make_mock_vm(1, "vm-1", memory=2000, vcpus=2, status="active",
+                          cluster_id=10, comments="YC VM ID: vm-id")
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {
+            "id": "vm-id",
+            "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+            "status": "RUNNING",
+            "folder_id": "f1",
+        }
+        id_mapping = {"folders": {"f1": 10}}
+        result = self._run(vm, yc_vm, cache=cache, id_mapping=id_mapping)
+        assert result is False
+        assert 1 not in cache.vms_to_update
+
+    def test_cluster_change_detected(self):
+        """Cluster mismatch queues update."""
+        vm = make_mock_vm(1, "vm-1", cluster_id=10)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "x", "folder_id": "f2", "resources": {}}
+        id_mapping = {"folders": {"f2": 20}}
+        result = self._run(vm, yc_vm, cache=cache, id_mapping=id_mapping)
+        assert result is True
+        assert cache.vms_to_update[1]["cluster"] == 20
+
+    def test_site_change_detected(self):
+        """Site/zone mismatch queues update."""
+        vm = make_mock_vm(1, "vm-1", site_id=1)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "x", "zone_id": "ru-central1-b", "resources": {}}
+        id_mapping = {"zones": {"ru-central1-b": 5}}
+        result = self._run(vm, yc_vm, cache=cache, id_mapping=id_mapping)
+        assert result is True
+        assert cache.vms_to_update[1]["site"] == 5
+
+    def test_comments_change_detected(self):
+        """Comment difference queues update."""
+        vm = make_mock_vm(1, "vm-1", comments="old comment")
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        yc_vm = {"id": "new-id", "resources": {}}
+        result = self._run(vm, yc_vm, cache=cache)
+        assert result is True
+        assert "YC VM ID: new-id" in cache.vms_to_update[1]["comments"]
 
 
 # ════════════════════════════════════════════════════════════
