@@ -108,6 +108,9 @@ def _process_vm_parameters(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
 
     Returns True if any parameter changes were queued.
     """
+    if provider_profile is None:
+        from infraverse.sync.provider_profile import YC_PROFILE
+        provider_profile = YC_PROFILE
     vm_id = vm.id
     updates = {}
 
