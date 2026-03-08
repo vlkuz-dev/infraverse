@@ -487,45 +487,9 @@ def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     return changes_made
 
 
-def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
-                        dry_run: bool = False) -> Dict[str, int]:
-    """Apply all cached updates in batch."""
-    stats = {
-        "vms_updated": 0,
-        "ips_updated": 0,
-        "ips_reassigned": 0,
-        "primary_ips_changed": 0,
-        "interfaces_created": 0,
-        "ips_created": 0,
-        "disks_created": 0,
-        "disks_updated": 0,
-        "disks_deleted": 0,
-        "errors": 0
-    }
-
-    if dry_run:
-        logger.info("[DRY-RUN] Would apply the following updates:")
-        logger.info(f"  VMs to update: {len(cache.vms_to_update)}")
-        if cache.vms_to_update:
-            # Breakdown by update reason
-            reasons: Dict[str, int] = {}
-            for updates in cache.vms_to_update.values():
-                for key in updates:
-                    reasons[key] = reasons.get(key, 0) + 1
-            for reason, count in sorted(reasons.items(), key=lambda x: -x[1]):
-                logger.info(f"    - {reason}: {count}")
-        logger.info(f"  IPs to update: {len(cache.ips_to_update)}")
-        logger.info(f"  Primary IP changes: {len(cache.primary_ip_changes)}")
-        logger.info(f"  Interfaces to create: {len(cache.interfaces_to_create)}")
-        logger.info(f"  IPs to create: {len(cache.ips_to_create)}")
-        logger.info(f"  Disks to create: {len(cache.disks_to_create)}")
-        logger.info(f"  Disks to update: {len(cache.disks_to_update)}")
-        logger.info(f"  Disks to delete: {len(cache.disks_to_delete)}")
-        return stats
-
-    logger.info("Applying batch updates...")
-
-    # Step 1: Unset primary IPs that need to be moved
+def _step_unset_primary_ips(cache: NetBoxCache, netbox: NetBoxClient,
+                            stats: Dict[str, int]) -> None:
+    """Step 1: Unset primary IPs that need to be moved to another VM."""
     logger.info("Step 1: Unsetting primary IPs that need reassignment...")
     for vm_id, new_ip_id in cache.primary_ip_changes.items():
         if new_ip_id is None:
@@ -540,7 +504,9 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
                 logger.error(f"Failed to unset primary IP on VM {vm_id}: {e}")
                 stats["errors"] += 1
 
-    # Step 2: Delete disks
+
+def _step_delete_disks(cache: NetBoxCache, stats: Dict[str, int]) -> None:
+    """Step 2: Delete obsolete disks."""
     logger.info("Step 2: Deleting obsolete disks...")
     for disk in cache.disks_to_delete:
         try:
@@ -551,9 +517,15 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.error(f"Failed to delete disk: {e}")
             stats["errors"] += 1
 
-    # Step 3: Create interfaces
+
+def _step_create_interfaces(cache: NetBoxCache, netbox: NetBoxClient,
+                             stats: Dict[str, int]) -> Dict[str, Any]:
+    """Step 3: Create new interfaces and resolve pending IP reassignments.
+
+    Returns a map of 'vmid_ifacename' -> created interface object.
+    """
     logger.info("Step 3: Creating new interfaces...")
-    created_interfaces = {}
+    created_interfaces: Dict[str, Any] = {}
     for iface_data in cache.interfaces_to_create:
         try:
             iface = netbox.create_interface(iface_data)
@@ -567,7 +539,7 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.error(f"Failed to create interface: {e}")
             stats["errors"] += 1
 
-    # Step 3b: Resolve pending IP reassignments now that interfaces exist
+    # Resolve pending IP reassignments now that interfaces exist
     for ip_id, pending_key in cache.pending_ip_reassignments.items():
         lookup_key = pending_key[len("pending_"):]
         if lookup_key in created_interfaces:
@@ -579,7 +551,11 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.warning(f"Could not resolve pending interface {pending_key} for IP reassignment {ip_id}")
             stats["errors"] += 1
 
-    # Step 4: Update/reassign existing IPs
+    return created_interfaces
+
+
+def _step_update_ips(cache: NetBoxCache, stats: Dict[str, int]) -> None:
+    """Step 4: Update/reassign existing IPs."""
     logger.info("Step 4: Updating IP assignments...")
     for ip_id, updates in cache.ips_to_update.items():
         try:
@@ -593,9 +569,16 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.error(f"Failed to update IP {ip_id}: {e}")
             stats["errors"] += 1
 
-    # Step 5: Create new IPs
+
+def _step_create_ips(cache: NetBoxCache, netbox: NetBoxClient,
+                     created_interfaces: Dict[str, Any],
+                     stats: Dict[str, int]) -> Dict[str, Any]:
+    """Step 5: Create new IPs and resolve pending primary IPs.
+
+    Returns a map of base_ip -> created IP object.
+    """
     logger.info("Step 5: Creating new IPs...")
-    created_ips = {}
+    created_ips: Dict[str, Any] = {}
     for ip_data in cache.ips_to_create:
         try:
             # Resolve pending interface IDs for newly created interfaces
@@ -650,7 +633,12 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
                 f" but primary_ip_changes is {current!r}, not 'pending'"
             )
 
-    # Step 6: Create disks
+    return created_ips
+
+
+def _step_manage_disks(cache: NetBoxCache, netbox: NetBoxClient,
+                       stats: Dict[str, int]) -> None:
+    """Step 6: Create new disks and update existing disk sizes."""
     logger.info("Step 6: Creating new disks...")
     for disk_data in cache.disks_to_create:
         try:
@@ -662,7 +650,6 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.error(f"Failed to create disk: {e}")
             stats["errors"] += 1
 
-    # Step 6b: Update disk sizes
     if cache.disks_to_update:
         logger.info(f"Step 6b: Updating {len(cache.disks_to_update)} disk sizes...")
         for disk, new_size in cache.disks_to_update:
@@ -675,7 +662,9 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
                 logger.error(f"Failed to update disk {disk.name}: {e}")
                 stats["errors"] += 1
 
-    # Step 7: Update VMs
+
+def _step_update_vms(cache: NetBoxCache, stats: Dict[str, int]) -> None:
+    """Step 7: Update VM parameters."""
     logger.info("Step 7: Updating VM parameters...")
     for vm_id, updates in cache.vms_to_update.items():
         try:
@@ -689,7 +678,10 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             logger.error(f"Failed to update VM {vm_id}: {e}")
             stats["errors"] += 1
 
-    # Step 8: Set new primary IPs with proper assignment check
+
+def _step_set_primary_ips(cache: NetBoxCache, netbox: NetBoxClient,
+                           stats: Dict[str, int]) -> None:
+    """Step 8: Set new primary IPs with proper assignment check."""
     pending_count = sum(1 for v in cache.primary_ip_changes.values() if v == "pending")
     actionable = sum(1 for v in cache.primary_ip_changes.values() if v is not None and v != "pending")
     logger.info(f"Step 8: Setting new primary IPs... ({actionable} actionable, {pending_count} unresolved pending)")
@@ -744,6 +736,53 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
             vm_name = vm.name if vm else vm_id
             logger.warning(f"VM {vm_name}: primary IP still 'pending' — was not resolved during IP creation")
             stats["errors"] += 1
+
+
+def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
+                        dry_run: bool = False) -> Dict[str, int]:
+    """Apply all cached updates in batch."""
+    stats = {
+        "vms_updated": 0,
+        "ips_updated": 0,
+        "ips_reassigned": 0,
+        "primary_ips_changed": 0,
+        "interfaces_created": 0,
+        "ips_created": 0,
+        "disks_created": 0,
+        "disks_updated": 0,
+        "disks_deleted": 0,
+        "errors": 0
+    }
+
+    if dry_run:
+        logger.info("[DRY-RUN] Would apply the following updates:")
+        logger.info(f"  VMs to update: {len(cache.vms_to_update)}")
+        if cache.vms_to_update:
+            reasons: Dict[str, int] = {}
+            for updates in cache.vms_to_update.values():
+                for key in updates:
+                    reasons[key] = reasons.get(key, 0) + 1
+            for reason, count in sorted(reasons.items(), key=lambda x: -x[1]):
+                logger.info(f"    - {reason}: {count}")
+        logger.info(f"  IPs to update: {len(cache.ips_to_update)}")
+        logger.info(f"  Primary IP changes: {len(cache.primary_ip_changes)}")
+        logger.info(f"  Interfaces to create: {len(cache.interfaces_to_create)}")
+        logger.info(f"  IPs to create: {len(cache.ips_to_create)}")
+        logger.info(f"  Disks to create: {len(cache.disks_to_create)}")
+        logger.info(f"  Disks to update: {len(cache.disks_to_update)}")
+        logger.info(f"  Disks to delete: {len(cache.disks_to_delete)}")
+        return stats
+
+    logger.info("Applying batch updates...")
+
+    _step_unset_primary_ips(cache, netbox, stats)
+    _step_delete_disks(cache, stats)
+    created_interfaces = _step_create_interfaces(cache, netbox, stats)
+    _step_update_ips(cache, stats)
+    _step_create_ips(cache, netbox, created_interfaces, stats)
+    _step_manage_disks(cache, netbox, stats)
+    _step_update_vms(cache, stats)
+    _step_set_primary_ips(cache, netbox, stats)
 
     logger.info(f"Batch updates complete: {stats}")
     return stats

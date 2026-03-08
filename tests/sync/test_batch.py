@@ -9,6 +9,14 @@ from infraverse.sync.batch import (
     _process_vm_disks,
     _process_vm_ips,
     _select_primary_ip,
+    _step_unset_primary_ips,
+    _step_delete_disks,
+    _step_create_interfaces,
+    _step_update_ips,
+    _step_create_ips,
+    _step_manage_disks,
+    _step_update_vms,
+    _step_set_primary_ips,
     load_netbox_data,
     process_vm_updates,
     apply_batch_updates,
@@ -1466,6 +1474,246 @@ class TestProcessVmUpdates:
         assert cache.primary_ip_changes[1] == "pending"
         # Private IP should be tracked for pending resolution, not public
         assert cache.pending_primary_ips[1] == "10.0.0.5/32"
+
+
+# ════════════════════════════════════════════════════════════
+# Tests: batch apply step functions
+# ════════════════════════════════════════════════════════════
+
+
+def _make_empty_stats():
+    """Create a fresh stats dict matching apply_batch_updates format."""
+    return {
+        "vms_updated": 0,
+        "ips_updated": 0,
+        "ips_reassigned": 0,
+        "primary_ips_changed": 0,
+        "interfaces_created": 0,
+        "ips_created": 0,
+        "disks_created": 0,
+        "disks_updated": 0,
+        "disks_deleted": 0,
+        "errors": 0
+    }
+
+
+class TestStepCreateInterfaces:
+    """Tests for _step_create_interfaces."""
+
+    def test_creates_interface_and_returns_map(self):
+        cache = NetBoxCache()
+        cache.interfaces_to_create = [{
+            "virtual_machine": 1,
+            "name": "eth0",
+            "type": "virtual",
+            "enabled": True
+        }]
+
+        created_iface = make_mock_interface(500, "eth0", 1)
+        netbox = make_mock_netbox()
+        netbox.create_interface.return_value = created_iface
+        stats = _make_empty_stats()
+
+        result = _step_create_interfaces(cache, netbox, stats)
+
+        assert stats["interfaces_created"] == 1
+        assert "1_eth0" in result
+        assert result["1_eth0"].id == 500
+
+    def test_resolves_pending_ip_reassignment(self):
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=999)
+        created_iface = make_mock_interface(500, "eth0", 1)
+
+        cache = NetBoxCache()
+        cache.ips[10] = ip
+        cache.interfaces_to_create = [{
+            "virtual_machine": 1,
+            "name": "eth0",
+            "type": "virtual",
+            "enabled": True
+        }]
+        cache.pending_ip_reassignments = {10: "pending_1_eth0"}
+
+        netbox = make_mock_netbox()
+        netbox.create_interface.return_value = created_iface
+        stats = _make_empty_stats()
+
+        _step_create_interfaces(cache, netbox, stats)
+
+        assert 10 in cache.ips_to_update
+        assert cache.ips_to_update[10]["assigned_object_id"] == 500
+
+    def test_unresolved_pending_reassignment_errors(self):
+        cache = NetBoxCache()
+        cache.pending_ip_reassignments = {10: "pending_1_eth0"}
+        # No interfaces to create -> pending won't resolve
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_create_interfaces(cache, netbox, stats)
+
+        assert stats["errors"] == 1
+
+    def test_interface_creation_error_counted(self):
+        cache = NetBoxCache()
+        cache.interfaces_to_create = [{
+            "virtual_machine": 1,
+            "name": "eth0",
+            "type": "virtual",
+            "enabled": True
+        }]
+
+        netbox = make_mock_netbox()
+        netbox.create_interface.side_effect = Exception("API error")
+        stats = _make_empty_stats()
+
+        result = _step_create_interfaces(cache, netbox, stats)
+
+        assert stats["errors"] == 1
+        assert stats["interfaces_created"] == 0
+        assert result == {}
+
+
+class TestStepSetPrimaryIps:
+    """Tests for _step_set_primary_ips."""
+
+    def test_sets_primary_ip_on_vm(self):
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.ips[10] = ip
+        cache.interfaces_by_vm[1] = [iface]
+        cache.primary_ip_changes = {1: 10}
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_set_primary_ips(cache, netbox, stats)
+
+        assert stats["primary_ips_changed"] == 1
+        assert vm.primary_ip4 == 10
+
+    def test_reassigns_ip_not_on_vm_interface(self):
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=999)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.ips[10] = ip
+        cache.interfaces_by_vm[1] = [iface]
+        cache.primary_ip_changes = {1: 10}
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_set_primary_ips(cache, netbox, stats)
+
+        assert stats["ips_reassigned"] == 1
+        assert ip.assigned_object_id == 100
+        assert stats["primary_ips_changed"] == 1
+
+    def test_pending_ip_counted_as_error(self):
+        vm = make_mock_vm(1, "vm-1")
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.primary_ip_changes = {1: "pending"}
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_set_primary_ips(cache, netbox, stats)
+
+        assert stats["errors"] == 1
+        assert stats["primary_ips_changed"] == 0
+
+    def test_fetches_ip_from_netbox_if_not_in_cache(self):
+        vm = make_mock_vm(1, "vm-1")
+        iface = make_mock_interface(100, "eth0", 1)
+        ip = make_mock_ip(10, "10.0.0.5/32", assigned_object_id=100)
+
+        cache = NetBoxCache()
+        cache.vms[1] = vm
+        cache.interfaces_by_vm[1] = [iface]
+        cache.primary_ip_changes = {1: 10}
+        # IP NOT in cache
+
+        netbox = make_mock_netbox()
+        netbox.nb.ipam.ip_addresses.get.return_value = ip
+        stats = _make_empty_stats()
+
+        _step_set_primary_ips(cache, netbox, stats)
+
+        assert stats["primary_ips_changed"] == 1
+        netbox.nb.ipam.ip_addresses.get.assert_called_with(id=10)
+
+
+class TestStepManageDisks:
+    """Tests for _step_manage_disks."""
+
+    def test_creates_new_disks(self):
+        cache = NetBoxCache()
+        cache.disks_to_create = [{
+            "virtual_machine": 1,
+            "size": 10000,
+            "name": "boot"
+        }]
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_manage_disks(cache, netbox, stats)
+
+        assert stats["disks_created"] == 1
+        netbox.create_disk.assert_called_once()
+
+    def test_updates_disk_sizes(self):
+        disk = make_mock_disk(200, "boot", 1, size=40960)
+
+        cache = NetBoxCache()
+        cache.disks_to_update = [(disk, 40000)]
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_manage_disks(cache, netbox, stats)
+
+        assert stats["disks_updated"] == 1
+        assert disk.size == 40000
+        disk.save.assert_called_once()
+
+    def test_create_and_update_together(self):
+        disk = make_mock_disk(200, "data", 1, size=20000)
+
+        cache = NetBoxCache()
+        cache.disks_to_create = [{"virtual_machine": 1, "size": 10000, "name": "boot"}]
+        cache.disks_to_update = [(disk, 30000)]
+
+        netbox = make_mock_netbox()
+        stats = _make_empty_stats()
+
+        _step_manage_disks(cache, netbox, stats)
+
+        assert stats["disks_created"] == 1
+        assert stats["disks_updated"] == 1
+
+    def test_disk_create_error_counted(self):
+        cache = NetBoxCache()
+        cache.disks_to_create = [{"virtual_machine": 1, "size": 10000, "name": "boot"}]
+
+        netbox = make_mock_netbox()
+        netbox.create_disk.side_effect = Exception("API error")
+        stats = _make_empty_stats()
+
+        _step_manage_disks(cache, netbox, stats)
+
+        assert stats["errors"] == 1
+        assert stats["disks_created"] == 0
 
 
 # ════════════════════════════════════════════════════════════

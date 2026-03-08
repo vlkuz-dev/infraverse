@@ -55,18 +55,18 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Extract batch apply steps from `apply_batch_updates()`
-- [ ] create `_step_unset_primary_ips(cache, netbox) -> int` (lines 468-481)
-- [ ] create `_step_delete_disks(cache) -> int` (lines 483-492)
-- [ ] create `_step_create_interfaces(cache, netbox) -> dict` (lines 494-508) — returns created_interfaces map
-- [ ] create `_step_update_ips(cache, netbox, created_interfaces) -> int` (lines 510-534) — includes pending reassignment resolution
-- [ ] create `_step_create_ips(cache, netbox, created_interfaces) -> tuple[int, dict]` (lines 536-560) — returns count + created_ips map
-- [ ] create `_step_manage_disks(cache, netbox) -> tuple[int, int]` (lines 593-616) — create + update disks
-- [ ] create `_step_update_vms(cache, netbox) -> int` (lines 618-630)
-- [ ] create `_step_set_primary_ips(cache, netbox, created_ips) -> int` (lines 562-591 + 632-686) — resolve pending + set primary
-- [ ] refactor `apply_batch_updates()` to call steps in sequence (~40 lines)
-- [ ] verify all existing tests pass without modification
-- [ ] write tests for 2-3 individual step functions (e.g., `_step_create_interfaces`, `_step_set_primary_ips`)
-- [ ] run tests — must pass before next task
+- [x] create `_step_unset_primary_ips(cache, netbox) -> int` (lines 468-481)
+- [x] create `_step_delete_disks(cache) -> int` (lines 483-492)
+- [x] create `_step_create_interfaces(cache, netbox) -> dict` (lines 494-508) — returns created_interfaces map
+- [x] create `_step_update_ips(cache, netbox, created_interfaces) -> int` (lines 510-534) — includes pending reassignment resolution
+- [x] create `_step_create_ips(cache, netbox, created_interfaces) -> tuple[int, dict]` (lines 536-560) — returns count + created_ips map
+- [x] create `_step_manage_disks(cache, netbox) -> tuple[int, int]` (lines 593-616) — create + update disks
+- [x] create `_step_update_vms(cache, netbox) -> int` (lines 618-630)
+- [x] create `_step_set_primary_ips(cache, netbox, created_ips) -> int` (lines 562-591 + 632-686) — resolve pending + set primary
+- [x] refactor `apply_batch_updates()` to call steps in sequence (~40 lines)
+- [x] verify all existing tests pass without modification
+- [x] write tests for 2-3 individual step functions (e.g., `_step_create_interfaces`, `_step_set_primary_ips`)
+- [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] `process_vm_updates()` is ≤50 lines (was 326)
