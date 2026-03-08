@@ -40,13 +40,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Move `parse_memory_mb` and `parse_cores` to size_converters
-- [ ] move `parse_memory_mb()` from `vms.py:16-55` to `size_converters.py`
-- [ ] move `parse_cores()` from `vms.py:58-77` to `size_converters.py`
-- [ ] refactor `parse_memory_mb()` to use `BYTES_PER_GIB` and `NETBOX_MB_PER_GIB` constants
-- [ ] add re-exports in `vms.py`: `from infraverse.sync.size_converters import parse_memory_mb, parse_cores`
-- [ ] update `batch.py` import: change `from infraverse.sync.vms import parse_memory_mb, parse_cores` to `from infraverse.sync.size_converters import ...`
-- [ ] verify all existing tests pass without modification (re-exports preserve API)
-- [ ] run tests — must pass before next task
+- [x] move `parse_memory_mb()` from `vms.py:16-55` to `size_converters.py`
+- [x] move `parse_cores()` from `vms.py:58-77` to `size_converters.py`
+- [x] refactor `parse_memory_mb()` to use `BYTES_PER_GIB` and `NETBOX_MB_PER_GIB` constants
+- [x] add re-exports in `vms.py`: `from infraverse.sync.size_converters import parse_memory_mb, parse_cores`
+- [x] update `batch.py` import: change `from infraverse.sync.vms import parse_memory_mb, parse_cores` to `from infraverse.sync.size_converters import ...`
+- [x] verify all existing tests pass without modification (re-exports preserve API)
+- [x] run tests — must pass before next task
 
 ### Task 3: Replace inline disk conversions with `parse_disk_size_mb()`
 - [ ] replace `vms.py` line ~402: `size_mb = round(int(size) / (1024 ** 3) * 1000)` → `size_mb = parse_disk_size_mb(size)`

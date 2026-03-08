@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 
 from infraverse.ip import is_private_ip, get_ip_without_cidr, ensure_cidr_notation
 from infraverse.providers.netbox import NetBoxClient
-from infraverse.sync.vms import prepare_vm_data, parse_memory_mb, parse_cores, detect_platform_id
+from infraverse.sync.vms import prepare_vm_data, detect_platform_id
+from infraverse.sync.size_converters import parse_memory_mb, parse_cores
 
 logger = logging.getLogger(__name__)
 
