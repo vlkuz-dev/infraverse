@@ -49,7 +49,7 @@ class MockRef:
 
 def make_mock_vm(id, name, memory=2048, vcpus=2, status="active",
                  cluster_id=10, primary_ip4_id=None, tags=None,
-                 site_id=None, platform_id=8, comments=""):
+                 site_id=None, platform_id=8, comments="", tenant_id=None):
     """Create a mock VM record."""
     vm = MockRecord(
         id=id,
@@ -63,6 +63,7 @@ def make_mock_vm(id, name, memory=2048, vcpus=2, status="active",
         site=MockRef(site_id) if site_id else None,
         platform=MockRef(platform_id) if platform_id else None,
         comments=comments,
+        tenant=MockRef(tenant_id) if tenant_id else None,
     )
     return vm
 
@@ -398,6 +399,71 @@ class TestProcessVmParameters:
         result = self._run(vm, yc_vm, cache=cache)
         assert result is True
         assert "YC VM ID: new-id" in cache.vms_to_update[1]["comments"]
+
+    def test_tenant_change_detected(self):
+        """Tenant mismatch queues update when tenant_name is provided."""
+        vm = make_mock_vm(1, "vm-1", tenant_id=5)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        netbox = make_mock_netbox()
+        netbox.ensure_tenant.return_value = 10
+        yc_vm = {"id": "vm-id", "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                 "status": "RUNNING"}
+        result = self._run(vm, yc_vm, cache=cache, netbox=netbox)
+        # tenant_name is None by default in _run, so no tenant update
+        assert "tenant" not in cache.vms_to_update.get(1, {})
+
+        # Now with tenant_name
+        cache2 = NetBoxCache()
+        cache2.vms[vm.id] = vm
+        result = _process_vm_parameters(vm, yc_vm, cache2, {}, netbox,
+                                        tenant_name="acme-corp")
+        assert result is True
+        assert cache2.vms_to_update[1]["tenant"] == 10
+        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+
+    def test_tenant_no_change_when_already_set(self):
+        """Tenant should not queue update when already matching."""
+        vm = make_mock_vm(1, "vm-1", tenant_id=10)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        netbox = make_mock_netbox()
+        netbox.ensure_tenant.return_value = 10
+        yc_vm = {"id": "vm-id", "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                 "status": "RUNNING", "folder_id": "f1"}
+        id_mapping = {"folders": {"f1": 10}}
+        _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox,
+                               tenant_name="acme-corp")
+        # comments will differ since mock has empty comments, so result may be True
+        # but tenant should NOT be in the updates
+        assert "tenant" not in cache.vms_to_update.get(1, {})
+
+    def test_tenant_set_on_vm_without_tenant(self):
+        """VM with no tenant should get tenant assigned when tenant_name is provided."""
+        vm = make_mock_vm(1, "vm-1", tenant_id=None)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        netbox = make_mock_netbox()
+        netbox.ensure_tenant.return_value = 7
+        yc_vm = {"id": "x", "resources": {}}
+        result = _process_vm_parameters(vm, yc_vm, cache, {}, netbox,
+                                        tenant_name="beta-inc")
+        assert result is True
+        assert cache.vms_to_update[1]["tenant"] == 7
+
+    def test_tenant_not_set_when_tenant_name_is_none(self):
+        """No tenant update should be queued when tenant_name is None."""
+        vm = make_mock_vm(1, "vm-1", tenant_id=5)
+        cache = NetBoxCache()
+        cache.vms[vm.id] = vm
+        netbox = make_mock_netbox()
+        yc_vm = {"id": "vm-id", "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                 "status": "RUNNING", "folder_id": "f1"}
+        id_mapping = {"folders": {"f1": 10}}
+        _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox,
+                               tenant_name=None)
+        assert "tenant" not in cache.vms_to_update.get(1, {})
+        netbox.ensure_tenant.assert_not_called()
 
 
 # ════════════════════════════════════════════════════════════
@@ -2472,3 +2538,86 @@ class TestSyncVmsOptimized:
         yc_vm1.delete.assert_not_called()
         yc_vm2.delete.assert_not_called()
         vcloud_active.delete.assert_not_called()
+
+    def test_tenant_name_passed_to_prepare_vm_data_on_create(self):
+        """When tenant_name is provided, new VMs should include tenant in vm_data."""
+        netbox = make_mock_netbox()
+        netbox.ensure_tenant.return_value = 42
+        netbox.nb.virtualization.virtual_machines.all.return_value = []
+        netbox.nb.virtualization.interfaces.all.return_value = []
+        netbox.nb.ipam.ip_addresses.all.return_value = []
+        netbox.nb.virtualization.virtual_disks.all.return_value = []
+
+        yc_data = {
+            "vms": [{
+                "name": "new-vm",
+                "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                "status": "RUNNING",
+                "network_interfaces": [],
+                "disks": [],
+            }]
+        }
+
+        stats = sync_vms_optimized(yc_data, netbox, {}, cleanup_orphaned=False,
+                                   tenant_name="acme-corp")
+        assert stats["created"] == 1
+        # Verify create_vm was called with tenant in the data
+        call_args = netbox.create_vm.call_args
+        vm_data = call_args[0][0]
+        assert vm_data["tenant"] == 42
+        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+
+    def test_tenant_name_passed_to_process_vm_updates_on_update(self):
+        """When tenant_name is provided, existing VMs should have tenant checked."""
+        vm = make_mock_vm(1, "test-vm", memory=2048, vcpus=2, status="active",
+                          tenant_id=None)
+
+        netbox = make_mock_netbox()
+        netbox.ensure_tenant.return_value = 42
+        netbox.nb.virtualization.virtual_machines.all.return_value = [vm]
+        netbox.nb.virtualization.interfaces.all.return_value = []
+        netbox.nb.ipam.ip_addresses.all.return_value = []
+        netbox.nb.virtualization.virtual_disks.all.return_value = []
+
+        yc_data = {
+            "vms": [{
+                "name": "test-vm",
+                "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                "status": "RUNNING",
+                "network_interfaces": [],
+                "disks": [],
+            }]
+        }
+
+        stats = sync_vms_optimized(yc_data, netbox, {}, cleanup_orphaned=False,
+                                   tenant_name="acme-corp")
+        # VM should be updated because tenant changed (None -> 42)
+        assert stats["updated"] == 1
+        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+
+    def test_no_tenant_when_tenant_name_is_none(self):
+        """When tenant_name is None, no tenant operations should happen."""
+        netbox = make_mock_netbox()
+        netbox.nb.virtualization.virtual_machines.all.return_value = []
+        netbox.nb.virtualization.interfaces.all.return_value = []
+        netbox.nb.ipam.ip_addresses.all.return_value = []
+        netbox.nb.virtualization.virtual_disks.all.return_value = []
+
+        yc_data = {
+            "vms": [{
+                "name": "new-vm",
+                "resources": {"memory": 2048 * 1024 * 1024, "cores": 2},
+                "status": "RUNNING",
+                "network_interfaces": [],
+                "disks": [],
+            }]
+        }
+
+        stats = sync_vms_optimized(yc_data, netbox, {}, cleanup_orphaned=False,
+                                   tenant_name=None)
+        assert stats["created"] == 1
+        netbox.ensure_tenant.assert_not_called()
+        # Verify create_vm was called without tenant in the data
+        call_args = netbox.create_vm.call_args
+        vm_data = call_args[0][0]
+        assert "tenant" not in vm_data

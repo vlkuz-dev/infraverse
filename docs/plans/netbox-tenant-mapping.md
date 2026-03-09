@@ -110,13 +110,13 @@
 - [x] Run tests — must pass before next task
 
 ### Task 4: Add tenant to `_process_vm_parameters()` and `sync_vms_optimized()` (batch path)
-- [ ] Add `tenant_name: str | None = None` parameter to `_process_vm_parameters()` in `sync/batch.py`
-- [ ] If tenant_name is provided, call `netbox.ensure_tenant(tenant_name)` to get tenant_id
-- [ ] Compare current VM tenant with resolved tenant_id, queue update in cache if different
-- [ ] Add `tenant_name: str | None = None` to `sync_vms_optimized()` signature, pass to `prepare_vm_data()` and through `process_vm_updates()` → `_process_vm_parameters()`
-- [ ] Write tests for _process_vm_parameters() with tenant update (changed, unchanged, None)
-- [ ] Write tests for sync_vms_optimized() passing tenant_name through
-- [ ] Run tests — must pass before next task
+- [x] Add `tenant_name: str | None = None` parameter to `_process_vm_parameters()` in `sync/batch.py`
+- [x] If tenant_name is provided, call `netbox.ensure_tenant(tenant_name)` to get tenant_id
+- [x] Compare current VM tenant with resolved tenant_id, queue update in cache if different
+- [x] Add `tenant_name: str | None = None` to `sync_vms_optimized()` signature, pass to `prepare_vm_data()` and through `process_vm_updates()` → `_process_vm_parameters()`
+- [x] Write tests for _process_vm_parameters() with tenant update (changed, unchanged, None)
+- [x] Write tests for sync_vms_optimized() passing tenant_name through
+- [x] Run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] Verify: VM creation in NetBox includes tenant field (both paths)

@@ -104,8 +104,9 @@ def load_netbox_data(netbox: NetBoxClient) -> NetBoxCache:
 def _process_vm_parameters(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                            id_mapping: Dict[str, Dict[str, int]],
                            netbox: NetBoxClient = None,
-                           provider_profile=None) -> bool:
-    """Check and queue VM parameter updates (memory, CPU, status, cluster, site, platform, comments).
+                           provider_profile=None,
+                           tenant_name: str | None = None) -> bool:
+    """Check and queue VM parameter updates (memory, CPU, status, cluster, site, platform, comments, tenant).
 
     Returns True if any parameter changes were queued.
     """
@@ -182,6 +183,15 @@ def _process_vm_parameters(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
     current_comments = _normalize_comments(getattr(vm, 'comments', None))
     if current_comments != _normalize_comments(new_comments):
         updates["comments"] = new_comments
+
+    # Tenant
+    if tenant_name and netbox:
+        tenant_id = netbox.ensure_tenant(name=tenant_name)
+        current_tenant_id = None
+        if hasattr(vm, 'tenant') and vm.tenant:
+            current_tenant_id = vm.tenant.id if hasattr(vm.tenant, 'id') else vm.tenant
+        if current_tenant_id != tenant_id:
+            updates["tenant"] = tenant_id
 
     if updates:
         cache.vms_to_update[vm_id] = updates
@@ -465,14 +475,16 @@ def _select_primary_ip(vm: Any, cache: NetBoxCache,
 def process_vm_updates(vm: Any, yc_vm: Dict[str, Any], cache: NetBoxCache,
                        id_mapping: Dict[str, Dict[str, int]],
                        netbox: NetBoxClient = None,
-                       provider_profile=None) -> bool:
+                       provider_profile=None,
+                       tenant_name: str | None = None) -> bool:
     """Process all updates for a VM and queue them in cache. Returns True if changes needed."""
     from infraverse.sync.provider_profile import YC_PROFILE
     profile = provider_profile or YC_PROFILE
     changes_made = False
 
     # 1. Check VM parameters
-    if _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
+    if _process_vm_parameters(vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile,
+                              tenant_name=tenant_name):
         changes_made = True
 
     # 2. Process disks
@@ -888,14 +900,16 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
             if vm_name in cache.vms_by_name:
                 # Update existing VM
                 existing_vm = cache.vms_by_name[vm_name]
-                if process_vm_updates(existing_vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile):
+                if process_vm_updates(existing_vm, yc_vm, cache, id_mapping, netbox,
+                                     provider_profile=profile, tenant_name=tenant_name):
                     stats["updated"] += 1
                 else:
                     stats["skipped"] += 1
                 stats["synced_vms"].add(vm_name)
             else:
                 # Create new VM
-                vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, provider_profile=profile)
+                vm_data = prepare_vm_data(yc_vm, netbox, id_mapping,
+                                          provider_profile=profile, tenant_name=tenant_name)
 
                 if not netbox.dry_run:
                     created_vm = netbox.create_vm(vm_data, tag_slug=profile.tag_slug)
@@ -905,7 +919,8 @@ def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
                         stats["synced_vms"].add(vm_name)
                         cache.vms[created_vm.id] = created_vm
                         cache.vms_by_name[vm_name] = created_vm
-                        process_vm_updates(created_vm, yc_vm, cache, id_mapping, netbox, provider_profile=profile)
+                        process_vm_updates(created_vm, yc_vm, cache, id_mapping, netbox,
+                                           provider_profile=profile, tenant_name=tenant_name)
                     else:
                         stats["errors"] += 1
                         stats["vm_errors"][vm_name] = "NetBox API returned None when creating VM"
