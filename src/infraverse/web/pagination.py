@@ -1,5 +1,7 @@
 """Pagination helpers for web routes."""
 
+from urllib.parse import urlencode
+
 DEFAULT_PER_PAGE = 50
 
 
@@ -28,11 +30,8 @@ def _page_range(current: int, total: int, window: int = 2) -> list[int | None]:
 
 def _build_qs(params: dict) -> str:
     """Build a query string from param dict, skipping None/empty values."""
-    parts = []
-    for k, v in params.items():
-        if v is not None and str(v) != "":
-            parts.append(f"{k}={v}")
-    return "&".join(parts)
+    filtered = {k: v for k, v in params.items() if v is not None and str(v) != ""}
+    return urlencode(filtered)
 
 
 def build_pagination(

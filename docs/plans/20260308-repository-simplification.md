@@ -125,8 +125,8 @@
 - [x] run linter: `ruff check src/ tests/` — clean
 
 ### Task 10: [Final] Update documentation
-- [ ] update MEMORY.md with new repository API patterns
-- [ ] update this plan with any deviations
+- [x] update MEMORY.md with new repository API patterns
+- [x] update this plan with any deviations
 
 ## Technical Details
 

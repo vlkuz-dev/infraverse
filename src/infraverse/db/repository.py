@@ -197,7 +197,7 @@ class Repository:
             query = query.join(CloudAccount).filter(
                 CloudAccount.tenant_id == tenant_id
             )
-        if status:
+        if status is not None:
             query = query.filter(VM.status == status)
         query = query.order_by(VM.name)
         if offset:
@@ -220,7 +220,7 @@ class Repository:
             query = query.join(CloudAccount).filter(
                 CloudAccount.tenant_id == tenant_id
             )
-        if status:
+        if status is not None:
             query = query.filter(VM.status == status)
         return query.scalar()
 

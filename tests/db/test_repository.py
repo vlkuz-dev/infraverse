@@ -298,6 +298,23 @@ class TestVMOperations:
     def test_list_vms_empty(self, repo):
         assert repo.list_vms() == []
 
+    def test_list_vms_filter_by_tenant(self, repo):
+        t1 = repo.create_tenant("Tenant A")
+        t2 = repo.create_tenant("Tenant B")
+        acc1 = repo.create_cloud_account(t1.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(t2.id, "vcloud", "VC1")
+        repo.upsert_vm(acc1.id, "fhm-1", "t1-vm-1")
+        repo.upsert_vm(acc1.id, "fhm-2", "t1-vm-2")
+        repo.upsert_vm(acc2.id, "vc-1", "t2-vm-1")
+
+        t1_vms = repo.list_vms(tenant_id=t1.id)
+        assert len(t1_vms) == 2
+        assert all(v.name.startswith("t1-") for v in t1_vms)
+
+        t2_vms = repo.list_vms(tenant_id=t2.id)
+        assert len(t2_vms) == 1
+        assert t2_vms[0].name == "t2-vm-1"
+
     def test_list_vms_filter_by_status(self, repo, account):
         repo.upsert_vm(account.id, "fhm-1", "active-vm", status="active")
         repo.upsert_vm(account.id, "fhm-2", "offline-vm", status="offline")
@@ -997,6 +1014,15 @@ class TestCountVms:
         repo.upsert_vm(acc.id, "fhm-1", "vm-1", status="active")
         repo.upsert_vm(acc.id, "fhm-2", "vm-2", status="offline")
         assert repo.count_vms(account_id=acc.id, status="active") == 1
+
+    def test_count_by_tenant_and_status(self, repo):
+        t = repo.create_tenant("Count Tenant Status")
+        acc = repo.create_cloud_account(t.id, "yandex_cloud", "YC TS")
+        repo.upsert_vm(acc.id, "fhm-1", "vm-1", status="active")
+        repo.upsert_vm(acc.id, "fhm-2", "vm-2", status="active")
+        repo.upsert_vm(acc.id, "fhm-3", "vm-3", status="offline")
+        assert repo.count_vms(tenant_id=t.id, status="active") == 2
+        assert repo.count_vms(tenant_id=t.id, status="offline") == 1
 
 
 class TestListMonitoringHostsPagination:

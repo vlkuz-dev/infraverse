@@ -374,10 +374,12 @@ class TestComparisonPagination:
     def test_pagination_preserves_filters(self):
         app = _create_comparison_app(150)
         client = TestClient(app)
-        resp = client.get("/comparison?status=in_sync&page=1")
+        # Use small per_page to guarantee pagination regardless of filter results
+        resp = client.get("/comparison?status=in_sync&per_page=10&page=1")
         html = resp.text
-        if "page=2" in html:
-            assert "status=in_sync" in html
+        # With 150 in_sync VMs at per_page=10, there must be a page 2
+        assert "page=2" in html
+        assert "status=in_sync" in html
 
     def test_custom_per_page(self):
         app = _create_comparison_app(150)
