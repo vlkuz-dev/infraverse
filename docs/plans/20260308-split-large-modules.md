@@ -71,21 +71,21 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Split vms.py — extract by concern
-- [ ] create `src/infraverse/sync/vms_platform.py`:
+- [x] create `src/infraverse/sync/vms_platform.py`:
   - `detect_platform_slug()` (lines 17-70)
   - `detect_platform_id()` (lines 72-82)
-- [ ] create `src/infraverse/sync/vms_disks.py`:
+- [x] create `src/infraverse/sync/vms_disks.py`:
   - `sync_vm_disks()` (lines 278-415)
-- [ ] create `src/infraverse/sync/vms_networking.py`:
+- [x] create `src/infraverse/sync/vms_networking.py`:
   - `update_vm_primary_ip()` (lines 417-543)
   - `sync_vm_interfaces()` (lines 545-779)
-- [ ] keep in `vms.py` (as orchestrator):
+- [x] keep in `vms.py` (as orchestrator):
   - `prepare_vm_data()` (lines 84-177)
   - `update_vm_parameters()` (lines 179-276)
   - `sync_vms()` (lines 781-967) — imports from new modules
-- [ ] update all imports across codebase
-- [ ] split tests into corresponding test files
-- [ ] run tests — must pass before next task
+- [x] update all imports across codebase
+- [x] split tests into corresponding test files
+- [x] run tests — must pass before next task
 
 ### Task 6: Verify acceptance criteria
 - [ ] no single file exceeds ~500 lines
