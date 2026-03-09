@@ -88,12 +88,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 6: Verify acceptance criteria
-- [ ] no single file exceeds ~500 lines
-- [ ] all existing tests pass with new file structure
-- [ ] imports are clean — no circular dependencies
-- [ ] `NetBoxClient` public API unchanged (facade re-exports)
-- [ ] run full test suite: `python3 -m pytest tests/ -v`
-- [ ] run linter: `ruff check src/ tests/`
+- [x] no single file exceeds ~500 lines
+- [x] all existing tests pass with new file structure
+- [x] imports are clean — no circular dependencies
+- [x] `NetBoxClient` public API unchanged (facade re-exports)
+- [x] run full test suite: `python3 -m pytest tests/ -v`
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 7: [Final] Update documentation
 - [ ] update MEMORY.md with new module paths
