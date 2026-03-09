@@ -42,12 +42,14 @@ def retry_with_backoff(
     Schedule (default): immediate → 1s → 2s → 4s then raise.
     """
 
+    effective_retries = max(max_retries, 0)
+
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
             sleep_fn = _sleep if _sleep is not None else time.sleep
             last_exception = None
-            for attempt in range(max_retries + 1):
+            for attempt in range(effective_retries + 1):
                 try:
                     return fn(*args, **kwargs)
                 except httpx.HTTPStatusError as exc:
@@ -57,7 +59,7 @@ def retry_with_backoff(
                 except RETRYABLE_EXCEPTIONS as exc:
                     last_exception = exc
 
-                if attempt < max_retries:
+                if attempt < effective_retries:
                     delay = base_delay * (2 ** attempt)
                     if jitter:
                         delay *= random.uniform(0.5, 1.5)
@@ -65,7 +67,7 @@ def retry_with_backoff(
                     logger.warning(
                         "Retry %d/%d for %s after %.1fs: %s",
                         attempt + 1,
-                        max_retries,
+                        effective_retries,
                         fn.__name__,
                         delay,
                         last_exception,

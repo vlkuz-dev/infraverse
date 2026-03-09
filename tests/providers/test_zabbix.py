@@ -20,6 +20,7 @@ def mock_client():
         client.verify_ssl = True
         client.auth_token = "test-auth-token"
         client._request_id = 0
+        client.last_fetch_truncated = False
         client.client = MagicMock(spec=httpx.Client)
         return client
 

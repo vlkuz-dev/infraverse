@@ -104,8 +104,8 @@ attempt 4: 4s + jitter (final, then raise)
 | `providers/retry.py` | **NEW** — retry_with_backoff() decorator |
 | `sync/monitoring.py` | Use bulk Zabbix fetch + local dict lookup |
 | `providers/zabbix.py` | Apply retry decorator to _jsonrpc_request() |
-| `providers/vcloud.py` | Apply retry decorator to _authenticated_request() |
-| `sync/ingest.py` | Optional: parallel provider ingestion |
+| `providers/vcloud.py` | Apply retry decorator to _request() helper |
+| `sync/ingest.py` | Document why parallel provider ingestion is unsafe |
 
 ## Post-Completion
 - Monitor actual API call reduction in production logs
