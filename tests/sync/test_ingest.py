@@ -69,6 +69,7 @@ def _make_mock_zabbix(
 ):
     """Create a mock ZabbixClient with bulk fetch and per-VM search methods."""
     client = MagicMock()
+    client.last_fetch_truncated = False
     if error:
         client.fetch_hosts.side_effect = error
         client.search_host_by_name.side_effect = error
