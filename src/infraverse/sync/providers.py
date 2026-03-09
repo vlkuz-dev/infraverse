@@ -98,17 +98,19 @@ def build_zabbix_client(infraverse_config=None, legacy_config=None):
 
 def build_providers_from_accounts(
     accounts,
-) -> List[Tuple[CloudClient, ProviderProfile, Optional[str]]]:
+) -> List[Tuple[CloudClient, ProviderProfile, Optional[str], Optional[str]]]:
     """Build provider list from a sequence of CloudAccount objects.
 
     Skips inactive accounts and accounts with unknown provider types.
 
     Args:
         accounts: Iterable of CloudAccount DB model objects.
-            If accounts have a .tenant relation loaded, tenant_name is extracted.
+            If accounts have a .tenant relation loaded, tenant_name and
+            tenant_description are extracted.
 
     Returns:
-        List of (client, profile, tenant_name) tuples ready for SyncEngine.
+        List of (client, profile, tenant_name, tenant_description) tuples
+        ready for SyncEngine.
     """
     providers = []
     for account in accounts:
@@ -121,7 +123,8 @@ def build_providers_from_accounts(
                 client, profile = result
                 tenant = getattr(account, "tenant", None)
                 tenant_name = tenant.name if tenant is not None else None
-                providers.append((client, profile, tenant_name))
+                tenant_description = getattr(tenant, "description", None) if tenant is not None else None
+                providers.append((client, profile, tenant_name, tenant_description))
         except Exception:
             logger.exception("Failed to build provider for account %s", account.name)
     return providers

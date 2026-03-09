@@ -85,9 +85,9 @@ class TestBuildProvider:
         mock_resolve.assert_called_once_with({})
 
 
-def _make_account_with_tenant(provider_type, tenant_name=None, config=None,
-                              name="test-account", is_active=True):
-    tenant = SimpleNamespace(name=tenant_name) if tenant_name else None
+def _make_account_with_tenant(provider_type, tenant_name=None, tenant_description=None,
+                              config=None, name="test-account", is_active=True):
+    tenant = SimpleNamespace(name=tenant_name, description=tenant_description) if tenant_name else None
     return SimpleNamespace(
         provider_type=provider_type,
         config=config or {},
@@ -112,18 +112,19 @@ class TestBuildProvidersFromAccounts:
         assert mock_build.call_count == 2
 
     @patch("infraverse.sync.providers.build_provider")
-    def test_returns_3_tuples(self, mock_build):
-        """Each result element is a 3-tuple: (client, profile, tenant_name)."""
+    def test_returns_4_tuples(self, mock_build):
+        """Each result element is a 4-tuple: (client, profile, tenant_name, tenant_description)."""
         mock_build.return_value = (MagicMock(), YC_PROFILE)
         accounts = [_make_account("yandex_cloud")]
 
         result = build_providers_from_accounts(accounts)
 
         assert len(result) == 1
-        assert len(result[0]) == 3
-        client, profile, tenant_name = result[0]
+        assert len(result[0]) == 4
+        client, profile, tenant_name, tenant_description = result[0]
         assert profile is YC_PROFILE
         assert tenant_name is None  # no tenant attr on simple account
+        assert tenant_description is None
 
     @patch("infraverse.sync.providers.build_provider")
     def test_extracts_tenant_name_from_account(self, mock_build):
@@ -134,7 +135,7 @@ class TestBuildProvidersFromAccounts:
         result = build_providers_from_accounts(accounts)
 
         assert len(result) == 1
-        _, _, tenant_name = result[0]
+        _, _, tenant_name, _ = result[0]
         assert tenant_name == "acme-corp"
 
     @patch("infraverse.sync.providers.build_provider")
@@ -145,8 +146,9 @@ class TestBuildProvidersFromAccounts:
 
         result = build_providers_from_accounts(accounts)
 
-        _, _, tenant_name = result[0]
+        _, _, tenant_name, tenant_description = result[0]
         assert tenant_name is None
+        assert tenant_description is None
 
     @patch("infraverse.sync.providers.build_provider")
     def test_tenant_name_none_when_no_tenant_attr(self, mock_build):
@@ -156,8 +158,9 @@ class TestBuildProvidersFromAccounts:
 
         result = build_providers_from_accounts(accounts)
 
-        _, _, tenant_name = result[0]
+        _, _, tenant_name, tenant_description = result[0]
         assert tenant_name is None
+        assert tenant_description is None
 
     @patch("infraverse.sync.providers.build_provider")
     def test_multiple_accounts_different_tenants(self, mock_build):
@@ -173,6 +176,34 @@ class TestBuildProvidersFromAccounts:
         assert len(result) == 2
         assert result[0][2] == "acme-corp"
         assert result[1][2] == "beta-inc"
+
+    @patch("infraverse.sync.providers.build_provider")
+    def test_extracts_tenant_description_from_account(self, mock_build):
+        """tenant_description is extracted from account.tenant.description."""
+        mock_build.return_value = (MagicMock(), YC_PROFILE)
+        accounts = [_make_account_with_tenant(
+            "yandex_cloud", tenant_name="acme-corp",
+            tenant_description="ACME Corporation",
+        )]
+
+        result = build_providers_from_accounts(accounts)
+
+        _, _, tenant_name, tenant_description = result[0]
+        assert tenant_name == "acme-corp"
+        assert tenant_description == "ACME Corporation"
+
+    @patch("infraverse.sync.providers.build_provider")
+    def test_tenant_description_none_when_not_set(self, mock_build):
+        """tenant_description is None when tenant has no description."""
+        mock_build.return_value = (MagicMock(), YC_PROFILE)
+        accounts = [_make_account_with_tenant(
+            "yandex_cloud", tenant_name="acme-corp",
+        )]
+
+        result = build_providers_from_accounts(accounts)
+
+        _, _, _, tenant_description = result[0]
+        assert tenant_description is None
 
     @patch("infraverse.sync.providers.build_provider")
     def test_skips_inactive_accounts(self, mock_build):

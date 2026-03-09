@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 # Type alias for a cloud provider client (YandexCloudClient, VCloudDirectorClient, etc.)
 CloudClient = Any
 
-# Provider tuple: (client, profile) or (client, profile, tenant_name)
+# Provider tuple: (client, profile), (client, profile, tenant_name),
+# or (client, profile, tenant_name, tenant_description)
 ProviderTuple = Union[
     Tuple[CloudClient, ProviderProfile],
     Tuple[CloudClient, ProviderProfile, Optional[str]],
+    Tuple[CloudClient, ProviderProfile, Optional[str], Optional[str]],
 ]
 
 
@@ -57,10 +59,12 @@ class SyncEngine:
             client = provider_tuple[0]
             profile = provider_tuple[1]
             tenant_name = provider_tuple[2] if len(provider_tuple) > 2 else None
+            tenant_description = provider_tuple[3] if len(provider_tuple) > 3 else None
             logger.info("Syncing provider: %s", profile.display_name)
             try:
                 provider_stats = self._sync_provider(
-                    client, profile, use_batch, cleanup, tenant_name=tenant_name,
+                    client, profile, use_batch, cleanup,
+                    tenant_name=tenant_name, tenant_description=tenant_description,
                 )
                 all_stats[profile.key] = provider_stats
             except Exception:
@@ -71,7 +75,8 @@ class SyncEngine:
         return all_stats
 
     def _sync_provider(
-        self, client, profile, use_batch, cleanup, tenant_name=None,
+        self, client, profile, use_batch, cleanup,
+        tenant_name=None, tenant_description=None,
     ) -> Dict[str, Any]:
         """Sync a single provider to NetBox."""
         data = client.fetch_all_data()
@@ -93,6 +98,12 @@ class SyncEngine:
             tag_color=profile.tag_color,
             tag_description=profile.tag_description,
         )
+
+        # Pre-cache tenant with description so downstream calls use cached ID
+        if tenant_name:
+            self.nb.ensure_tenant(
+                name=tenant_name, description=tenant_description,
+            )
 
         # Sync infrastructure and get ID mappings
         id_mapping = sync_infrastructure(

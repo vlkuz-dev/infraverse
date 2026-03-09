@@ -119,14 +119,14 @@
 - [x] Run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] Verify: VM creation in NetBox includes tenant field (both paths)
-- [ ] Verify: VM update in NetBox checks and updates tenant field (both paths)
-- [ ] Verify: ensure_tenant() auto-creates tenant in NetBox when missing
-- [ ] Verify: tenant_name=None is handled gracefully (backward compat, no tenant set)
-- [ ] Verify: dry_run mode works with tenant mapping
-- [ ] Verify: description from TenantConfig flows to NetBox tenant
-- [ ] Run full test suite (`python3 -m pytest tests/ -v`)
-- [ ] Run linter (`ruff check src/ tests/`) — all issues must be fixed
+- [x] Verify: VM creation in NetBox includes tenant field (both paths)
+- [x] Verify: VM update in NetBox checks and updates tenant field (both paths)
+- [x] Verify: ensure_tenant() auto-creates tenant in NetBox when missing
+- [x] Verify: tenant_name=None is handled gracefully (backward compat, no tenant set)
+- [x] Verify: dry_run mode works with tenant mapping
+- [x] Verify: description from TenantConfig flows to NetBox tenant
+- [x] Run full test suite (`python3 -m pytest tests/ -v`)
+- [x] Run linter (`ruff check src/ tests/`) — all issues must be fixed
 
 ### Task 6: [Final] Update documentation
 - [ ] Update README.md if needed (mention tenant mapping in sync description)

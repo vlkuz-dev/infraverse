@@ -9,6 +9,7 @@ from infraverse.sync.provider_profile import YC_PROFILE, VCLOUD_PROFILE
 def _make_mock_netbox():
     nb = MagicMock()
     nb.ensure_sync_tag.return_value = 1
+    nb.ensure_tenant.return_value = 42
     return nb
 
 
@@ -103,11 +104,27 @@ class TestSyncEngineRunBatch:
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme-corp")])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme-corp", "ACME Corporation")])
         engine.run(use_batch=True)
 
         mock_batch.assert_called_once()
         assert mock_batch.call_args.kwargs["tenant_name"] == "acme-corp"
+
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    def test_batch_pre_caches_tenant_with_description(self, mock_infra, mock_batch):
+        """ensure_tenant is pre-called with description before VM sync."""
+        nb = _make_mock_netbox()
+        yc = _make_mock_yc_client()
+        mock_infra.return_value = {}
+        mock_batch.return_value = {}
+
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme-corp", "ACME Corporation")])
+        engine.run(use_batch=True)
+
+        nb.ensure_tenant.assert_called_once_with(
+            name="acme-corp", description="ACME Corporation",
+        )
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
     @patch("infraverse.sync.engine.sync_infrastructure")
@@ -163,11 +180,27 @@ class TestSyncEngineRunStandard:
         mock_infra.return_value = {}
         mock_vms.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, "beta-inc")])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "beta-inc", "Beta Inc")])
         engine.run(use_batch=False)
 
         mock_vms.assert_called_once()
         assert mock_vms.call_args.kwargs["tenant_name"] == "beta-inc"
+
+    @patch("infraverse.sync.engine.sync_vms")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    def test_standard_pre_caches_tenant_with_description(self, mock_infra, mock_vms):
+        """ensure_tenant pre-called with description in standard sync path."""
+        nb = _make_mock_netbox()
+        yc = _make_mock_yc_client()
+        mock_infra.return_value = {}
+        mock_vms.return_value = {}
+
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "beta-inc", "Beta Inc")])
+        engine.run(use_batch=False)
+
+        nb.ensure_tenant.assert_called_once_with(
+            name="beta-inc", description="Beta Inc",
+        )
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
     @patch("infraverse.sync.engine.sync_vms")
@@ -276,7 +309,7 @@ class TestSyncEngineMultiProvider:
         mock_infra.return_value = {}
         mock_batch.return_value = {"created": 0}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme"), (vcd, VCLOUD_PROFILE, "beta")])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme", None), (vcd, VCLOUD_PROFILE, "beta", None)])
         result = engine.run()
 
         assert "yandex_cloud" in result
@@ -293,12 +326,33 @@ class TestSyncEngineMultiProvider:
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme"), (vcd, VCLOUD_PROFILE, "beta")])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, "acme", "ACME"), (vcd, VCLOUD_PROFILE, "beta", "Beta")])
         engine.run()
 
         calls = mock_batch.call_args_list
         assert calls[0].kwargs["tenant_name"] == "acme"
         assert calls[1].kwargs["tenant_name"] == "beta"
+
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    def test_two_providers_pre_cache_different_descriptions(self, mock_infra, mock_batch):
+        """Each provider's tenant_description is pre-cached via ensure_tenant."""
+        nb = _make_mock_netbox()
+        yc = _make_mock_yc_client()
+        vcd = _make_mock_yc_client()
+        mock_infra.return_value = {}
+        mock_batch.return_value = {}
+
+        engine = SyncEngine(nb, [
+            (yc, YC_PROFILE, "acme", "ACME Corp"),
+            (vcd, VCLOUD_PROFILE, "beta", "Beta Inc"),
+        ])
+        engine.run()
+
+        ensure_calls = nb.ensure_tenant.call_args_list
+        assert len(ensure_calls) == 2
+        assert ensure_calls[0] == ((), {"name": "acme", "description": "ACME Corp"})
+        assert ensure_calls[1] == ((), {"name": "beta", "description": "Beta Inc"})
 
     def test_empty_providers_returns_empty_stats(self):
         nb = _make_mock_netbox()
@@ -338,3 +392,17 @@ class TestSyncEngine2TupleBackwardCompat:
 
         mock_vms.assert_called_once()
         assert mock_vms.call_args.kwargs["tenant_name"] is None
+
+    @patch("infraverse.sync.engine.sync_vms_optimized")
+    @patch("infraverse.sync.engine.sync_infrastructure")
+    def test_no_ensure_tenant_called_when_tenant_name_none(self, mock_infra, mock_batch):
+        """ensure_tenant is NOT called when tenant_name is None."""
+        nb = _make_mock_netbox()
+        yc = _make_mock_yc_client()
+        mock_infra.return_value = {}
+        mock_batch.return_value = {}
+
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
+        engine.run(use_batch=True)
+
+        nb.ensure_tenant.assert_not_called()
