@@ -64,6 +64,102 @@ class NetBoxInfrastructureMixin:
 
         return False
 
+    def ensure_tenant(
+        self,
+        name: str,
+        slug: str | None = None,
+        description: str | None = None,
+    ) -> int:
+        """
+        Ensure a tenant exists in NetBox, creating it if necessary.
+
+        Args:
+            name: Tenant name (config key, e.g. "acme-corp")
+            slug: Tenant slug; defaults to name (config keys are slug-safe)
+            description: Optional tenant description
+
+        Returns:
+            Tenant ID
+        """
+        desired_slug = slug or name
+
+        # Check cache
+        if desired_slug in self._tenant_cache:
+            return self._tenant_cache[desired_slug]
+
+        # Try to find existing tenant by name, then by slug
+        tenant = None
+
+        try:
+            tenant = self.nb.tenancy.tenants.get(name=name)
+        except Exception:
+            pass
+
+        if not tenant:
+            try:
+                tenant = self.nb.tenancy.tenants.get(slug=desired_slug)
+            except Exception:
+                pass
+
+        if tenant:
+            # Update description if changed
+            updates = {}
+            if description and getattr(tenant, 'description', None) != description:
+                updates['description'] = description
+
+            self._safe_update_object(tenant, updates)
+
+            # Add sync tag
+            tag_id = self.ensure_sync_tag()
+            if tag_id:
+                self._add_tag_to_object(tenant, tag_id)
+
+            self._tenant_cache[desired_slug] = tenant.id
+            return tenant.id
+
+        # Create tenant if it doesn't exist
+        if self.dry_run:
+            logger.info(f"[DRY-RUN] Would create tenant: {name}")
+            mock_id = 1_000_000 + len(self._tenant_cache)
+            self._tenant_cache[desired_slug] = mock_id
+            return mock_id
+
+        # Ensure tag exists
+        tag_id = self.ensure_sync_tag()
+
+        tenant_data = {
+            "name": name,
+            "slug": desired_slug,
+        }
+
+        if description:
+            tenant_data["description"] = description
+
+        if tag_id:
+            tenant_data["tags"] = [tag_id]
+
+        try:
+            tenant = self.nb.tenancy.tenants.create(tenant_data)
+            self._tenant_cache[desired_slug] = tenant.id
+            logger.info(f"Created tenant: {name} (ID: {tenant.id})")
+            return tenant.id
+        except Exception as e:
+            error_msg = str(e)
+            # Handle duplicate slug error
+            if '400' in error_msg and 'slug' in error_msg.lower():
+                logger.warning(f"Tenant with slug '{desired_slug}' already exists, trying to fetch it")
+                try:
+                    tenant = self.nb.tenancy.tenants.get(slug=desired_slug)
+                    if tenant:
+                        self._tenant_cache[desired_slug] = tenant.id
+                        logger.info(f"Found existing tenant: {tenant.name} (ID: {tenant.id})")
+                        return tenant.id
+                except Exception:
+                    pass
+
+            logger.error(f"Failed to create or find tenant {name}: {e}")
+            raise
+
     def ensure_site(
         self,
         zone_id: str,

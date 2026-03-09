@@ -405,6 +405,195 @@ class TestEnsurePlatform:
         assert result == 8
 
 
+class TestEnsureTenant:
+    """Tests for ensure_tenant() — success cases."""
+
+    def test_finds_existing_tenant_by_name(self, nb_client):
+        nb_client._sync_tag_id = 1
+        tenant = MockRecord(10, name="acme-corp", slug="acme-corp",
+                            description="ACME Corporation", tags=[])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant("acme-corp")
+
+        assert result == 10
+        assert nb_client._tenant_cache["acme-corp"] == 10
+
+    def test_finds_existing_tenant_by_slug(self, nb_client):
+        nb_client._sync_tag_id = 1
+        tenant = MockRecord(11, name="Beta Inc", slug="beta-inc",
+                            description="Beta Inc", tags=[])
+
+        def get_side_effect(**kwargs):
+            if kwargs.get("name"):
+                return None
+            if kwargs.get("slug") == "beta-inc":
+                return tenant
+            return None
+
+        nb_client.nb.tenancy.tenants.get.side_effect = get_side_effect
+
+        result = nb_client.ensure_tenant("Beta Inc", slug="beta-inc")
+
+        assert result == 11
+        assert nb_client._tenant_cache["beta-inc"] == 11
+
+    def test_creates_new_tenant(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(12, name="new-tenant", slug="new-tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        result = nb_client.ensure_tenant("new-tenant", description="New Tenant Corp")
+
+        assert result == 12
+        assert nb_client._tenant_cache["new-tenant"] == 12
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert call_args["name"] == "new-tenant"
+        assert call_args["slug"] == "new-tenant"
+        assert call_args["description"] == "New Tenant Corp"
+        assert call_args["tags"] == [1]
+
+    def test_creates_tenant_without_description(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(13, name="simple-tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        result = nb_client.ensure_tenant("simple-tenant")
+
+        assert result == 13
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert "description" not in call_args
+
+    def test_dry_run_returns_mock_id(self, nb_client_dry_run):
+        nb_client_dry_run.nb.tenancy.tenants.get.return_value = None
+
+        result = nb_client_dry_run.ensure_tenant("dry-tenant")
+
+        assert result == 1_000_000
+        assert nb_client_dry_run._tenant_cache["dry-tenant"] == 1_000_000
+        nb_client_dry_run.nb.tenancy.tenants.create.assert_not_called()
+
+    def test_returns_cached_id(self, nb_client):
+        nb_client._tenant_cache["cached-tenant"] = 99
+
+        result = nb_client.ensure_tenant("cached-tenant")
+
+        assert result == 99
+        nb_client.nb.tenancy.tenants.get.assert_not_called()
+
+    def test_slug_defaults_to_name(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(14, name="my-tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        nb_client.ensure_tenant("my-tenant")
+
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert call_args["slug"] == "my-tenant"
+
+    def test_custom_slug(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(15, name="My Tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        nb_client.ensure_tenant("My Tenant", slug="my-tenant")
+
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert call_args["name"] == "My Tenant"
+        assert call_args["slug"] == "my-tenant"
+        assert nb_client._tenant_cache["my-tenant"] == 15
+
+
+class TestEnsureTenantErrors:
+    """Tests for ensure_tenant() — error/edge cases."""
+
+    def test_duplicate_slug_retry_succeeds(self, nb_client):
+        nb_client._sync_tag_id = 1
+        # First lookups return None, create throws duplicate slug error
+        nb_client.nb.tenancy.tenants.get.side_effect = [
+            None, None,  # initial lookup by name, by slug
+            MockRecord(20, name="dup-tenant", slug="dup-tenant"),  # retry after error
+        ]
+        nb_client.nb.tenancy.tenants.create.side_effect = Exception("400 slug already exists")
+
+        result = nb_client.ensure_tenant("dup-tenant")
+
+        assert result == 20
+        assert nb_client._tenant_cache["dup-tenant"] == 20
+
+    def test_description_updated_on_existing_tenant(self, nb_client):
+        nb_client._sync_tag_id = 1
+        # tags=[1] so _add_tag_to_object won't call save (tag already present)
+        tenant = MockRecord(10, name="acme-corp", slug="acme-corp",
+                            description="Old Description", tags=[MockRecord(1)])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant("acme-corp", description="New Description")
+
+        assert result == 10
+        # Verify save was called exactly once (description update only)
+        tenant.save.assert_called_once()
+        assert tenant.description == "New Description"
+
+    def test_description_not_updated_when_same(self, nb_client):
+        nb_client._sync_tag_id = 1
+        tenant = MockRecord(10, name="acme-corp", slug="acme-corp",
+                            description="Same Description", tags=[MockRecord(1)])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant("acme-corp", description="Same Description")
+
+        assert result == 10
+        tenant.save.assert_not_called()
+
+    def test_no_description_update_when_none_provided(self, nb_client):
+        nb_client._sync_tag_id = 1
+        tenant = MockRecord(10, name="acme-corp", slug="acme-corp",
+                            description="Existing", tags=[MockRecord(1)])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant("acme-corp")
+
+        assert result == 10
+        tenant.save.assert_not_called()
+
+    def test_create_failure_non_duplicate_raises(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        nb_client.nb.tenancy.tenants.create.side_effect = Exception("500 server error")
+
+        with pytest.raises(Exception, match="500 server error"):
+            nb_client.ensure_tenant("fail-tenant")
+
+    def test_dry_run_increments_mock_ids(self, nb_client_dry_run):
+        nb_client_dry_run.nb.tenancy.tenants.get.return_value = None
+
+        id1 = nb_client_dry_run.ensure_tenant("tenant-a")
+        id2 = nb_client_dry_run.ensure_tenant("tenant-b")
+
+        assert id1 == 1_000_000
+        assert id2 == 1_000_001
+
+    def test_create_without_tag(self, nb_client):
+        """When no sync tag is configured, tenant is created without tags."""
+        nb_client._sync_tag_id = None
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        # ensure_sync_tag returns None when no tag configured
+        nb_client.ensure_sync_tag = MagicMock(return_value=None)
+        new_tenant = MockRecord(16, name="no-tag-tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        result = nb_client.ensure_tenant("no-tag-tenant")
+
+        assert result == 16
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert "tags" not in call_args
+
+
 class TestMixinResolution:
     """Verify that infrastructure methods are accessible via NetBoxClient."""
 
@@ -422,3 +611,6 @@ class TestMixinResolution:
 
     def test_has_ensure_platform(self, nb_client):
         assert hasattr(nb_client, 'ensure_platform')
+
+    def test_has_ensure_tenant(self, nb_client):
+        assert hasattr(nb_client, 'ensure_tenant')
