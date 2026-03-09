@@ -309,6 +309,14 @@ class DataIngestor:
     ) -> dict[str, str]:
         """Ingest data from all configured providers.
 
+        Providers are ingested sequentially. Parallel ingestion was evaluated
+        but is not safe because:
+        - SQLAlchemy Session is not thread-safe and this class shares a single
+          session across all operations
+        - SQLite (default backend) has a single-writer lock, so concurrent
+          writes would block or fail with "database is locked"
+        - Even with per-thread sessions, SQLite serializes all writes
+
         Args:
             providers: Map of CloudAccount.id -> CloudProvider instance.
             zabbix_client: Optional ZabbixClient for per-VM monitoring checks.

@@ -61,11 +61,11 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Parallelize provider ingestion (optional, lower priority)
-- [ ] evaluate if `ThreadPoolExecutor` is safe with current session/DB usage
-- [ ] if safe: run independent provider accounts in parallel in `ingest_all()` using bounded pool (max_workers=4)
-- [ ] if not safe: document why and skip (SQLite single-writer limitation)
-- [ ] write tests for parallel execution if implemented
-- [ ] run tests — must pass before next task
+- [x] evaluate if `ThreadPoolExecutor` is safe with current session/DB usage
+- [ ] ~~if safe: run independent provider accounts in parallel in `ingest_all()` using bounded pool (max_workers=4)~~ N/A — not safe
+- [x] if not safe: document why and skip (SQLite single-writer limitation)
+- [ ] ~~write tests for parallel execution if implemented~~ N/A — not implemented
+- [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] verify YC sync with 10+ VMs makes significantly fewer API calls (cache hit rate)
