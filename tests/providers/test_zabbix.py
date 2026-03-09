@@ -114,7 +114,8 @@ class TestAuthenticate:
         with pytest.raises(RuntimeError, match="no token returned"):
             mock_client.authenticate()
 
-    def test_auth_http_error(self, mock_client):
+    @patch("time.sleep")
+    def test_auth_http_error(self, _sleep, mock_client):
         mock_client.auth_token = None
         resp = MagicMock()
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -142,7 +143,8 @@ class TestAuthenticate:
         assert "auth" not in payload
         assert mock_client.auth_token == "new-token"
 
-    def test_auth_restores_token_on_http_failure(self, mock_client):
+    @patch("time.sleep")
+    def test_auth_restores_token_on_http_failure(self, _sleep, mock_client):
         """On HTTP failure, the original auth token is restored."""
         mock_client.auth_token = "old-token"
         resp = MagicMock()
@@ -384,7 +386,8 @@ class TestErrorHandling:
         with pytest.raises(RuntimeError, match="Something went wrong"):
             mock_client.fetch_hosts()
 
-    def test_http_error_on_fetch(self, mock_client):
+    @patch("time.sleep")
+    def test_http_error_on_fetch(self, _sleep, mock_client):
         resp = MagicMock()
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Server Error", request=MagicMock(), response=MagicMock(status_code=500)

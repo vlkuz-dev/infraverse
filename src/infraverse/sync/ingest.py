@@ -135,13 +135,13 @@ class DataIngestor:
     ) -> int:
         """Check monitoring status for known VMs and store results in DB.
 
-        Instead of bulk-fetching all Zabbix hosts, queries Zabbix per VM
-        by name (with IP fallback) and stores found hosts as MonitoringHost
-        records linked to the VM's cloud account.
+        Bulk-fetches all Zabbix hosts once for local matching by name
+        (with IP fallback).  Falls back to per-VM API queries if bulk
+        fetch fails.
 
         Args:
             vms: List of VM objects (with name, ip_addresses, cloud_account_id).
-            zabbix_client: ZabbixClient with search_host_by_name/ip methods.
+            zabbix_client: ZabbixClient instance.
 
         Returns:
             Number of VMs found to be monitored.

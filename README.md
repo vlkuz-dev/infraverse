@@ -8,7 +8,8 @@ Infrastructure visibility platform - sync multi-cloud infrastructure to NetBox a
 - **Multi-cloud support:** Yandex Cloud and vCloud Director providers via unified CloudProvider interface
 - **SSO/OIDC authentication:** optional OpenID Connect login with role-based access control (works with Keycloak, Google Workspace, Azure AD, etc.)
 - **CSRF protection:** automatic per-session CSRF tokens validated on all mutating requests (POST/PUT/DELETE/PATCH) when OIDC is enabled
-- **Per-VM monitoring check:** query Zabbix per known VM (by name, then IP fallback) instead of bulk-fetching all hosts
+- **Bulk monitoring check:** fetch all Zabbix hosts once per ingestion, then match VMs locally by name and IP (falls back to per-VM queries if bulk fetch fails)
+- **Automatic retry with backoff:** transient API errors (429, 500-503, connection failures) are retried with exponential backoff across all cloud and monitoring providers
 - **SQLite database:** persistent storage for VMs, monitoring hosts, sync runs, and tenant/account hierarchy
 - **Tenant & CloudAccount model:** multi-customer, multi-cloud support (one tenant = one customer, many cloud accounts)
 - **Tenant-scoped web UI:** filter dashboard, VM list, and comparison by tenant
@@ -324,6 +325,7 @@ src/infraverse/
     yandex.py              # Yandex Cloud API client
     vcloud.py              # vCloud Director API client
     zabbix.py              # Zabbix JSON-RPC client
+    retry.py               # Retry with exponential backoff decorator
     netbox.py              # NetBox API wrapper (pynetbox)
   sync/
     engine.py              # Top-level sync orchestrator
@@ -332,7 +334,7 @@ src/infraverse/
     provider_profile.py    # ProviderProfile dataclass + per-provider constants
     ingest.py              # DataIngestor: providers -> DB
     config_sync.py         # YAML config to DB sync (tenants, accounts)
-    monitoring.py          # Per-VM monitoring check via Zabbix
+    monitoring.py          # Bulk Zabbix monitoring check (with per-VM fallback)
     size_converters.py     # Size conversion utilities (bytes -> NetBox MB)
     infrastructure.py      # Sites, clusters, prefixes sync
     vms.py                 # VM sync logic
@@ -394,21 +396,23 @@ LOG_LEVEL=DEBUG infraverse sync --config config.yaml --dry-run
 2. With YAML config: `sync_config_to_db()` creates/updates tenants and cloud accounts from the config file
 3. Without config: `infraverse db seed` creates a default tenant, cloud accounts come from env vars
 4. DataIngestor fetches VMs from each active cloud account and stores them in DB
-5. For each known VM, Zabbix is queried by name (then IP fallback) to check monitoring presence
+5. All Zabbix hosts are bulk-fetched once, then each VM is matched locally by name (then IP fallback); falls back to per-VM API queries if bulk fetch fails
 6. Each ingestion creates a SyncRun record tracking status and item counts
 
 ### Monitoring Check
 
-Instead of fetching all hosts from Zabbix, Infraverse queries Zabbix per known VM:
+Infraverse bulk-fetches all hosts from Zabbix once per ingestion cycle, then matches VMs locally:
 
 ```
-For each VM in DB:
-  1. Search Zabbix by VM name (exact match via host.get filter)
-  2. If not found, search by VM's IP addresses
-  3. Store result in MonitoringHost table (linked to cloud account)
+1. Fetch all Zabbix hosts (single paginated API call)
+2. Build lookup dicts by name and IP address
+3. For each VM in DB:
+   a. Look up by VM name (exact match in local dict)
+   b. If not found, look up by VM's IP addresses
+   c. Store result in MonitoringHost table (linked to cloud account)
 ```
 
-This avoids loading thousands of irrelevant Zabbix hosts and provides accurate per-VM monitoring status.
+Falls back to per-VM Zabbix API queries if the bulk fetch fails.
 
 ### Sync to NetBox
 

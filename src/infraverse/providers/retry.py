@@ -58,9 +58,10 @@ def retry_with_backoff(
                     last_exception = exc
 
                 if attempt < max_retries:
-                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    delay = base_delay * (2 ** attempt)
                     if jitter:
                         delay *= random.uniform(0.5, 1.5)
+                    delay = min(delay, max_delay)
                     logger.warning(
                         "Retry %d/%d for %s after %.1fs: %s",
                         attempt + 1,

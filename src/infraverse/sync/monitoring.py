@@ -129,7 +129,7 @@ def check_all_vms_monitoring(
     results = []
     for vm in vms:
         try:
-            if hosts_by_name is not None:
+            if hosts_by_name is not None and hosts_by_ip is not None:
                 result = _check_vm_from_lookups(vm, hosts_by_name, hosts_by_ip)
             else:
                 result = check_vm_monitoring(vm, zabbix_client)

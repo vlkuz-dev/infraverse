@@ -49,7 +49,8 @@ class TestFetchZones:
         result = mock_client.fetch_zones()
         assert result == []
 
-    def test_fetch_zones_http_error(self, mock_client):
+    @patch("time.sleep")
+    def test_fetch_zones_http_error(self, _sleep, mock_client):
         resp = MagicMock()
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Server Error", request=MagicMock(), response=MagicMock(status_code=500)
