@@ -67,14 +67,19 @@ def _make_mock_zabbix(
     ip_results: dict[str, ZabbixHost | None] | None = None,
     error: Exception | None = None,
 ):
-    """Create a mock ZabbixClient with per-VM search methods."""
+    """Create a mock ZabbixClient with bulk fetch and per-VM search methods."""
     client = MagicMock()
     if error:
+        client.fetch_hosts.side_effect = error
         client.search_host_by_name.side_effect = error
     else:
         name_map = name_results or {}
-        client.search_host_by_name.side_effect = lambda name: name_map.get(name)
         ip_map = ip_results or {}
+        # Bulk fetch returns all unique hosts for local lookup
+        all_hosts = list({id(h): h for h in [*name_map.values(), *ip_map.values()] if h is not None}.values())
+        client.fetch_hosts.return_value = all_hosts
+        # Per-VM fallback methods (used when bulk fetch fails)
+        client.search_host_by_name.side_effect = lambda name: name_map.get(name)
         client.search_host_by_ip.side_effect = lambda ip: ip_map.get(ip)
     return client
 
@@ -353,7 +358,7 @@ class TestIngestMonitoringHosts:
         vm, _ = repo.upsert_vm(cloud_account_id=account.id, external_id="ext-1", name="web-1", status="active")
         session.commit()
 
-        host = ZabbixHost(name="new-name", hostid="z101", status="offline", ip_addresses=["10.0.0.5"])
+        host = ZabbixHost(name="web-1", hostid="z101", status="offline", ip_addresses=["10.0.0.5"])
         zabbix = _make_mock_zabbix(name_results={"web-1": host})
 
         count = ingestor.ingest_monitoring_hosts([vm], zabbix)
@@ -633,8 +638,8 @@ class TestIngestExclusionRules:
         mon_host = session.query(MonitoringHost).one()
         assert mon_host.name == "prod-vm-1"
 
-        # Verify that Zabbix was only called for the non-exempt VM
-        zabbix.search_host_by_name.assert_called_once_with("prod-vm-1")
+        # Verify bulk fetch was used (single API call)
+        zabbix.fetch_hosts.assert_called_once()
 
     def test_ingest_updates_exempt_on_rule_change(self, session, tenant_and_account):
         """First ingest without rules (not exempt), second with matching rule (now exempt)."""

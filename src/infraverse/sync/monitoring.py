@@ -1,8 +1,7 @@
 """Per-VM monitoring check logic.
 
-Instead of bulk-fetching all Zabbix hosts, this module queries Zabbix
-per known VM to check monitoring presence: name match first, then
-IP fallback.
+Bulk-fetches all Zabbix hosts once, then matches VMs locally by name
+and IP address.  Falls back to per-VM API queries when bulk fetch fails.
 """
 
 import logging
@@ -24,8 +23,47 @@ class MonitoringResult:
     matched_by: str | None = None  # "name" or "ip"
 
 
+def _build_host_lookups(
+    hosts: list[ZabbixHost],
+) -> tuple[dict[str, ZabbixHost], dict[str, ZabbixHost]]:
+    """Build name and IP lookup dicts from a list of ZabbixHost.
+
+    Returns:
+        (hosts_by_name, hosts_by_ip) — first match wins for duplicate keys.
+    """
+    by_name: dict[str, ZabbixHost] = {}
+    by_ip: dict[str, ZabbixHost] = {}
+    for h in hosts:
+        by_name.setdefault(h.name, h)
+        for ip in h.ip_addresses:
+            by_ip.setdefault(ip, h)
+    return by_name, by_ip
+
+
+def _check_vm_from_lookups(
+    vm: Any,
+    hosts_by_name: dict[str, ZabbixHost],
+    hosts_by_ip: dict[str, ZabbixHost],
+) -> MonitoringResult:
+    """Match a VM against pre-built lookup dicts (name first, then IP)."""
+    host = hosts_by_name.get(vm.name)
+    if host is not None:
+        return MonitoringResult(
+            vm_name=vm.name, found=True, host=host, matched_by="name"
+        )
+
+    for ip in vm.ip_addresses or []:
+        host = hosts_by_ip.get(ip)
+        if host is not None:
+            return MonitoringResult(
+                vm_name=vm.name, found=True, host=host, matched_by="ip"
+            )
+
+    return MonitoringResult(vm_name=vm.name, found=False)
+
+
 def check_vm_monitoring(vm: Any, zabbix_client: Any) -> MonitoringResult:
-    """Check if a VM is monitored in Zabbix.
+    """Check if a VM is monitored in Zabbix (per-VM API fallback).
 
     Tries name match first, then falls back to checking each IP address.
 
@@ -61,6 +99,9 @@ def check_all_vms_monitoring(
 ) -> list[MonitoringResult]:
     """Check monitoring status for a batch of VMs.
 
+    Tries a single bulk fetch of all Zabbix hosts first, then matches
+    locally.  Falls back to per-VM API queries if bulk fetch fails.
+
     Args:
         vms: List of VM objects.
         zabbix_client: ZabbixClient instance.
@@ -68,10 +109,30 @@ def check_all_vms_monitoring(
     Returns:
         List of MonitoringResult, one per input VM, in the same order.
     """
+    if not vms:
+        return []
+
+    # Try bulk fetch for O(1) lookups instead of per-VM API calls.
+    hosts_by_name: dict[str, ZabbixHost] | None = None
+    hosts_by_ip: dict[str, ZabbixHost] | None = None
+    try:
+        all_hosts = zabbix_client.fetch_hosts()
+        hosts_by_name, hosts_by_ip = _build_host_lookups(all_hosts)
+        logger.info(
+            "Bulk-fetched %d Zabbix hosts for monitoring lookup", len(all_hosts)
+        )
+    except Exception as exc:
+        logger.warning(
+            "Bulk Zabbix fetch failed, falling back to per-VM queries: %s", exc
+        )
+
     results = []
     for vm in vms:
         try:
-            result = check_vm_monitoring(vm, zabbix_client)
+            if hosts_by_name is not None:
+                result = _check_vm_from_lookups(vm, hosts_by_name, hosts_by_ip)
+            else:
+                result = check_vm_monitoring(vm, zabbix_client)
         except Exception as exc:
             logger.warning("Failed to check monitoring for VM %s: %s", vm.name, exc)
             result = MonitoringResult(vm_name=vm.name, found=False)

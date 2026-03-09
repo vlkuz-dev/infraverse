@@ -40,13 +40,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Use Zabbix bulk fetch for monitoring checks
-- [ ] in `check_all_vms_monitoring()`, call `zabbix_client.fetch_hosts()` once to get all hosts
-- [ ] build lookup dicts: `hosts_by_name: dict[str, ZabbixHost]` and `hosts_by_ip: dict[str, ZabbixHost]`
-- [ ] replace per-VM `search_host_by_name()` and `search_host_by_ip()` with dict lookups
-- [ ] keep the existing per-VM fallback path for cases where bulk fetch is unavailable
-- [ ] write tests for bulk fetch path (single API call + local lookup)
-- [ ] write tests verifying name-first-then-IP-fallback behavior preserved
-- [ ] run tests — must pass before next task
+- [x] in `check_all_vms_monitoring()`, call `zabbix_client.fetch_hosts()` once to get all hosts
+- [x] build lookup dicts: `hosts_by_name: dict[str, ZabbixHost]` and `hosts_by_ip: dict[str, ZabbixHost]`
+- [x] replace per-VM `search_host_by_name()` and `search_host_by_ip()` with dict lookups
+- [x] keep the existing per-VM fallback path for cases where bulk fetch is unavailable
+- [x] write tests for bulk fetch path (single API call + local lookup)
+- [x] write tests verifying name-first-then-IP-fallback behavior preserved
+- [x] run tests — must pass before next task
 
 ### Task 3: Add retry with backoff for provider API calls
 - [ ] create `src/infraverse/providers/retry.py` with `retry_with_backoff()` decorator/helper
