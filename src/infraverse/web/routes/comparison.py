@@ -9,6 +9,9 @@ from infraverse.db.models import SyncRun, VM, NetBoxHost
 from infraverse.db.repository import Repository
 from infraverse.providers.base import VMInfo
 from infraverse.web.app import get_templates
+from infraverse.web.pagination import build_pagination
+
+COMPARISON_PER_PAGE = 100
 
 router = APIRouter()
 
@@ -267,6 +270,31 @@ def _parse_tenant_id(raw: str | None) -> int | None:
         return None
 
 
+def _paginate_comparison(context: dict, page: int, per_page: int, query_params: dict) -> dict:
+    """Apply in-memory pagination to comparison results."""
+    all_vms = context["result"].all_vms
+    total_count = len(all_vms)
+
+    total_pages = max(1, -(-total_count // per_page))
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * per_page
+
+    context["result"] = ComparisonResult(
+        all_vms=all_vms[offset:offset + per_page],
+        summary=context["result"].summary,
+    )
+    context["pagination"] = build_pagination(
+        page=page,
+        per_page=per_page,
+        total_count=total_count,
+        base_url="/comparison",
+        query_params=query_params,
+        htmx_base_url="/comparison/table",
+        htmx_target="#comparison-table",
+    )
+    return context
+
+
 @router.get("/comparison")
 def comparison(
     request: Request,
@@ -274,10 +302,21 @@ def comparison(
     status: str | None = None,
     search: str | None = None,
     tenant_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=COMPARISON_PER_PAGE, ge=1, le=500),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search, tenant_id=_parse_tenant_id(tenant_id))
+    parsed_tid = _parse_tenant_id(tenant_id)
+    context = _build_context(request, provider, status, search, tenant_id=parsed_tid)
     context["active_page"] = "comparison"
+
+    query_params = {
+        "provider": provider,
+        "status": status,
+        "search": search,
+        "tenant_id": parsed_tid,
+    }
+    _paginate_comparison(context, page, per_page, query_params)
 
     return templates.TemplateResponse(
         request,
@@ -293,9 +332,20 @@ def comparison_table(
     status: str | None = None,
     search: str | None = None,
     tenant_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=COMPARISON_PER_PAGE, ge=1, le=500),
 ):
     templates = get_templates()
-    context = _build_context(request, provider, status, search, tenant_id=_parse_tenant_id(tenant_id))
+    parsed_tid = _parse_tenant_id(tenant_id)
+    context = _build_context(request, provider, status, search, tenant_id=parsed_tid)
+
+    query_params = {
+        "provider": provider,
+        "status": status,
+        "search": search,
+        "tenant_id": parsed_tid,
+    }
+    _paginate_comparison(context, page, per_page, query_params)
 
     return templates.TemplateResponse(
         request,

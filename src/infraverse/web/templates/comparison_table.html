@@ -1,6 +1,6 @@
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">VM Comparison ({{ result.all_vms | length }} results)</h3>
+        <h3 class="card-title">VM Comparison ({% if pagination %}{{ pagination.total_count }}{% else %}{{ result.all_vms | length }}{% endif %} results)</h3>
     </div>
     <div class="table-responsive">
         <table class="table table-vcenter table-hover card-table">
@@ -87,4 +87,5 @@
             </tbody>
         </table>
     </div>
+    {% include "_pagination.html" %}
 </div>

@@ -106,13 +106,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 8: Add pagination to web routes
-- [ ] add `page` and `per_page` query params to `GET /vms` route (default per_page=50)
-- [ ] add pagination to `GET /accounts/{id}` VM list
-- [ ] add pagination to `GET /comparison` and `/comparison/table`
-- [ ] create pagination template partial (page numbers, prev/next links)
-- [ ] pass `total_count`, `page`, `per_page` to templates for pagination rendering
-- [ ] write tests for web routes with pagination params
-- [ ] run tests — must pass before next task
+- [x] add `page` and `per_page` query params to `GET /vms` route (default per_page=50)
+- [x] add pagination to `GET /accounts/{id}` VM list
+- [x] add pagination to `GET /comparison` and `/comparison/table`
+- [x] create pagination template partial (page numbers, prev/next links)
+- [x] pass `total_count`, `page`, `per_page` to templates for pagination rendering
+- [x] write tests for web routes with pagination params
+- [x] run tests — 1550 pass, linter clean
 
 ### Task 9: Verify acceptance criteria
 - [ ] method count reduced from 32 to ~26-27

@@ -1,0 +1,30 @@
+{% if pagination %}
+<div class="d-flex justify-content-between align-items-center mt-3 px-3 pb-3">
+    <div class="text-secondary" style="font-size: 0.85em;">
+        Showing {{ pagination.showing_start }}–{{ pagination.showing_end }} of {{ pagination.total_count }}
+    </div>
+    <ul class="pagination mb-0">
+        <li class="page-item{% if not pagination.has_prev %} disabled{% endif %}">
+            <a class="page-link" href="{{ pagination.prev_url }}"
+               {% if pagination.htmx_urls and pagination.htmx_prev_url %}hx-get="{{ pagination.htmx_prev_url }}" hx-target="{{ pagination.htmx_target }}" hx-push-url="{{ pagination.prev_url }}"{% endif %}
+            ><i class="ti ti-chevron-left"></i></a>
+        </li>
+        {% for p in pagination.page_range %}
+        {% if p is none %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% else %}
+        <li class="page-item{% if p == pagination.page %} active{% endif %}">
+            <a class="page-link" href="{{ pagination.page_urls[p] }}"
+               {% if pagination.htmx_urls %}hx-get="{{ pagination.htmx_urls[p] }}" hx-target="{{ pagination.htmx_target }}" hx-push-url="{{ pagination.page_urls[p] }}"{% endif %}
+            >{{ p }}</a>
+        </li>
+        {% endif %}
+        {% endfor %}
+        <li class="page-item{% if not pagination.has_next %} disabled{% endif %}">
+            <a class="page-link" href="{{ pagination.next_url }}"
+               {% if pagination.htmx_urls and pagination.htmx_next_url %}hx-get="{{ pagination.htmx_next_url }}" hx-target="{{ pagination.htmx_target }}" hx-push-url="{{ pagination.next_url }}"{% endif %}
+            ><i class="ti ti-chevron-right"></i></a>
+        </li>
+    </ul>
+</div>
+{% endif %}

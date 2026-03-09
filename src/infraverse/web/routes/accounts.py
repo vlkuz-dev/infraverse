@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
 from infraverse.web.links import build_account_links
+from infraverse.web.pagination import DEFAULT_PER_PAGE, build_pagination, clamp_page
 
 router = APIRouter()
 
@@ -55,7 +56,12 @@ def accounts_list(request: Request, tenant_id: int | None = Query(default=None))
 
 
 @router.get("/accounts/{account_id}")
-def account_detail(request: Request, account_id: int):
+def account_detail(
+    request: Request,
+    account_id: int,
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=DEFAULT_PER_PAGE, ge=1, le=200),
+):
     templates = get_templates()
     session_factory = request.app.state.session_factory
     with session_factory() as session:
@@ -69,7 +75,14 @@ def account_detail(request: Request, account_id: int):
                 status_code=404,
             )
 
-        vms = repo.list_vms(account_id=account_id)
+        # Get total counts for summary (across all VMs, not just current page)
+        total_vm_count = repo.count_vms(account_id=account_id)
+        active_count = repo.count_vms(account_id=account_id, status="active")
+        offline_count = repo.count_vms(account_id=account_id, status="offline")
+
+        page = clamp_page(page, per_page, total_vm_count)
+        offset = (page - 1) * per_page
+        vms = repo.list_vms(account_id=account_id, limit=per_page, offset=offset)
         sync_runs = repo.get_sync_runs_by_account(account_id, limit=10)
 
         # Extract data while session is open — mask sensitive config values
@@ -96,8 +109,6 @@ def account_detail(request: Request, account_id: int):
             }
 
         vm_list = []
-        active_count = 0
-        offline_count = 0
         for vm in vms:
             vm_list.append({
                 "id": vm.id,
@@ -107,10 +118,6 @@ def account_detail(request: Request, account_id: int):
                 "vcpus": vm.vcpus,
                 "memory_mb": vm.memory_mb,
             })
-            if vm.status == "active":
-                active_count += 1
-            elif vm.status == "offline":
-                offline_count += 1
 
         run_list = []
         for run in sync_runs:
@@ -129,6 +136,14 @@ def account_detail(request: Request, account_id: int):
     app_config = getattr(request.app.state, "config", None)
     external_links = build_account_links(account_data, app_config)
 
+    pagination = build_pagination(
+        page=page,
+        per_page=per_page,
+        total_count=total_vm_count,
+        base_url=f"/accounts/{account_id}",
+        query_params={},
+    )
+
     return templates.TemplateResponse(
         request,
         "account_detail.html",
@@ -137,10 +152,11 @@ def account_detail(request: Request, account_id: int):
             "account": account_data,
             "tenant": tenant_data,
             "vms": vm_list,
-            "vm_count": len(vm_list),
+            "vm_count": total_vm_count,
             "active_count": active_count,
             "offline_count": offline_count,
             "sync_runs": run_list,
             "external_links": external_links,
+            "pagination": pagination,
         },
     )

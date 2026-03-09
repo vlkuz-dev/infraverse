@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request
 from infraverse.db.repository import Repository
 from infraverse.web.app import get_templates
 from infraverse.web.links import build_vm_links
+from infraverse.web.pagination import DEFAULT_PER_PAGE, build_pagination, clamp_page
 
 router = APIRouter()
 
@@ -15,6 +16,8 @@ def vm_list(
     tenant_id: int | None = Query(default=None),
     account_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=DEFAULT_PER_PAGE, ge=1, le=200),
 ):
     templates = get_templates()
     session_factory = request.app.state.session_factory
@@ -38,10 +41,19 @@ def vm_list(
 
         selected_status = status if status in ("active", "offline") else None
 
+        total_count = repo.count_vms(
+            tenant_id=selected_tenant_id,
+            account_id=selected_account_id,
+            status=selected_status,
+        )
+        page = clamp_page(page, per_page, total_count)
+        offset = (page - 1) * per_page
         vms = repo.list_vms(
             tenant_id=selected_tenant_id,
             account_id=selected_account_id,
             status=selected_status,
+            limit=per_page,
+            offset=offset,
         )
 
         vm_list_data = []
@@ -59,17 +71,30 @@ def vm_list(
                 "account_name": account_name,
             })
 
+    pagination = build_pagination(
+        page=page,
+        per_page=per_page,
+        total_count=total_count,
+        base_url="/vms",
+        query_params={
+            "tenant_id": selected_tenant_id,
+            "account_id": selected_account_id,
+            "status": selected_status,
+        },
+    )
+
     return templates.TemplateResponse(
         request,
         "vm_list.html",
         {
             "active_page": "vms",
             "vms": vm_list_data,
-            "vm_count": len(vm_list_data),
+            "vm_count": total_count,
             "tenants": tenants,
             "selected_tenant_id": selected_tenant_id,
             "selected_account_id": selected_account_id,
             "selected_status": selected_status or "",
+            "pagination": pagination,
         },
     )
 
