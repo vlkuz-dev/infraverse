@@ -84,6 +84,9 @@ class NetBoxInfrastructureMixin:
             Tenant ID
         """
         desired_slug = (slug or name).lower().replace(" ", "-").replace("_", "-")
+        desired_slug = re.sub(r'[^a-z0-9-]', '-', desired_slug)
+        desired_slug = re.sub(r'-+', '-', desired_slug)
+        desired_slug = desired_slug.strip('-')
         if not desired_slug:
             raise ValueError(f"Cannot derive a valid slug from tenant name: {name!r}")
 
