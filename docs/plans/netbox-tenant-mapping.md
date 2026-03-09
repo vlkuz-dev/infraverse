@@ -129,8 +129,8 @@
 - [x] Run linter (`ruff check src/ tests/`) — all issues must be fixed
 
 ### Task 6: [Final] Update documentation
-- [ ] Update README.md if needed (mention tenant mapping in sync description)
-- [ ] Update project knowledge docs if new patterns discovered
+- [x] Update README.md if needed (mention tenant mapping in sync description)
+- [x] Update project knowledge docs if new patterns discovered
 
 *Note: ralphex automatically moves completed plans to `docs/plans/completed/`*
 

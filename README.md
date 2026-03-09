@@ -21,6 +21,7 @@ Infrastructure visibility platform - sync multi-cloud infrastructure to NetBox a
 - **Quick-filter buttons:** filter comparison results by status (all / with issues / in sync)
 - **External resource links:** configurable URL templates linking to Yandex Cloud console, Zabbix, and NetBox
 - **NetBox sync:** map cloud structure to NetBox hierarchy (zones -> sites, folders -> clusters)
+- Automatic tenant mapping: config tenants are auto-created in NetBox and assigned to synced VMs
 - Automatic creation of sites, clusters, and prefixes
 - Two sync modes: optimized batch (default) and standard sequential
 - Dry-run mode for previewing changes
@@ -56,6 +57,7 @@ SyncRun (tracks each ingestion run per account)
 | Cluster Type | `yandex-cloud` | All clusters use the unified type |
 | VPC/Subnet | Prefix | Network prefixes assigned to zone sites |
 | VM | Virtual Machine | VMs assigned to clusters and sites |
+| Tenant (config) | Tenant | Config tenants mapped to NetBox tenants on VMs |
 
 ## Requirements
 
@@ -426,8 +428,9 @@ Falls back to per-VM Zabbix API queries if the bulk fetch fails.
 
 1. Fetches data from Yandex Cloud API (zones, clouds, folders, subnets, VMs)
 2. Creates/updates NetBox infrastructure (sites, cluster type, clusters, prefixes)
-3. Syncs VMs with resources, interfaces, and IP addresses
-4. Cleans up orphaned objects no longer present in Yandex Cloud
+3. Resolves config tenant to NetBox tenant (auto-creates if missing, with description)
+4. Syncs VMs with resources, interfaces, IP addresses, and tenant assignment
+5. Cleans up orphaned objects no longer present in Yandex Cloud
 
 All synced objects are tagged with `synced-from-yc` for easy identification.
 
