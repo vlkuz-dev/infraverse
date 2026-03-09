@@ -1,5 +1,6 @@
 """Tests for infraverse.sync.vms module (orchestrator: prepare, update, sync)."""
 
+import pytest
 from unittest.mock import patch
 
 from infraverse.sync.vms import (
@@ -449,8 +450,8 @@ class TestUpdateVmParameters:
         netbox.update_vm.assert_not_called()
         netbox.ensure_tenant.assert_not_called()
 
-    def test_exception_returns_false(self):
-        """If prepare_vm_data raises, returns False."""
+    def test_exception_propagates(self):
+        """If prepare_vm_data raises, exception propagates to caller."""
         netbox = make_mock_netbox_client()
         netbox.ensure_cluster.side_effect = Exception("boom")
 
@@ -460,9 +461,35 @@ class TestUpdateVmParameters:
             "resources": {"memory": 0, "cores": 1},
         }
 
-        result = update_vm_parameters(vm, yc_vm, netbox, {"zones": {}, "folders": {}})
+        with pytest.raises(Exception, match="boom"):
+            update_vm_parameters(vm, yc_vm, netbox, {"zones": {}, "folders": {}})
 
-        assert result is False
+    def test_raises_when_update_vm_returns_false(self):
+        """When netbox.update_vm() returns False, a RuntimeError is raised."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.update_vm.return_value = False
+
+        vm = MockRecord(
+            id=1, name="test-vm", memory=2048, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            comments=(
+                "YC VM ID: vm-123\nZone: ru-central1-a\n"
+                "Hardware Platform: standard-v3\nOS: ubuntu-22.04\nCreated: 2024-01-01"
+            ),
+        )
+        yc_vm = {
+            "name": "test-vm", "id": "vm-123", "folder_id": "f1",
+            "zone_id": "ru-central1-a", "status": "RUNNING",
+            "platform_id": "standard-v3", "os": "ubuntu-22.04",
+            "created_at": "2024-01-01",
+            "resources": {"memory": 4294967296, "cores": 2},
+        }
+        id_mapping = {"zones": {"ru-central1-a": 10}, "folders": {"f1": 20}}
+
+        with pytest.raises(RuntimeError, match="Failed to update VM test-vm"):
+            update_vm_parameters(vm, yc_vm, netbox, id_mapping)
 
 
 class TestSyncVms:
@@ -670,6 +697,73 @@ class TestSyncVms:
         netbox.ensure_tenant.assert_not_called()
         vm_data = netbox.create_vm.call_args[0][0]
         assert "tenant" not in vm_data
+
+    def test_update_failure_counted_as_error(self):
+        """When update_vm_parameters raises, the VM is counted as error, not skipped."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.side_effect = Exception("NetBox API down")
+
+        existing_vm = MockRecord(
+            id=1, name="fail-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=None, comments="old comments", tags=[MockTag(id=1)],
+            primary_ip4=None,
+        )
+        netbox.fetch_vms.return_value = [existing_vm]
+
+        yc_data = {
+            "vms": [{
+                "id": "vm-1", "name": "fail-vm", "folder_id": "f1",
+                "zone_id": "z1", "status": "RUNNING",
+                "platform_id": "", "os": "", "created_at": "",
+                "resources": {"memory": 4294967296, "cores": 2},
+                "disks": [], "network_interfaces": [],
+            }]
+        }
+
+        result = sync_vms(
+            yc_data, netbox, {"zones": {"z1": 10}, "folders": {"f1": 20}},
+            cleanup_orphaned=False, tenant_name="acme-corp",
+        )
+
+        assert result["errors"] == 1
+        assert result["skipped"] == 0
+
+    def test_update_vm_api_failure_counted_as_error(self):
+        """When netbox.update_vm() returns False, VM is counted as error, not skipped."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.update_vm.return_value = False  # API call fails
+
+        existing_vm = MockRecord(
+            id=1, name="fail-update-vm", memory=2048, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            comments="old comments", tags=[MockTag(id=1)],
+            primary_ip4=None,
+        )
+        netbox.fetch_vms.return_value = [existing_vm]
+
+        yc_data = {
+            "vms": [{
+                "id": "vm-1", "name": "fail-update-vm", "folder_id": "f1",
+                "zone_id": "z1", "status": "RUNNING",
+                "platform_id": "", "os": "", "created_at": "",
+                "resources": {"memory": 4294967296, "cores": 2},
+                "disks": [], "network_interfaces": [],
+            }]
+        }
+
+        result = sync_vms(
+            yc_data, netbox, {"zones": {"z1": 10}, "folders": {"f1": 20}},
+            cleanup_orphaned=False,
+        )
+
+        assert result["errors"] == 1
+        assert result["skipped"] == 0
+        assert result["updated"] == 0
 
     def test_vm_creation_failure_counted(self):
         """Failed VM creation doesn't crash the sync."""

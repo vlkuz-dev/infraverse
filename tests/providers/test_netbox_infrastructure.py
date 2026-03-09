@@ -483,6 +483,95 @@ class TestEnsureTenant:
         assert result == 99
         nb_client.nb.tenancy.tenants.get.assert_not_called()
 
+    def test_cached_tenant_gets_second_provider_tag(self, nb_client):
+        """Multi-provider: second provider's tag is applied on cache hit."""
+        # First provider already cached the tenant with its tag
+        nb_client._tenant_cache["shared-tenant"] = 42
+        nb_client._tenant_tag_applied.add(("shared-tenant", "synced-from-yc"))
+
+        # Set up tag and tenant lookup for second provider
+        nb_client._sync_tag_cache["synced-from-vcloud"] = 77
+        tenant = MockRecord(42, name="shared-tenant", slug="shared-tenant", tags=[])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant(
+            "shared-tenant", tag_slug="synced-from-vcloud",
+        )
+
+        assert result == 42
+        # Tenant was fetched by cached ID (not slug) to add the new tag
+        nb_client.nb.tenancy.tenants.get.assert_called_once_with(42)
+        # Tag was saved on the tenant
+        tenant.save.assert_called_once()
+        assert ("shared-tenant", "synced-from-vcloud") in nb_client._tenant_tag_applied
+
+    def test_cached_tenant_tag_applied_when_slug_differs(self, nb_client):
+        """Multi-provider: tag is applied even when tenant's real slug differs from cache key."""
+        # Tenant was originally found by name; its real slug is "acme-corporation"
+        # but the cache key (desired_slug) is "acme-corp"
+        nb_client._tenant_cache["acme-corp"] = 42
+        nb_client._tenant_tag_applied.add(("acme-corp", "synced-from-yc"))
+
+        # Set up tag and tenant lookup for second provider
+        nb_client._sync_tag_cache["synced-from-vcloud"] = 77
+        tenant = MockRecord(42, name="ACME Corp", slug="acme-corporation", tags=[])
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant(
+            "ACME Corp", tag_slug="synced-from-vcloud",
+        )
+
+        assert result == 42
+        # Fetched by cached ID (42), NOT by slug — so it works even with custom slug
+        nb_client.nb.tenancy.tenants.get.assert_called_once_with(42)
+        tenant.save.assert_called_once()
+        assert ("acme-corp", "synced-from-vcloud") in nb_client._tenant_tag_applied
+
+    def test_cached_tenant_skips_already_applied_tag(self, nb_client):
+        """Same provider tag is not re-applied on cache hit."""
+        nb_client._tenant_cache["shared-tenant"] = 42
+        nb_client._tenant_tag_applied.add(("shared-tenant", "synced-from-yc"))
+
+        result = nb_client.ensure_tenant(
+            "shared-tenant", tag_slug="synced-from-yc",
+        )
+
+        assert result == 42
+        # No API calls needed — tag already applied
+        nb_client.nb.tenancy.tenants.get.assert_not_called()
+
+    def test_cached_tenant_tag_not_recorded_on_failure(self, nb_client):
+        """If _add_tag_to_object fails on cache hit, tag is NOT marked as applied."""
+        nb_client._tenant_cache["shared-tenant"] = 42
+        nb_client._sync_tag_cache["synced-from-vcloud"] = 77
+        tenant = MockRecord(42, name="shared-tenant", slug="shared-tenant", tags=[])
+        # Make save() fail so _add_tag_to_object returns False
+        tenant.save.side_effect = Exception("API error")
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+
+        result = nb_client.ensure_tenant(
+            "shared-tenant", tag_slug="synced-from-vcloud",
+        )
+
+        assert result == 42
+        # Tag application failed, so should NOT be in _tenant_tag_applied
+        assert ("shared-tenant", "synced-from-vcloud") not in nb_client._tenant_tag_applied
+
+    def test_existing_tenant_tag_not_recorded_when_tag_fails(self, nb_client):
+        """If _add_tag_to_object fails on existing-tenant path, tag is NOT marked as applied."""
+        tenant = MockRecord(10, name="acme-corp", slug="acme-corp",
+                            description="ACME", tags=[])
+        # Make save() fail so _add_tag_to_object returns False
+        tenant.save.side_effect = Exception("API error")
+        nb_client.nb.tenancy.tenants.get.return_value = tenant
+        nb_client._sync_tag_cache["synced-from-yc"] = 1
+
+        result = nb_client.ensure_tenant("acme-corp", tag_slug="synced-from-yc")
+
+        assert result == 10
+        assert nb_client._tenant_cache["acme-corp"] == 10
+        assert ("acme-corp", "synced-from-yc") not in nb_client._tenant_tag_applied
+
     def test_slug_defaults_to_name(self, nb_client):
         nb_client._sync_tag_id = 1
         nb_client.nb.tenancy.tenants.get.return_value = None
@@ -514,9 +603,10 @@ class TestEnsureTenantErrors:
     def test_duplicate_slug_retry_succeeds(self, nb_client):
         nb_client._sync_tag_id = 1
         # First lookups return None, create throws duplicate slug error
+        recovered_tenant = MockRecord(20, name="dup-tenant", slug="dup-tenant", tags=[])
         nb_client.nb.tenancy.tenants.get.side_effect = [
             None, None,  # initial lookup by name, by slug
-            MockRecord(20, name="dup-tenant", slug="dup-tenant"),  # retry after error
+            recovered_tenant,  # retry after error
         ]
         nb_client.nb.tenancy.tenants.create.side_effect = Exception("400 slug already exists")
 
@@ -524,6 +614,23 @@ class TestEnsureTenantErrors:
 
         assert result == 20
         assert nb_client._tenant_cache["dup-tenant"] == 20
+
+    def test_duplicate_slug_recovery_applies_tag(self, nb_client):
+        """Race-condition recovery should still apply the provider tag."""
+        nb_client._sync_tag_cache["synced-from-yc"] = 5
+        recovered_tenant = MockRecord(20, name="dup-tenant", slug="dup-tenant", tags=[])
+        nb_client.nb.tenancy.tenants.get.side_effect = [
+            None, None,  # initial lookup by name, by slug
+            recovered_tenant,  # retry after error
+        ]
+        nb_client.nb.tenancy.tenants.create.side_effect = Exception("400 slug already exists")
+
+        result = nb_client.ensure_tenant("dup-tenant", tag_slug="synced-from-yc")
+
+        assert result == 20
+        # Tag was applied to the recovered tenant
+        recovered_tenant.save.assert_called_once()
+        assert ("dup-tenant", "synced-from-yc") in nb_client._tenant_tag_applied
 
     def test_description_updated_on_existing_tenant(self, nb_client):
         nb_client._sync_tag_id = 1
@@ -592,6 +699,24 @@ class TestEnsureTenantErrors:
         assert result == 16
         call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
         assert "tags" not in call_args
+
+    def test_create_tag_not_recorded_when_ensure_sync_tag_fails(self, nb_client):
+        """Create path: tag NOT marked as applied when ensure_sync_tag returns 0."""
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        nb_client.ensure_sync_tag = MagicMock(return_value=0)
+        new_tenant = MockRecord(17, name="tag-fail-tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        result = nb_client.ensure_tenant(
+            "tag-fail-tenant", tag_slug="synced-from-yc",
+        )
+
+        assert result == 17
+        # Tenant created without tags (tag_id was 0)
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert "tags" not in call_args
+        # Tag NOT recorded as applied since it wasn't
+        assert ("tag-fail-tenant", "synced-from-yc") not in nb_client._tenant_tag_applied
 
 
 class TestEnsureTenantSlugSanitization:

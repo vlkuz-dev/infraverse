@@ -87,9 +87,19 @@ class NetBoxInfrastructureMixin:
         if not desired_slug:
             raise ValueError(f"Cannot derive a valid slug from tenant name: {name!r}")
 
-        # Check cache
+        # Check cache — still add provider tag for multi-provider support
         if desired_slug in self._tenant_cache:
-            return self._tenant_cache[desired_slug]
+            cached_id = self._tenant_cache[desired_slug]
+            if tag_slug and (desired_slug, tag_slug) not in self._tenant_tag_applied:
+                tag_id = self.ensure_sync_tag(tag_slug=tag_slug)
+                if tag_id:
+                    try:
+                        tenant = self.nb.tenancy.tenants.get(cached_id)
+                        if tenant and self._add_tag_to_object(tenant, tag_id):
+                            self._tenant_tag_applied.add((desired_slug, tag_slug))
+                    except Exception:
+                        pass
+            return cached_id
 
         # Try to find existing tenant by name, then by slug
         tenant = None
@@ -114,11 +124,14 @@ class NetBoxInfrastructureMixin:
             self._safe_update_object(tenant, updates)
 
             # Add sync tag
+            tag_applied = False
             tag_id = self.ensure_sync_tag(tag_slug=tag_slug)
             if tag_id:
-                self._add_tag_to_object(tenant, tag_id)
+                tag_applied = self._add_tag_to_object(tenant, tag_id)
 
             self._tenant_cache[desired_slug] = tenant.id
+            if tag_slug and tag_applied:
+                self._tenant_tag_applied.add((desired_slug, tag_slug))
             return tenant.id
 
         # Create tenant if it doesn't exist
@@ -126,6 +139,8 @@ class NetBoxInfrastructureMixin:
             logger.info(f"[DRY-RUN] Would create tenant: {name}")
             mock_id = 1_000_000 + len(self._tenant_cache)
             self._tenant_cache[desired_slug] = mock_id
+            if tag_slug:
+                self._tenant_tag_applied.add((desired_slug, tag_slug))
             return mock_id
 
         # Ensure tag exists
@@ -145,6 +160,8 @@ class NetBoxInfrastructureMixin:
         try:
             tenant = self.nb.tenancy.tenants.create(tenant_data)
             self._tenant_cache[desired_slug] = tenant.id
+            if tag_slug and tag_id:
+                self._tenant_tag_applied.add((desired_slug, tag_slug))
             logger.info(f"Created tenant: {name} (ID: {tenant.id})")
             return tenant.id
         except Exception as e:
@@ -156,6 +173,11 @@ class NetBoxInfrastructureMixin:
                     tenant = self.nb.tenancy.tenants.get(slug=desired_slug)
                     if tenant:
                         self._tenant_cache[desired_slug] = tenant.id
+                        # Apply provider tag (was prepared for create but race lost)
+                        if tag_id:
+                            if self._add_tag_to_object(tenant, tag_id):
+                                if tag_slug:
+                                    self._tenant_tag_applied.add((desired_slug, tag_slug))
                         logger.info(f"Found existing tenant: {tenant.name} (ID: {tenant.id})")
                         return tenant.id
                 except Exception:

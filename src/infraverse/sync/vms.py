@@ -137,97 +137,91 @@ def update_vm_parameters(
     Returns:
         True if updated, False otherwise
     """
-    try:
-        vm_data = prepare_vm_data(yc_vm, netbox, id_mapping,
-                                  provider_profile=provider_profile,
-                                  tenant_name=tenant_name)
-        updates = {}
+    vm_data = prepare_vm_data(yc_vm, netbox, id_mapping,
+                              provider_profile=provider_profile,
+                              tenant_name=tenant_name)
+    updates = {}
 
-        # Check memory
-        if hasattr(vm, 'memory'):
-            current_memory = vm.memory if vm.memory is not None else 0
-            new_memory = vm_data['memory']
-            if current_memory != new_memory:
-                updates['memory'] = new_memory
-                logger.info(f"VM {vm.name}: memory will be updated from {current_memory} to {new_memory} MB")
+    # Check memory
+    if hasattr(vm, 'memory'):
+        current_memory = vm.memory if vm.memory is not None else 0
+        new_memory = vm_data['memory']
+        if current_memory != new_memory:
+            updates['memory'] = new_memory
+            logger.info(f"VM {vm.name}: memory will be updated from {current_memory} to {new_memory} MB")
 
-        # Check vCPUs
-        if hasattr(vm, 'vcpus') and vm.vcpus != vm_data['vcpus']:
-            updates['vcpus'] = vm_data['vcpus']
-            logger.info(f"VM {vm.name}: vCPUs will be updated from {vm.vcpus} to {vm_data['vcpus']}")
+    # Check vCPUs
+    if hasattr(vm, 'vcpus') and vm.vcpus != vm_data['vcpus']:
+        updates['vcpus'] = vm_data['vcpus']
+        logger.info(f"VM {vm.name}: vCPUs will be updated from {vm.vcpus} to {vm_data['vcpus']}")
 
-        # Check cluster
-        if 'cluster' in vm_data:
-            current_cluster_id = None
-            if hasattr(vm, 'cluster') and vm.cluster:
-                current_cluster_id = vm.cluster.id if hasattr(vm.cluster, 'id') else vm.cluster
+    # Check cluster
+    if 'cluster' in vm_data:
+        current_cluster_id = None
+        if hasattr(vm, 'cluster') and vm.cluster:
+            current_cluster_id = vm.cluster.id if hasattr(vm.cluster, 'id') else vm.cluster
 
-            new_cluster_id = vm_data['cluster']
-            if current_cluster_id != new_cluster_id:
-                updates['cluster'] = new_cluster_id
-                logger.info(f"VM {vm.name}: cluster will be updated from {current_cluster_id} to {new_cluster_id}")
+        new_cluster_id = vm_data['cluster']
+        if current_cluster_id != new_cluster_id:
+            updates['cluster'] = new_cluster_id
+            logger.info(f"VM {vm.name}: cluster will be updated from {current_cluster_id} to {new_cluster_id}")
 
-        # Check site
-        if 'site' in vm_data:
-            current_site_id = None
-            if hasattr(vm, 'site') and vm.site:
-                current_site_id = vm.site.id if hasattr(vm.site, 'id') else vm.site
+    # Check site
+    if 'site' in vm_data:
+        current_site_id = None
+        if hasattr(vm, 'site') and vm.site:
+            current_site_id = vm.site.id if hasattr(vm.site, 'id') else vm.site
 
-            new_site_id = vm_data['site']
-            if current_site_id != new_site_id:
-                updates['site'] = new_site_id
-                logger.info(f"VM {vm.name}: site will be updated from {current_site_id} to {new_site_id}")
+        new_site_id = vm_data['site']
+        if current_site_id != new_site_id:
+            updates['site'] = new_site_id
+            logger.info(f"VM {vm.name}: site will be updated from {current_site_id} to {new_site_id}")
 
-        # Check platform (operating system)
-        if 'platform' in vm_data:
-            current_platform_id = None
-            if hasattr(vm, 'platform') and vm.platform:
-                current_platform_id = vm.platform.id if hasattr(vm.platform, 'id') else vm.platform
+    # Check platform (operating system)
+    if 'platform' in vm_data:
+        current_platform_id = None
+        if hasattr(vm, 'platform') and vm.platform:
+            current_platform_id = vm.platform.id if hasattr(vm.platform, 'id') else vm.platform
 
-            new_platform_id = vm_data['platform']
-            if current_platform_id != new_platform_id:
-                updates['platform'] = new_platform_id
-                logger.info(f"VM {vm.name}: platform will be updated from {current_platform_id} to {new_platform_id}")
+        new_platform_id = vm_data['platform']
+        if current_platform_id != new_platform_id:
+            updates['platform'] = new_platform_id
+            logger.info(f"VM {vm.name}: platform will be updated from {current_platform_id} to {new_platform_id}")
 
-        # Check tenant
-        if 'tenant' in vm_data:
-            current_tenant_id = None
-            if hasattr(vm, 'tenant') and vm.tenant:
-                current_tenant_id = vm.tenant.id if hasattr(vm.tenant, 'id') else vm.tenant
+    # Check tenant
+    if 'tenant' in vm_data:
+        current_tenant_id = None
+        if hasattr(vm, 'tenant') and vm.tenant:
+            current_tenant_id = vm.tenant.id if hasattr(vm.tenant, 'id') else vm.tenant
 
-            new_tenant_id = vm_data['tenant']
-            if current_tenant_id != new_tenant_id:
-                updates['tenant'] = new_tenant_id
-                logger.info(f"VM {vm.name}: tenant will be updated from {current_tenant_id} to {new_tenant_id}")
+        new_tenant_id = vm_data['tenant']
+        if current_tenant_id != new_tenant_id:
+            updates['tenant'] = new_tenant_id
+            logger.info(f"VM {vm.name}: tenant will be updated from {current_tenant_id} to {new_tenant_id}")
 
-        # Check status
-        if hasattr(vm, 'status') and vm.status:
-            if hasattr(vm.status, 'value'):
-                current_status = vm.status.value
-            else:
-                current_status = str(vm.status)
-            if current_status != vm_data['status']:
-                updates['status'] = vm_data['status']
-                logger.info(f"VM {vm.name}: status will be updated from {current_status} to {vm_data['status']}")
-
-        # Check comments
-        if hasattr(vm, 'comments') and vm.comments != vm_data.get('comments', ''):
-            updates['comments'] = vm_data.get('comments', '')
-
-        # Update VM if there are changes
-        if updates:
-            if netbox.update_vm(vm.id, updates):
-                logger.info(f"Updated VM {vm.name} parameters: {list(updates.keys())}")
-                return True
-            else:
-                logger.error(f"Failed to update VM {vm.name}")
-                return False
+    # Check status
+    if hasattr(vm, 'status') and vm.status:
+        if hasattr(vm.status, 'value'):
+            current_status = vm.status.value
         else:
-            logger.debug(f"VM {vm.name} is up to date")
-            return False
+            current_status = str(vm.status)
+        if current_status != vm_data['status']:
+            updates['status'] = vm_data['status']
+            logger.info(f"VM {vm.name}: status will be updated from {current_status} to {vm_data['status']}")
 
-    except Exception as e:
-        logger.error(f"Failed to update parameters for VM {vm.name}: {e}")
+    # Check comments
+    if hasattr(vm, 'comments') and vm.comments != vm_data.get('comments', ''):
+        updates['comments'] = vm_data.get('comments', '')
+
+    # Update VM if there are changes
+    if updates:
+        if netbox.update_vm(vm.id, updates):
+            logger.info(f"Updated VM {vm.name} parameters: {list(updates.keys())}")
+            return True
+        else:
+            raise RuntimeError(f"Failed to update VM {vm.name} parameters: {list(updates.keys())}")
+    else:
+        logger.debug(f"VM {vm.name} is up to date")
         return False
 
 

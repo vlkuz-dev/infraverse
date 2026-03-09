@@ -48,6 +48,7 @@ class NetBoxClient(
         self._cluster_type_cache: Dict[str, int] = {}
         self._cluster_type_id: Optional[int] = None  # backward compat shortcut
         self._tenant_cache: Dict[str, int] = {}
+        self._tenant_tag_applied: set = set()  # (slug, tag_slug) pairs already applied
 
         logger.info(f"Initialized NetBox client for {url} (dry_run={dry_run})")
         self._sync_tag_cache: Dict[str, int] = {}
