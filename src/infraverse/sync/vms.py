@@ -214,6 +214,7 @@ def sync_vms(
     id_mapping: Dict[str, Dict[str, int]],
     cleanup_orphaned: bool = True,
     provider_profile=None,
+    tenant_name: str | None = None,
 ) -> Dict[str, int]:
     """Sync VMs from cloud provider to NetBox. Returns statistics."""
     from infraverse.sync.provider_profile import YC_PROFILE

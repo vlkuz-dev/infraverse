@@ -795,7 +795,8 @@ def apply_batch_updates(cache: NetBoxCache, netbox: NetBoxClient,
 def sync_vms_optimized(yc_data: Dict[str, Any], netbox: NetBoxClient,
                        id_mapping: Dict[str, Dict[str, int]],
                        cleanup_orphaned: bool = True,
-                       provider_profile=None) -> Dict[str, int]:
+                       provider_profile=None,
+                       tenant_name: str | None = None) -> Dict[str, int]:
     """
     Optimized VM synchronization with batch operations.
 

@@ -1,7 +1,7 @@
 """Top-level sync engine that orchestrates the full sync cycle."""
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.infrastructure import sync_infrastructure
@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 # Type alias for a cloud provider client (YandexCloudClient, VCloudDirectorClient, etc.)
 CloudClient = Any
 
+# Provider tuple: (client, profile) or (client, profile, tenant_name)
+ProviderTuple = Union[
+    Tuple[CloudClient, ProviderProfile],
+    Tuple[CloudClient, ProviderProfile, Optional[str]],
+]
+
 
 class SyncEngine:
     """Orchestrates the full Cloud -> NetBox sync cycle for all configured providers."""
@@ -21,7 +27,7 @@ class SyncEngine:
     def __init__(
         self,
         netbox: NetBoxClient,
-        providers: List[Tuple[CloudClient, ProviderProfile]],
+        providers: List[ProviderTuple],
         dry_run: bool = False,
     ):
         self.nb = netbox
@@ -40,14 +46,22 @@ class SyncEngine:
         """
         logger.info("Starting Cloud to NetBox sync...")
         logger.info("Dry run mode: %s", self.dry_run)
-        logger.info("Providers configured: %s", [p.display_name for _, p in self._providers])
+        logger.info(
+            "Providers configured: %s",
+            [p[1].display_name for p in self._providers],
+        )
 
         all_stats: Dict[str, Any] = {}
 
-        for client, profile in self._providers:
+        for provider_tuple in self._providers:
+            client = provider_tuple[0]
+            profile = provider_tuple[1]
+            tenant_name = provider_tuple[2] if len(provider_tuple) > 2 else None
             logger.info("Syncing provider: %s", profile.display_name)
             try:
-                provider_stats = self._sync_provider(client, profile, use_batch, cleanup)
+                provider_stats = self._sync_provider(
+                    client, profile, use_batch, cleanup, tenant_name=tenant_name,
+                )
                 all_stats[profile.key] = provider_stats
             except Exception:
                 logger.exception("Sync failed for provider %s", profile.display_name)
@@ -56,7 +70,9 @@ class SyncEngine:
         logger.info("Synchronization completed!")
         return all_stats
 
-    def _sync_provider(self, client, profile, use_batch, cleanup) -> Dict[str, Any]:
+    def _sync_provider(
+        self, client, profile, use_batch, cleanup, tenant_name=None,
+    ) -> Dict[str, Any]:
         """Sync a single provider to NetBox."""
         data = client.fetch_all_data()
         if not data or not isinstance(data, dict):
@@ -90,6 +106,7 @@ class SyncEngine:
                 data, self.nb, id_mapping,
                 cleanup_orphaned=do_cleanup,
                 provider_profile=profile,
+                tenant_name=tenant_name,
             )
         else:
             logger.info("Using standard sync (sequential operations)...")
@@ -97,6 +114,7 @@ class SyncEngine:
                 data, self.nb, id_mapping,
                 cleanup_orphaned=do_cleanup,
                 provider_profile=profile,
+                tenant_name=tenant_name,
             )
 
         return stats

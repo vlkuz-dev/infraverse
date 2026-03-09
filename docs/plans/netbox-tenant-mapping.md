@@ -90,14 +90,14 @@
 - [x] Run tests — must pass before next task
 
 ### Task 2: Thread tenant_name through providers and SyncEngine
-- [ ] Update `build_providers_from_accounts()` in `sync/providers.py` to return `List[Tuple[CloudClient, ProviderProfile, str | None]]` — extract `account.tenant.name` (need eager-load tenant; use `list_cloud_accounts(with_relations=True)`)
-- [ ] Update `SyncEngine.__init__()` in `sync/engine.py` — change providers type to accept 3-tuples
-- [ ] Update `SyncEngine.run()` to unpack `(client, profile, tenant_name)` from `self._providers`
-- [ ] Update `SyncEngine._sync_provider()` to accept and pass `tenant_name` to both `sync_vms_optimized()` and `sync_vms()`
-- [ ] Update `cli.py:cmd_sync()` — use `list_cloud_accounts(with_relations=True)` so tenant is loaded
-- [ ] Write tests for build_providers_from_accounts() returning 3-tuple with tenant_name
-- [ ] Write tests for SyncEngine accepting and threading tenant_name
-- [ ] Run tests — must pass before next task
+- [x] Update `build_providers_from_accounts()` in `sync/providers.py` to return `List[Tuple[CloudClient, ProviderProfile, str | None]]` — extract `account.tenant.name` (need eager-load tenant; use `list_cloud_accounts(with_relations=True)`)
+- [x] Update `SyncEngine.__init__()` in `sync/engine.py` — change providers type to accept 3-tuples
+- [x] Update `SyncEngine.run()` to unpack `(client, profile, tenant_name)` from `self._providers`
+- [x] Update `SyncEngine._sync_provider()` to accept and pass `tenant_name` to both `sync_vms_optimized()` and `sync_vms()`
+- [x] Update `cli.py:cmd_sync()` — use `list_cloud_accounts(with_relations=True)` so tenant is loaded
+- [x] Write tests for build_providers_from_accounts() returning 3-tuple with tenant_name
+- [x] Write tests for SyncEngine accepting and threading tenant_name
+- [x] Run tests — must pass before next task
 
 ### Task 3: Add tenant to `prepare_vm_data()` and `sync_vms()` (sequential path)
 - [ ] Add `tenant_name: str | None = None` parameter to `prepare_vm_data()` in `sync/vms.py`

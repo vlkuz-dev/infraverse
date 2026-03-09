@@ -255,7 +255,9 @@ def cmd_sync(args: argparse.Namespace) -> None:
             db_engine = create_db_engine(infraverse_config.database_url)
             session_factory = create_session_factory(db_engine)
             with session_factory() as session:
-                accounts = Repository(session).list_cloud_accounts()
+                accounts = Repository(session).list_cloud_accounts(
+                    with_relations=True,
+                )
 
             providers = build_providers_from_accounts(accounts)
             engine = SyncEngine(netbox, providers, dry_run=args.dry_run)
