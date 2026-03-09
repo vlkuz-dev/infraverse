@@ -56,19 +56,19 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Split netbox.py — extract VM and interface CRUD
-- [ ] create `src/infraverse/providers/netbox_vms.py` with:
+- [x] create `src/infraverse/providers/netbox_vms.py` with:
   - `fetch_vms()`, `fetch_all_vms()` (lines 929-995)
   - `create_vm()`, `update_vm()` (lines 996-1043, 1188-1229)
   - `get_vm_by_name()`, `get_vm_by_custom_field()` (lines 1296-1331)
-- [ ] create `src/infraverse/providers/netbox_interfaces.py` with:
+- [x] create `src/infraverse/providers/netbox_interfaces.py` with:
   - `create_disk()` (lines 1044-1070)
   - `create_interface()` (lines 1071-1103)
   - `create_ip()` (lines 1104-1187)
   - `set_vm_primary_ip()` (lines 1230-1295)
-- [ ] keep `netbox.py` as facade: import and re-export `NetBoxClient` with all methods
-- [ ] update imports in callers if needed
-- [ ] split tests accordingly
-- [ ] run tests — must pass before next task
+- [x] keep `netbox.py` as facade: import and re-export `NetBoxClient` with all methods
+- [x] update imports in callers if needed
+- [x] split tests accordingly
+- [x] run tests — must pass before next task
 
 ### Task 5: Split vms.py — extract by concern
 - [ ] create `src/infraverse/sync/vms_platform.py`:
