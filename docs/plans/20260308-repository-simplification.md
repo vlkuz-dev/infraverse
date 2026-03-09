@@ -59,13 +59,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Remove `get_vms_by_account()` duplicate
-- [ ] verify `get_vms_by_account(account_id)` is equivalent to `get_all_vms(account_id=account_id)`
-- [ ] check difference: `get_vms_by_account` has no eager loading, `get_all_vms` has joinedload
-- [ ] update caller `accounts.py:72` to use `get_all_vms(account_id=account_id)`
-- [ ] remove `get_vms_by_account()` method
-- [ ] verify all tests pass
-- [ ] update tests that call removed method
-- [ ] run tests — must pass before next task
+- [x] verify `get_vms_by_account(account_id)` is equivalent to `get_all_vms(account_id=account_id)`
+- [x] check difference: `get_vms_by_account` has no eager loading, `get_all_vms` has joinedload
+- [x] update caller `accounts.py:72` to use `get_all_vms(account_id=account_id)`
+- [x] remove `get_vms_by_account()` method
+- [x] verify all tests pass
+- [x] update tests that call removed method
+- [x] run tests — must pass before next task
 
 ### Task 4: Standardize naming convention to `list_*`
 - [ ] rename `get_all_vms()` → `list_vms()` (4 callers: vms.py, comparison.py, dashboard.py, ingest.py)

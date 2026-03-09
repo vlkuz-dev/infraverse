@@ -273,15 +273,15 @@ class TestVMOperations:
         )
         assert vm.ip_addresses == []
 
-    def test_get_vms_by_account(self, repo, account):
+    def test_get_all_vms_by_account(self, repo, account):
         repo.upsert_vm(account.id, "fhm-z", "z-server")
         repo.upsert_vm(account.id, "fhm-a", "a-server")
-        vms = repo.get_vms_by_account(account.id)
+        vms = repo.get_all_vms(account_id=account.id)
         names = [v.name for v in vms]
         assert names == ["a-server", "z-server"]
 
-    def test_get_vms_by_account_empty(self, repo, account):
-        assert repo.get_vms_by_account(account.id) == []
+    def test_get_all_vms_by_account_empty(self, repo, account):
+        assert repo.get_all_vms(account_id=account.id) == []
 
     def test_get_all_vms(self, repo):
         t = repo.create_tenant("All VMs Tenant")
@@ -313,7 +313,7 @@ class TestVMOperations:
         count = repo.mark_vms_stale(account.id, cutoff)
         assert count == 1
 
-        vms = repo.get_vms_by_account(account.id)
+        vms = repo.get_all_vms(account_id=account.id)
         statuses = {v.name: v.status for v in vms}
         assert statuses["old-vm"] == "offline"
         assert statuses["new-vm"] == "active"

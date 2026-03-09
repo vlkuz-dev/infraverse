@@ -179,14 +179,6 @@ class Repository:
             .first()
         )
 
-    def get_vms_by_account(self, cloud_account_id: int) -> list[VM]:
-        return (
-            self.session.query(VM)
-            .filter(VM.cloud_account_id == cloud_account_id)
-            .order_by(VM.name)
-            .all()
-        )
-
     def get_all_vms(
         self,
         tenant_id: int | None = None,

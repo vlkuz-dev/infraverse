@@ -69,7 +69,7 @@ def account_detail(request: Request, account_id: int):
                 status_code=404,
             )
 
-        vms = repo.get_vms_by_account(account_id)
+        vms = repo.get_all_vms(account_id=account_id)
         sync_runs = repo.get_sync_runs_by_account(account_id, limit=10)
 
         # Extract data while session is open — mask sensitive config values
