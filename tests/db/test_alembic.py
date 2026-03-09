@@ -182,7 +182,7 @@ class TestDowngradeOne:
     """Test alembic downgrade -1 rolls back the last migration."""
 
     def test_downgrade_removes_tables(self, tmp_path):
-        """After upgrade head, downgrade -1 should drop all tables."""
+        """Downgrading all migrations should drop all app tables."""
         db_path = tmp_path / "downgrade.db"
         db_url = f"sqlite:///{db_path}"
 
@@ -192,7 +192,8 @@ class TestDowngradeOne:
         inspector = inspect(engine)
         assert EXPECTED_TABLES.issubset(set(inspector.get_table_names()))
 
-        # Downgrade -1 should remove all app tables (initial migration is the only one)
+        # Downgrade twice (indexes migration + initial schema)
+        downgrade_one(db_url)
         downgrade_one(db_url)
         inspector = inspect(engine)
         remaining = set(inspector.get_table_names())
@@ -202,13 +203,15 @@ class TestDowngradeOne:
         assert "alembic_version" in remaining
 
     def test_downgrade_sets_revision_to_none(self, tmp_path):
-        """After downgrading the only migration, revision should be None."""
+        """After downgrading all migrations, revision should be None."""
         db_path = tmp_path / "downgrade_rev.db"
         db_url = f"sqlite:///{db_path}"
 
         upgrade_head(db_url)
         assert current(db_url) is not None
 
+        # Downgrade twice (indexes migration + initial schema)
+        downgrade_one(db_url)
         downgrade_one(db_url)
         assert current(db_url) is None
 

@@ -85,17 +85,17 @@
 - [x] run tests — 1477 pass, linter clean
 
 ### Task 6: Add DB indexes for query performance
-- [ ] add index on `vms.cloud_account_id` — used in `get_vms_by_account()`, upsert filter
-- [ ] add index on `vms.status` — used in `list_vms(status=?)` filter
-- [ ] add index on `vms.name` — used for `order_by(VM.name)` in 5+ queries
-- [ ] add index on `cloud_accounts.tenant_id` — used in 3+ queries with joins
-- [ ] add index on `monitoring_hosts.cloud_account_id` — used in account filtering
-- [ ] add index on `monitoring_hosts.name` — used for ordering + `get_monitoring_host_by_name()` case-insensitive search
-- [ ] add index on `netbox_hosts.tenant_id` — used in tenant filtering
-- [ ] add index on `sync_runs.source` — used in `get_latest_sync_run_by_source()` filter
-- [ ] add composite index on `sync_runs(cloud_account_id, started_at)` — used in ordered account history
-- [ ] write tests verifying indexes exist after init_db (inspect table indexes)
-- [ ] run tests — must pass before next task
+- [x] add index on `vms.cloud_account_id` — used in `get_vms_by_account()`, upsert filter
+- [x] add index on `vms.status` — used in `list_vms(status=?)` filter
+- [x] add index on `vms.name` — used for `order_by(VM.name)` in 5+ queries
+- [x] add index on `cloud_accounts.tenant_id` — used in 3+ queries with joins
+- [x] add index on `monitoring_hosts.cloud_account_id` — used in account filtering
+- [x] add index on `monitoring_hosts.name` — used for ordering + `get_monitoring_host_by_name()` case-insensitive search
+- [x] add index on `netbox_hosts.tenant_id` — used in tenant filtering
+- [x] add index on `sync_runs.source` — used in `get_latest_sync_run_by_source()` filter
+- [x] add composite index on `sync_runs(cloud_account_id, started_at)` — used in ordered account history
+- [x] write tests verifying indexes exist after init_db (inspect table indexes)
+- [x] run tests — must pass before next task
 
 ### Task 7: Add pagination to repository list methods
 - [ ] add `limit: int | None = None` and `offset: int = 0` params to `list_vms()` (renamed `get_all_vms`)

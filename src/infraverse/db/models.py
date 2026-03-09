@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
+    Index,
     Integer,
     String,
     DateTime,
@@ -60,6 +61,10 @@ class CloudAccount(Base):
         "SyncRun", back_populates="cloud_account", cascade="all, delete-orphan"
     )
 
+    __table_args__ = (
+        Index("ix_cloud_accounts_tenant_id", "tenant_id"),
+    )
+
     def __repr__(self):
         return f"<CloudAccount(id={self.id}, name={self.name!r}, provider={self.provider_type!r})>"
 
@@ -88,6 +93,9 @@ class VM(Base):
 
     __table_args__ = (
         UniqueConstraint("cloud_account_id", "external_id", name="uq_vm_account_external"),
+        Index("ix_vms_cloud_account_id", "cloud_account_id"),
+        Index("ix_vms_status", "status"),
+        Index("ix_vms_name", "name"),
     )
 
     def __repr__(self):
@@ -114,6 +122,8 @@ class MonitoringHost(Base):
 
     __table_args__ = (
         UniqueConstraint("source", "external_id", name="uq_monitoring_source_external"),
+        Index("ix_monitoring_hosts_cloud_account_id", "cloud_account_id"),
+        Index("ix_monitoring_hosts_name", "name"),
     )
 
     def __repr__(self):
@@ -138,6 +148,10 @@ class NetBoxHost(Base):
 
     tenant = relationship("Tenant")
 
+    __table_args__ = (
+        Index("ix_netbox_hosts_tenant_id", "tenant_id"),
+    )
+
     def __repr__(self):
         return f"<NetBoxHost(id={self.id}, name={self.name!r}, external_id={self.external_id!r})>"
 
@@ -157,6 +171,11 @@ class SyncRun(Base):
     error_message = Column(String, nullable=True)
 
     cloud_account = relationship("CloudAccount", back_populates="sync_runs")
+
+    __table_args__ = (
+        Index("ix_sync_runs_source", "source"),
+        Index("ix_sync_runs_account_started", "cloud_account_id", "started_at"),
+    )
 
     def __repr__(self):
         return f"<SyncRun(id={self.id}, source={self.source!r}, status={self.status!r})>"

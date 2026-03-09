@@ -895,3 +895,54 @@ class TestSyncRunOperations:
         result = repo.get_latest_sync_run_by_source("zabbix", tenant_id=tenant_id)
         assert result is not None
         assert result.id == r1.id
+
+
+# --- DB Indexes ---
+
+
+class TestDatabaseIndexes:
+    """Verify indexes exist on frequently queried columns after init_db."""
+
+    def _get_index_names(self, engine, table_name):
+        """Return set of index names for a given table."""
+        from sqlalchemy import inspect
+
+        inspector = inspect(engine)
+        indexes = inspector.get_indexes(table_name)
+        return {idx["name"] for idx in indexes}
+
+    def test_cloud_accounts_tenant_id_index(self, engine):
+        names = self._get_index_names(engine, "cloud_accounts")
+        assert "ix_cloud_accounts_tenant_id" in names
+
+    def test_vms_cloud_account_id_index(self, engine):
+        names = self._get_index_names(engine, "vms")
+        assert "ix_vms_cloud_account_id" in names
+
+    def test_vms_status_index(self, engine):
+        names = self._get_index_names(engine, "vms")
+        assert "ix_vms_status" in names
+
+    def test_vms_name_index(self, engine):
+        names = self._get_index_names(engine, "vms")
+        assert "ix_vms_name" in names
+
+    def test_monitoring_hosts_cloud_account_id_index(self, engine):
+        names = self._get_index_names(engine, "monitoring_hosts")
+        assert "ix_monitoring_hosts_cloud_account_id" in names
+
+    def test_monitoring_hosts_name_index(self, engine):
+        names = self._get_index_names(engine, "monitoring_hosts")
+        assert "ix_monitoring_hosts_name" in names
+
+    def test_netbox_hosts_tenant_id_index(self, engine):
+        names = self._get_index_names(engine, "netbox_hosts")
+        assert "ix_netbox_hosts_tenant_id" in names
+
+    def test_sync_runs_source_index(self, engine):
+        names = self._get_index_names(engine, "sync_runs")
+        assert "ix_sync_runs_source" in names
+
+    def test_sync_runs_composite_account_started_index(self, engine):
+        names = self._get_index_names(engine, "sync_runs")
+        assert "ix_sync_runs_account_started" in names
