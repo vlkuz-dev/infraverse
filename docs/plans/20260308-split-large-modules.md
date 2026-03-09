@@ -37,15 +37,15 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Split netbox.py — extract infrastructure (sites, clusters, platforms)
-- [ ] create `src/infraverse/providers/netbox_infrastructure.py` with:
+- [x] create `src/infraverse/providers/netbox_infrastructure.py` with:
   - `ensure_site()` (lines 209-319)
   - `ensure_cluster_type()` (lines 320-446)
   - `ensure_cluster()` (lines 447-610)
   - `ensure_platform()` (lines 611-654)
-- [ ] extract `_safe_update_object()` (lines 163-208) to shared base/utils — used by multiple modules
-- [ ] update imports in callers
-- [ ] move corresponding tests to `tests/providers/test_netbox_infrastructure.py`
-- [ ] run tests — must pass before next task
+- [x] extract `_safe_update_object()` (lines 163-208) to shared base/utils — used by multiple modules
+- [x] update imports in callers
+- [x] move corresponding tests to `tests/providers/test_netbox_infrastructure.py`
+- [x] run tests — must pass before next task
 
 ### Task 3: Split netbox.py — extract prefix management
 - [ ] create `src/infraverse/providers/netbox_prefixes.py` with:
