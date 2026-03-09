@@ -100,14 +100,14 @@
 - [x] Run tests — must pass before next task
 
 ### Task 3: Add tenant to `prepare_vm_data()` and `sync_vms()` (sequential path)
-- [ ] Add `tenant_name: str | None = None` parameter to `prepare_vm_data()` in `sync/vms.py`
-- [ ] If tenant_name is provided, call `netbox.ensure_tenant(name=tenant_name, description=...)` and add `"tenant": tenant_id` to returned vm_data dict
-- [ ] Add `tenant_name` parameter to `update_vm_parameters()` — pass to `prepare_vm_data()` and check tenant field in update logic
-- [ ] Add `tenant_name` parameter to `sync_vms()` — pass to `prepare_vm_data()` and `update_vm_parameters()` calls
-- [ ] Write tests for prepare_vm_data() with tenant_name (set and None)
-- [ ] Write tests for update_vm_parameters() tenant comparison (changed, unchanged, None)
-- [ ] Write tests for sync_vms() passing tenant_name through
-- [ ] Run tests — must pass before next task
+- [x] Add `tenant_name: str | None = None` parameter to `prepare_vm_data()` in `sync/vms.py`
+- [x] If tenant_name is provided, call `netbox.ensure_tenant(name=tenant_name, description=...)` and add `"tenant": tenant_id` to returned vm_data dict
+- [x] Add `tenant_name` parameter to `update_vm_parameters()` — pass to `prepare_vm_data()` and check tenant field in update logic
+- [x] Add `tenant_name` parameter to `sync_vms()` — pass to `prepare_vm_data()` and `update_vm_parameters()` calls
+- [x] Write tests for prepare_vm_data() with tenant_name (set and None)
+- [x] Write tests for update_vm_parameters() tenant comparison (changed, unchanged, None)
+- [x] Write tests for sync_vms() passing tenant_name through
+- [x] Run tests — must pass before next task
 
 ### Task 4: Add tenant to `_process_vm_parameters()` and `sync_vms_optimized()` (batch path)
 - [ ] Add `tenant_name: str | None = None` parameter to `_process_vm_parameters()` in `sync/batch.py`

@@ -202,6 +202,39 @@ class TestPrepareVmData:
         assert result["memory"] == 0
         assert result["vcpus"] == 1
 
+    def test_tenant_name_resolves_to_tenant_id(self):
+        """When tenant_name is provided, ensure_tenant is called and tenant ID is added."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_tenant.return_value = 42
+        yc_vm = self._base_yc_vm()
+
+        result = prepare_vm_data(
+            yc_vm, netbox, self._base_id_mapping(), tenant_name="acme-corp",
+        )
+
+        netbox.ensure_tenant.assert_called_once_with(name="acme-corp")
+        assert result["tenant"] == 42
+
+    def test_tenant_not_set_when_name_is_none(self):
+        """When tenant_name is None, tenant key is not in vm_data."""
+        netbox = make_mock_netbox_client()
+        yc_vm = self._base_yc_vm()
+
+        result = prepare_vm_data(yc_vm, netbox, self._base_id_mapping(), tenant_name=None)
+
+        netbox.ensure_tenant.assert_not_called()
+        assert "tenant" not in result
+
+    def test_tenant_not_set_when_name_is_empty(self):
+        """When tenant_name is empty string, tenant key is not in vm_data."""
+        netbox = make_mock_netbox_client()
+        yc_vm = self._base_yc_vm()
+
+        result = prepare_vm_data(yc_vm, netbox, self._base_id_mapping(), tenant_name="")
+
+        netbox.ensure_tenant.assert_not_called()
+        assert "tenant" not in result
+
 
 class TestUpdateVmParameters:
     """Tests for update_vm_parameters."""
@@ -293,6 +326,128 @@ class TestUpdateVmParameters:
         assert result is True
         call_args = netbox.update_vm.call_args
         assert call_args[0][1]["vcpus"] == 4
+
+    def test_updates_when_tenant_differs(self):
+        """VM is updated when tenant has changed."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.return_value = 50
+
+        vm = MockRecord(
+            id=1, name="test-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=MockRecord(id=30),
+            comments=(
+                "YC VM ID: vm-123\nZone: ru-central1-a\n"
+                "Hardware Platform: standard-v3\nOS: ubuntu-22.04\nCreated: 2024-01-01"
+            ),
+        )
+        yc_vm = {
+            "name": "test-vm", "id": "vm-123", "folder_id": "f1",
+            "zone_id": "ru-central1-a", "status": "RUNNING",
+            "platform_id": "standard-v3", "os": "ubuntu-22.04",
+            "created_at": "2024-01-01",
+            "resources": {"memory": 4294967296, "cores": 2},
+        }
+        id_mapping = {"zones": {"ru-central1-a": 10}, "folders": {"f1": 20}}
+
+        result = update_vm_parameters(vm, yc_vm, netbox, id_mapping, tenant_name="acme-corp")
+
+        assert result is True
+        call_args = netbox.update_vm.call_args
+        assert call_args[0][1]["tenant"] == 50
+
+    def test_no_update_when_tenant_unchanged(self):
+        """VM is not updated when tenant matches."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.return_value = 30
+
+        vm = MockRecord(
+            id=1, name="test-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=MockRecord(id=30),
+            comments=(
+                "YC VM ID: vm-123\nZone: ru-central1-a\n"
+                "Hardware Platform: standard-v3\nOS: ubuntu-22.04\nCreated: 2024-01-01"
+            ),
+        )
+        yc_vm = {
+            "name": "test-vm", "id": "vm-123", "folder_id": "f1",
+            "zone_id": "ru-central1-a", "status": "RUNNING",
+            "platform_id": "standard-v3", "os": "ubuntu-22.04",
+            "created_at": "2024-01-01",
+            "resources": {"memory": 4294967296, "cores": 2},
+        }
+        id_mapping = {"zones": {"ru-central1-a": 10}, "folders": {"f1": 20}}
+
+        result = update_vm_parameters(vm, yc_vm, netbox, id_mapping, tenant_name="acme-corp")
+
+        assert result is False
+        netbox.update_vm.assert_not_called()
+
+    def test_updates_tenant_when_vm_has_no_tenant(self):
+        """VM is updated when it has no tenant and one is provided."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.return_value = 50
+
+        vm = MockRecord(
+            id=1, name="test-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=None,
+            comments=(
+                "YC VM ID: vm-123\nZone: ru-central1-a\n"
+                "Hardware Platform: standard-v3\nOS: ubuntu-22.04\nCreated: 2024-01-01"
+            ),
+        )
+        yc_vm = {
+            "name": "test-vm", "id": "vm-123", "folder_id": "f1",
+            "zone_id": "ru-central1-a", "status": "RUNNING",
+            "platform_id": "standard-v3", "os": "ubuntu-22.04",
+            "created_at": "2024-01-01",
+            "resources": {"memory": 4294967296, "cores": 2},
+        }
+        id_mapping = {"zones": {"ru-central1-a": 10}, "folders": {"f1": 20}}
+
+        result = update_vm_parameters(vm, yc_vm, netbox, id_mapping, tenant_name="acme-corp")
+
+        assert result is True
+        call_args = netbox.update_vm.call_args
+        assert call_args[0][1]["tenant"] == 50
+
+    def test_no_tenant_update_when_tenant_name_none(self):
+        """When tenant_name is None, tenant is not checked or updated."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+
+        vm = MockRecord(
+            id=1, name="test-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=MockRecord(id=30),
+            comments=(
+                "YC VM ID: vm-123\nZone: ru-central1-a\n"
+                "Hardware Platform: standard-v3\nOS: ubuntu-22.04\nCreated: 2024-01-01"
+            ),
+        )
+        yc_vm = {
+            "name": "test-vm", "id": "vm-123", "folder_id": "f1",
+            "zone_id": "ru-central1-a", "status": "RUNNING",
+            "platform_id": "standard-v3", "os": "ubuntu-22.04",
+            "created_at": "2024-01-01",
+            "resources": {"memory": 4294967296, "cores": 2},
+        }
+        id_mapping = {"zones": {"ru-central1-a": 10}, "folders": {"f1": 20}}
+
+        result = update_vm_parameters(vm, yc_vm, netbox, id_mapping, tenant_name=None)
+
+        assert result is False
+        netbox.update_vm.assert_not_called()
+        netbox.ensure_tenant.assert_not_called()
 
     def test_exception_returns_false(self):
         """If prepare_vm_data raises, returns False."""
@@ -427,6 +582,94 @@ class TestSyncVms:
 
         # Should have been called for the parameter update (memory changed from 2048 -> 4000)
         netbox.update_vm.assert_called_once()
+
+    def test_creates_new_vm_with_tenant(self):
+        """New VMs are created with tenant when tenant_name is provided."""
+        netbox = make_mock_netbox_client()
+        netbox.fetch_vms.return_value = []
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.return_value = 42
+        created_vm = MockRecord(id=100, name="new-vm")
+        netbox.create_vm.return_value = created_vm
+
+        yc_data = {
+            "vms": [{
+                "id": "vm-1", "name": "new-vm", "folder_id": "f1",
+                "zone_id": "z1", "status": "RUNNING",
+                "resources": {"memory": 4294967296, "cores": 2},
+                "disks": [], "network_interfaces": [],
+            }]
+        }
+
+        sync_vms(
+            yc_data, netbox, {"zones": {}, "folders": {"f1": 20}},
+            cleanup_orphaned=False, tenant_name="acme-corp",
+        )
+
+        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+        vm_data = netbox.create_vm.call_args[0][0]
+        assert vm_data["tenant"] == 42
+
+    def test_updates_existing_vm_with_tenant(self):
+        """Existing VMs get tenant updated when tenant_name changes."""
+        netbox = make_mock_netbox_client()
+        netbox.ensure_cluster.return_value = 20
+        netbox.ensure_tenant.return_value = 42
+
+        existing_vm = MockRecord(
+            id=1, name="existing-vm", memory=4000, vcpus=2,
+            cluster=MockRecord(id=20), site=MockRecord(id=10),
+            platform=MockRecord(id=8), status=MockRecord(value="active"),
+            tenant=None, comments="old comments", tags=[MockTag(id=1)],
+            primary_ip4=None,
+        )
+        netbox.fetch_vms.return_value = [existing_vm]
+        netbox.nb.virtualization.virtual_disks.filter.return_value = []
+        netbox.nb.virtualization.interfaces.filter.return_value = []
+        netbox.nb.ipam.ip_addresses.filter.return_value = []
+
+        yc_data = {
+            "vms": [{
+                "id": "vm-1", "name": "existing-vm", "folder_id": "f1",
+                "zone_id": "z1", "status": "RUNNING",
+                "platform_id": "", "os": "", "created_at": "",
+                "resources": {"memory": 4294967296, "cores": 2},
+                "disks": [], "network_interfaces": [],
+            }]
+        }
+
+        sync_vms(
+            yc_data, netbox, {"zones": {"z1": 10}, "folders": {"f1": 20}},
+            cleanup_orphaned=False, tenant_name="acme-corp",
+        )
+
+        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+        netbox.update_vm.assert_called_once()
+        call_args = netbox.update_vm.call_args
+        assert call_args[0][1]["tenant"] == 42
+
+    def test_sync_without_tenant_name_backward_compat(self):
+        """sync_vms works without tenant_name (backward compat)."""
+        netbox = make_mock_netbox_client()
+        netbox.fetch_vms.return_value = []
+        netbox.ensure_cluster.return_value = 20
+        created_vm = MockRecord(id=100, name="new-vm")
+        netbox.create_vm.return_value = created_vm
+
+        yc_data = {
+            "vms": [{
+                "id": "vm-1", "name": "new-vm", "folder_id": "f1",
+                "zone_id": "z1", "status": "RUNNING",
+                "resources": {"memory": 4294967296, "cores": 2},
+                "disks": [], "network_interfaces": [],
+            }]
+        }
+
+        sync_vms(yc_data, netbox, {"zones": {}, "folders": {"f1": 20}}, cleanup_orphaned=False)
+
+        netbox.ensure_tenant.assert_not_called()
+        vm_data = netbox.create_vm.call_args[0][0]
+        assert "tenant" not in vm_data
 
     def test_vm_creation_failure_counted(self):
         """Failed VM creation doesn't crash the sync."""

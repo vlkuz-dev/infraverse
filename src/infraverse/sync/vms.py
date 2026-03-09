@@ -19,6 +19,7 @@ def prepare_vm_data(
     netbox: NetBoxClient,
     id_mapping: Dict[str, Dict[str, int]],
     provider_profile=None,
+    tenant_name: str | None = None,
 ) -> Dict[str, Any]:
     """Prepare VM data for NetBox creation."""
     from infraverse.sync.provider_profile import YC_PROFILE
@@ -106,6 +107,11 @@ def prepare_vm_data(
     # Map OS to NetBox platform (operating system)
     vm_data["platform"] = detect_platform_id(os_name, netbox)
 
+    # Resolve tenant if provided
+    if tenant_name:
+        tenant_id = netbox.ensure_tenant(name=tenant_name)
+        vm_data["tenant"] = tenant_id
+
     return vm_data
 
 
@@ -113,22 +119,24 @@ def update_vm_parameters(
     vm: Any,
     yc_vm: Dict[str, Any],
     netbox: NetBoxClient,
-    id_mapping: Dict[str, Any]
+    id_mapping: Dict[str, Any],
+    tenant_name: str | None = None,
 ) -> bool:
     """
-    Update VM parameters (memory, CPU, site, cluster) for an existing VM.
+    Update VM parameters (memory, CPU, site, cluster, tenant) for an existing VM.
 
     Args:
         vm: Existing NetBox VM object
         yc_vm: Yandex Cloud VM data
         netbox: NetBox client
         id_mapping: ID mapping for cluster and sites
+        tenant_name: Optional tenant name to assign to the VM
 
     Returns:
         True if updated, False otherwise
     """
     try:
-        vm_data = prepare_vm_data(yc_vm, netbox, id_mapping)
+        vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, tenant_name=tenant_name)
         updates = {}
 
         # Check memory
@@ -176,6 +184,17 @@ def update_vm_parameters(
             if current_platform_id != new_platform_id:
                 updates['platform'] = new_platform_id
                 logger.info(f"VM {vm.name}: platform will be updated from {current_platform_id} to {new_platform_id}")
+
+        # Check tenant
+        if 'tenant' in vm_data:
+            current_tenant_id = None
+            if hasattr(vm, 'tenant') and vm.tenant:
+                current_tenant_id = vm.tenant.id if hasattr(vm.tenant, 'id') else vm.tenant
+
+            new_tenant_id = vm_data['tenant']
+            if current_tenant_id != new_tenant_id:
+                updates['tenant'] = new_tenant_id
+                logger.info(f"VM {vm.name}: tenant will be updated from {current_tenant_id} to {new_tenant_id}")
 
         # Check status
         if hasattr(vm, 'status') and vm.status:
@@ -270,7 +289,9 @@ def sync_vms(
             if vm_name in existing_vm_names:
                 existing_vm = existing_vm_names[vm_name]
 
-                params_updated = update_vm_parameters(existing_vm, yc_vm, netbox, id_mapping)
+                params_updated = update_vm_parameters(
+                    existing_vm, yc_vm, netbox, id_mapping, tenant_name=tenant_name,
+                )
                 disk_sync_result = sync_vm_disks(existing_vm, yc_vm, netbox)
                 disks_changed = disk_sync_result["created"] > 0 or disk_sync_result["deleted"] > 0
                 interface_sync_result = sync_vm_interfaces(existing_vm, yc_vm, netbox)
@@ -299,7 +320,9 @@ def sync_vms(
                     skipped_count += 1
                 continue
 
-            vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, provider_profile=profile)
+            vm_data = prepare_vm_data(
+                yc_vm, netbox, id_mapping, provider_profile=profile, tenant_name=tenant_name,
+            )
 
             if netbox.dry_run:
                 logger.info(f"[DRY-RUN] Would create VM: {vm_name}")
