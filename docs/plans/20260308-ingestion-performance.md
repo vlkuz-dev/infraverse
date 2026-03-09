@@ -75,8 +75,8 @@
 - [x] run linter: `ruff check src/ tests/`
 
 ### Task 6: [Final] Update documentation
-- [ ] update MEMORY.md with new patterns (retry, caching)
-- [ ] update this plan with any deviations
+- [x] update MEMORY.md with new patterns (retry, caching)
+- [x] update this plan with any deviations
 
 ## Technical Details
 
