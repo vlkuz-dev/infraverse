@@ -121,6 +121,7 @@ def update_vm_parameters(
     netbox: NetBoxClient,
     id_mapping: Dict[str, Any],
     tenant_name: str | None = None,
+    provider_profile=None,
 ) -> bool:
     """
     Update VM parameters (memory, CPU, site, cluster, tenant) for an existing VM.
@@ -131,12 +132,15 @@ def update_vm_parameters(
         netbox: NetBox client
         id_mapping: ID mapping for cluster and sites
         tenant_name: Optional tenant name to assign to the VM
+        provider_profile: Optional provider profile for comment generation
 
     Returns:
         True if updated, False otherwise
     """
     try:
-        vm_data = prepare_vm_data(yc_vm, netbox, id_mapping, tenant_name=tenant_name)
+        vm_data = prepare_vm_data(yc_vm, netbox, id_mapping,
+                                  provider_profile=provider_profile,
+                                  tenant_name=tenant_name)
         updates = {}
 
         # Check memory
@@ -290,7 +294,8 @@ def sync_vms(
                 existing_vm = existing_vm_names[vm_name]
 
                 params_updated = update_vm_parameters(
-                    existing_vm, yc_vm, netbox, id_mapping, tenant_name=tenant_name,
+                    existing_vm, yc_vm, netbox, id_mapping,
+                    tenant_name=tenant_name, provider_profile=profile,
                 )
                 disk_sync_result = sync_vm_disks(existing_vm, yc_vm, netbox)
                 disks_changed = disk_sync_result["created"] > 0 or disk_sync_result["deleted"] > 0

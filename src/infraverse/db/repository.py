@@ -78,12 +78,15 @@ class Repository:
         self,
         tenant_id: int | None = None,
         with_relations: bool = False,
+        with_tenant: bool = False,
     ) -> list[CloudAccount]:
         """List cloud accounts with optional filtering and eager loading.
 
         Args:
             tenant_id: If provided, filter to this tenant's accounts only.
             with_relations: If True, eagerly load tenant and VMs relations.
+            with_tenant: If True, eagerly load only the tenant relation
+                (lighter than with_relations when VMs are not needed).
         """
         query = self.session.query(CloudAccount)
         if with_relations:
@@ -93,6 +96,8 @@ class Repository:
                 joinedload(CloudAccount.tenant),
                 subqueryload(CloudAccount.vms),
             )
+        elif with_tenant:
+            query = query.options(joinedload(CloudAccount.tenant))
         if tenant_id is not None:
             query = query.filter(CloudAccount.tenant_id == tenant_id)
         return query.order_by(CloudAccount.name).all()

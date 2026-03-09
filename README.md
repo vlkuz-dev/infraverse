@@ -21,7 +21,7 @@ Infrastructure visibility platform - sync multi-cloud infrastructure to NetBox a
 - **Quick-filter buttons:** filter comparison results by status (all / with issues / in sync)
 - **External resource links:** configurable URL templates linking to Yandex Cloud console, Zabbix, and NetBox
 - **NetBox sync:** map cloud structure to NetBox hierarchy (zones -> sites, folders -> clusters)
-- Automatic tenant mapping: config tenants are auto-created in NetBox and assigned to synced VMs
+- **Automatic tenant mapping:** config tenants are auto-created in NetBox and assigned to synced VMs
 - Automatic creation of sites, clusters, and prefixes
 - Two sync modes: optimized batch (default) and standard sequential
 - Dry-run mode for previewing changes

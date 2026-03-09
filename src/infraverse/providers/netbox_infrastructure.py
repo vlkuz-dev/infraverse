@@ -83,12 +83,9 @@ class NetBoxInfrastructureMixin:
         Returns:
             Tenant ID
         """
-        desired_slug = slug or name
-        # Sanitize slug: lowercase, alphanumeric + hyphens only
-        desired_slug = desired_slug.lower().replace(" ", "-").replace("_", "-")
-        desired_slug = re.sub(r'[^a-z0-9-]', '-', desired_slug)
-        desired_slug = re.sub(r'-+', '-', desired_slug)
-        desired_slug = desired_slug.strip('-')
+        desired_slug = (slug or name).lower().replace(" ", "-").replace("_", "-")
+        if not desired_slug:
+            raise ValueError(f"Cannot derive a valid slug from tenant name: {name!r}")
 
         # Check cache
         if desired_slug in self._tenant_cache:
@@ -117,8 +114,7 @@ class NetBoxInfrastructureMixin:
             self._safe_update_object(tenant, updates)
 
             # Add sync tag
-            tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
-            tag_id = self.ensure_sync_tag(**tag_kwargs)
+            tag_id = self.ensure_sync_tag(tag_slug=tag_slug)
             if tag_id:
                 self._add_tag_to_object(tenant, tag_id)
 
@@ -133,8 +129,7 @@ class NetBoxInfrastructureMixin:
             return mock_id
 
         # Ensure tag exists
-        tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
-        tag_id = self.ensure_sync_tag(**tag_kwargs)
+        tag_id = self.ensure_sync_tag(tag_slug=tag_slug)
 
         tenant_data = {
             "name": name,
@@ -154,7 +149,7 @@ class NetBoxInfrastructureMixin:
             return tenant.id
         except Exception as e:
             error_msg = str(e)
-            # Handle duplicate slug error
+            # Handle duplicate slug error (concurrent-create race)
             if '400' in error_msg and 'slug' in error_msg.lower():
                 logger.warning(f"Tenant with slug '{desired_slug}' already exists, trying to fetch it")
                 try:

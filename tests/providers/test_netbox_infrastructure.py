@@ -594,6 +594,54 @@ class TestEnsureTenantErrors:
         assert "tags" not in call_args
 
 
+class TestEnsureTenantSlugSanitization:
+    """Tests for ensure_tenant() slug handling."""
+
+    def test_underscores_replaced_with_hyphens(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(20, name="tenant_with_underscores")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        nb_client.ensure_tenant("tenant_with_underscores")
+
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert call_args["slug"] == "tenant-with-underscores"
+
+    def test_uppercase_lowered(self, nb_client):
+        nb_client._sync_tag_id = 1
+        nb_client.nb.tenancy.tenants.get.return_value = None
+        new_tenant = MockRecord(21, name="My Tenant")
+        nb_client.nb.tenancy.tenants.create.return_value = new_tenant
+
+        nb_client.ensure_tenant("My Tenant")
+
+        call_args = nb_client.nb.tenancy.tenants.create.call_args[0][0]
+        assert call_args["slug"] == "my-tenant"
+
+    def test_empty_slug_raises(self, nb_client):
+        with pytest.raises(ValueError, match="Cannot derive a valid slug"):
+            nb_client.ensure_tenant("")
+
+    def test_valueerror_on_name_lookup_falls_through(self, nb_client):
+        """pynetbox .get() raises ValueError on multiple results; should fall through."""
+        nb_client._sync_tag_id = 1
+        tenant = MockRecord(22, name="dup-name", slug="dup-name", tags=[])
+
+        def get_side_effect(**kwargs):
+            if kwargs.get("name"):
+                raise ValueError("get() returned more than one result")
+            if kwargs.get("slug") == "dup-name":
+                return tenant
+            return None
+
+        nb_client.nb.tenancy.tenants.get.side_effect = get_side_effect
+
+        result = nb_client.ensure_tenant("dup-name")
+
+        assert result == 22
+
+
 class TestMixinResolution:
     """Verify that infrastructure methods are accessible via NetBoxClient."""
 
