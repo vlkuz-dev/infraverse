@@ -66,9 +66,6 @@ class Repository:
         return account
 
     def get_cloud_account(self, account_id: int) -> CloudAccount | None:
-        return self.session.get(CloudAccount, account_id)
-
-    def get_cloud_account_with_tenant(self, account_id: int) -> CloudAccount | None:
         """Get a single cloud account by ID with tenant eagerly loaded."""
         return (
             self.session.query(CloudAccount)

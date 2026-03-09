@@ -51,12 +51,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 2: Consolidate CloudAccount get methods (2 → 1)
-- [ ] verify `get_cloud_account()` (line 68, no joins) is unused in production code
-- [ ] rename `get_cloud_account_with_tenant()` → `get_cloud_account()` with eager loading by default
-- [ ] update all callers (currently only web routes use `_with_tenant` variant)
-- [ ] verify all tests pass
-- [ ] update tests that reference old method names
-- [ ] run tests — must pass before next task
+- [x] verify `get_cloud_account()` (line 68, no joins) is unused in production code
+- [x] rename `get_cloud_account_with_tenant()` → `get_cloud_account()` with eager loading by default
+- [x] update all callers (currently only web routes use `_with_tenant` variant)
+- [x] verify all tests pass
+- [x] update tests that reference old method names
+- [x] run tests — must pass before next task
 
 ### Task 3: Remove `get_vms_by_account()` duplicate
 - [ ] verify `get_vms_by_account(account_id)` is equivalent to `get_all_vms(account_id=account_id)`

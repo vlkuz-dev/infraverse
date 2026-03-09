@@ -60,7 +60,7 @@ def account_detail(request: Request, account_id: int):
     session_factory = request.app.state.session_factory
     with session_factory() as session:
         repo = Repository(session)
-        account = repo.get_cloud_account_with_tenant(account_id)
+        account = repo.get_cloud_account(account_id)
         if account is None:
             return templates.TemplateResponse(
                 request,

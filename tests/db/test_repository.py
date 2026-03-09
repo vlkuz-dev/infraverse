@@ -129,6 +129,13 @@ class TestCloudAccountCRUD:
         assert fetched is not None
         assert fetched.name == "vCloud DC"
 
+    def test_get_cloud_account_loads_tenant(self, repo, tenant):
+        created = repo.create_cloud_account(tenant.id, "vcloud", "vCloud DC")
+        fetched = repo.get_cloud_account(created.id)
+        assert fetched is not None
+        assert fetched.tenant is not None
+        assert fetched.tenant.name == tenant.name
+
     def test_get_cloud_account_not_found(self, repo):
         assert repo.get_cloud_account(99999) is None
 
