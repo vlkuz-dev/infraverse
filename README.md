@@ -326,7 +326,12 @@ src/infraverse/
     vcloud.py              # vCloud Director API client
     zabbix.py              # Zabbix JSON-RPC client
     retry.py               # Retry with exponential backoff decorator
-    netbox.py              # NetBox API wrapper (pynetbox)
+    netbox.py              # NetBox facade: NetBoxClient inherits 5 mixins
+    netbox_tags.py         # Tag management mixin
+    netbox_infrastructure.py # Sites, clusters, platforms mixin
+    netbox_prefixes.py     # Prefix management mixin
+    netbox_vms.py          # VM CRUD mixin
+    netbox_interfaces.py   # Disk, interface, IP mixin
   sync/
     engine.py              # Top-level sync orchestrator
     orchestrator.py        # Shared ingestion cycle for CLI + scheduler
@@ -337,7 +342,10 @@ src/infraverse/
     monitoring.py          # Bulk Zabbix monitoring check (with per-VM fallback)
     size_converters.py     # Size conversion utilities (bytes -> NetBox MB)
     infrastructure.py      # Sites, clusters, prefixes sync
-    vms.py                 # VM sync logic
+    vms.py                 # VM sync orchestrator (prepare, update, sync_vms)
+    vms_platform.py        # Platform detection (OS name -> NetBox slug)
+    vms_disks.py           # Disk synchronization
+    vms_networking.py      # Interface/IP sync and primary IP assignment
     batch.py               # Optimized batch operations
     cleanup.py             # Orphaned object cleanup
   comparison/

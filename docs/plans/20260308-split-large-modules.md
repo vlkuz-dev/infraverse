@@ -96,43 +96,45 @@
 - [x] run linter: `ruff check src/ tests/`
 
 ### Task 7: [Final] Update documentation
-- [ ] update MEMORY.md with new module paths
-- [ ] update this plan with any deviations
+- [x] update MEMORY.md with new module paths
+- [x] update this plan with any deviations
 
 ## Technical Details
 
-### netbox.py split target
+### netbox.py split result
 ```
 BEFORE: providers/netbox.py (1331 lines, 18 methods)
 
-AFTER:
-  providers/netbox.py           (~50 lines)   — facade: NetBoxClient with __init__, imports/delegates
-  providers/netbox_tags.py      (~120 lines)  — ensure_sync_tag, _add_tag_to_object
-  providers/netbox_infra.py     (~450 lines)  — ensure_site/cluster_type/cluster/platform, _safe_update_object
-  providers/netbox_prefixes.py  (~280 lines)  — ensure_prefix, update_prefix
-  providers/netbox_vms.py       (~220 lines)  — VM CRUD: create/update/fetch/get
-  providers/netbox_interfaces.py(~220 lines)  — create_disk/interface/ip, set_primary_ip
+AFTER (actual):
+  providers/netbox.py                (53 lines)   — facade: NetBoxClient with __init__, inherits 5 mixins
+  providers/netbox_tags.py          (130 lines)  — NetBoxTagsMixin: ensure_sync_tag, _add_tag_to_object
+  providers/netbox_infrastructure.py (511 lines)  — NetBoxInfrastructureMixin: _safe_update_object, ensure_site/cluster_type/cluster/platform
+  providers/netbox_prefixes.py      (293 lines)  — NetBoxPrefixesMixin: ensure_prefix, update_prefix
+  providers/netbox_vms.py           (212 lines)  — NetBoxVMsMixin: fetch_vms/fetch_all_vms, create_vm/update_vm, get_vm_by_name/get_vm_by_custom_field
+  providers/netbox_interfaces.py    (225 lines)  — NetBoxInterfacesMixin: create_disk/interface/ip, set_vm_primary_ip
 ```
 
-### vms.py split target
+Deviation: file named `netbox_infrastructure.py` (not `netbox_infra.py` as planned) for clarity.
+
+### vms.py split result
 ```
 BEFORE: sync/vms.py (966 lines, 8 functions)
 
-AFTER:
-  sync/vms.py               (~460 lines)  — prepare_vm_data, update_vm_parameters, sync_vms orchestrator
-  sync/vms_platform.py       (~70 lines)  — detect_platform_slug, detect_platform_id
-  sync/vms_disks.py          (~140 lines) — sync_vm_disks
-  sync/vms_networking.py     (~300 lines) — sync_vm_interfaces, update_vm_primary_ip
+AFTER (actual):
+  sync/vms.py               (396 lines)  — prepare_vm_data, update_vm_parameters, sync_vms orchestrator
+  sync/vms_platform.py       (76 lines)  — detect_platform_slug, detect_platform_id
+  sync/vms_disks.py          (148 lines) — sync_vm_disks
+  sync/vms_networking.py     (373 lines) — sync_vm_interfaces, update_vm_primary_ip
 ```
 
-### Design decision: mixin vs delegation vs facade
-- **Facade (chosen for netbox.py):** `NetBoxClient` stays as the public class, imports methods from submodules. Callers don't change.
-- **Direct functions (chosen for vms.py):** Functions are already standalone, just move to new files. Update imports.
+### Design decision: mixin inheritance (not facade/delegation)
+- **Mixin inheritance (chosen for netbox.py):** Each submodule defines a Mixin class. NetBoxClient inherits from all 5 mixins (VMsMixin, InterfacesMixin, PrefixesMixin, InfrastructureMixin, TagsMixin). Callers don't change.
+- **Direct functions (chosen for vms.py):** Functions are already standalone, just moved to new files. Updated imports.
 
 ### Shared dependencies
-- `_safe_update_object()` used by infra + prefixes → put in base/infra module
-- Tag cache (`self._tag_slugs_cache`) used by tags + VM creation → keep on NetBoxClient instance
-- `self.nb` (pynetbox API) used everywhere → stays on NetBoxClient, passed to submodule functions
+- `_safe_update_object()` used by infra + prefixes → put in InfrastructureMixin (prefixes calls via self)
+- Tag cache (`self._tag_slugs_cache`) used by tags + VM creation → kept on NetBoxClient instance
+- `self.nb` (pynetbox API) used everywhere → stays on NetBoxClient, accessed via self in mixins
 
 ## Post-Completion
 - Consider splitting test files to match source structure if they become large
