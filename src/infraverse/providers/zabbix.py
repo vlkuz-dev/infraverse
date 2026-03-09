@@ -53,6 +53,7 @@ class ZabbixClient:
         self.auth_token: str | None = None
         self.client = httpx.Client(timeout=30.0, verify=verify_ssl)
         self._request_id = 0
+        self.last_fetch_truncated: bool = False
 
     def __del__(self):
         """Close httpx client on deletion."""
@@ -172,6 +173,9 @@ class ZabbixClient:
     def _fetch_hosts_paginated(self, max_pages: int = 100) -> list[dict[str, Any]]:
         """Fetch all raw host dicts from Zabbix with pagination.
 
+        Sets ``self.last_fetch_truncated`` to ``True`` when the safety limit
+        is reached and not all hosts could be retrieved.
+
         Args:
             max_pages: Safety limit to prevent infinite loops if the server
                 ignores the offset parameter.
@@ -179,6 +183,7 @@ class ZabbixClient:
         all_hosts: list[dict[str, Any]] = []
         limit = 1000
         offset = 0
+        self.last_fetch_truncated = False
 
         for _ in range(max_pages):
             result = self._jsonrpc_request(
@@ -197,6 +202,7 @@ class ZabbixClient:
                 break
             offset += limit
         else:
+            self.last_fetch_truncated = True
             logger.warning(
                 "Zabbix pagination hit max_pages=%d limit (%d hosts fetched); "
                 "results may be incomplete",

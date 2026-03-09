@@ -324,6 +324,43 @@ class TestFetchHosts:
 
         assert len(hosts) == 1001
         assert mock_client.client.post.call_count == 2
+        assert mock_client.last_fetch_truncated is False
+
+    def test_pagination_truncated_sets_flag(self, mock_client):
+        """When max_pages is hit, last_fetch_truncated is True."""
+        # Create a page that always returns a full 1000 hosts
+        full_page = [
+            {
+                "hostid": str(i),
+                "host": f"host-{i}",
+                "name": f"Host {i}",
+                "status": "0",
+                "interfaces": [],
+            }
+            for i in range(1000)
+        ]
+        resp = _mock_response({"jsonrpc": "2.0", "result": full_page, "id": 1})
+        mock_client.client.post.return_value = resp
+
+        # Use max_pages=2 so we hit the limit quickly
+        raw = mock_client._fetch_hosts_paginated(max_pages=2)
+
+        assert len(raw) == 2000
+        assert mock_client.last_fetch_truncated is True
+
+    def test_pagination_not_truncated_clears_flag(self, mock_client):
+        """Normal pagination clears the truncated flag."""
+        mock_client.last_fetch_truncated = True  # pre-set from previous call
+        resp = _mock_response({
+            "jsonrpc": "2.0",
+            "result": [{"hostid": "1", "host": "h", "name": "H", "status": "0", "interfaces": []}],
+            "id": 1,
+        })
+        mock_client.client.post.return_value = resp
+
+        mock_client._fetch_hosts_paginated()
+
+        assert mock_client.last_fetch_truncated is False
 
     def test_not_authenticated_auto_authenticates(self):
         """Fetching without authentication triggers auto-authenticate."""

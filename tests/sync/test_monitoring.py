@@ -142,6 +142,7 @@ class TestCheckVmMonitoring:
 def _make_bulk_client(hosts=None, fetch_error=None):
     """Create a mock ZabbixClient with bulk fetch behavior."""
     client = MagicMock()
+    client.last_fetch_truncated = False
     if fetch_error:
         client.fetch_hosts.side_effect = fetch_error
     else:
@@ -418,3 +419,97 @@ class TestCheckAllVmsFallback:
         assert results[0].matched_by == "name"
         assert results[1].found is True
         assert results[1].matched_by == "ip"
+
+
+class TestCheckAllVmsTruncatedBulkFetch:
+    """Tests for per-VM fallback when bulk fetch returns truncated data."""
+
+    def test_truncated_bulk_falls_back_for_missing_vms(self):
+        """VMs not found in truncated bulk data get per-VM API fallback."""
+        # Bulk data only contains host for vm-1, not vm-2
+        host1 = ZabbixHost(name="vm-1", hostid="101", status="active")
+        host2 = ZabbixHost(name="vm-2", hostid="102", status="active")
+        vms = [FakeVM(name="vm-1"), FakeVM(name="vm-2")]
+        client = MagicMock()
+        client.fetch_hosts.return_value = [host1]  # partial data
+        client.last_fetch_truncated = True
+        # Per-VM fallback finds vm-2
+        client.search_host_by_name.return_value = host2
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert len(results) == 2
+        assert results[0].found is True
+        assert results[0].matched_by == "name"
+        assert results[0].host == host1
+        # vm-2 found via per-VM fallback
+        assert results[1].found is True
+        assert results[1].host == host2
+        # Per-VM fallback was only called for the missing vm-2
+        client.search_host_by_name.assert_called_once_with("vm-2")
+
+    def test_truncated_bulk_no_fallback_for_found_vms(self):
+        """VMs found in truncated bulk data don't trigger per-VM fallback."""
+        host1 = ZabbixHost(name="vm-1", hostid="101", status="active")
+        vms = [FakeVM(name="vm-1")]
+        client = MagicMock()
+        client.fetch_hosts.return_value = [host1]
+        client.last_fetch_truncated = True
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert results[0].found is True
+        assert results[0].matched_by == "name"
+        # No per-VM fallback needed — found in bulk data
+        client.search_host_by_name.assert_not_called()
+
+    def test_truncated_bulk_vm_truly_unmonitored(self):
+        """VMs not found in bulk OR per-VM fallback are correctly marked unfound."""
+        host1 = ZabbixHost(name="vm-1", hostid="101", status="active")
+        vms = [FakeVM(name="vm-1"), FakeVM(name="vm-unknown")]
+        client = MagicMock()
+        client.fetch_hosts.return_value = [host1]
+        client.last_fetch_truncated = True
+        client.search_host_by_name.return_value = None
+        client.search_host_by_ip.return_value = None
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert results[0].found is True
+        assert results[1].found is False
+
+    def test_non_truncated_bulk_no_fallback(self):
+        """When bulk data is complete, no per-VM fallback for missing VMs."""
+        host1 = ZabbixHost(name="vm-1", hostid="101", status="active")
+        vms = [FakeVM(name="vm-1"), FakeVM(name="vm-2")]
+        client = MagicMock()
+        client.fetch_hosts.return_value = [host1]
+        client.last_fetch_truncated = False
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert results[0].found is True
+        assert results[1].found is False
+        # No per-VM fallback — bulk data was complete
+        client.search_host_by_name.assert_not_called()
+
+    def test_truncated_fallback_error_isolated(self):
+        """Per-VM fallback errors during truncation are isolated per VM."""
+        host1 = ZabbixHost(name="vm-1", hostid="101", status="active")
+        host3 = ZabbixHost(name="vm-3", hostid="103", status="active")
+        vms = [FakeVM(name="vm-1"), FakeVM(name="vm-2"), FakeVM(name="vm-3")]
+        client = MagicMock()
+        client.fetch_hosts.return_value = [host1]
+        client.last_fetch_truncated = True
+        # vm-2 fallback raises, vm-3 fallback succeeds
+        client.search_host_by_name.side_effect = [
+            RuntimeError("API error"),
+            host3,
+        ]
+
+        results = check_all_vms_monitoring(vms, client)
+
+        assert len(results) == 3
+        assert results[0].found is True   # from bulk
+        assert results[1].found is False   # fallback error, isolated
+        assert results[2].found is True    # from per-VM fallback

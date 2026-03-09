@@ -115,11 +115,15 @@ def check_all_vms_monitoring(
     # Try bulk fetch for O(1) lookups instead of per-VM API calls.
     hosts_by_name: dict[str, ZabbixHost] | None = None
     hosts_by_ip: dict[str, ZabbixHost] | None = None
+    bulk_truncated = False
     try:
         all_hosts = zabbix_client.fetch_hosts()
         hosts_by_name, hosts_by_ip = _build_host_lookups(all_hosts)
+        bulk_truncated = getattr(zabbix_client, "last_fetch_truncated", False)
         logger.info(
-            "Bulk-fetched %d Zabbix hosts for monitoring lookup", len(all_hosts)
+            "Bulk-fetched %d Zabbix hosts for monitoring lookup%s",
+            len(all_hosts),
+            " (truncated, will use per-VM fallback for misses)" if bulk_truncated else "",
         )
     except Exception as exc:
         logger.warning(
@@ -131,6 +135,11 @@ def check_all_vms_monitoring(
         try:
             if hosts_by_name is not None and hosts_by_ip is not None:
                 result = _check_vm_from_lookups(vm, hosts_by_name, hosts_by_ip)
+                # When bulk data is truncated, VMs not found in the partial
+                # dataset may still exist beyond the pagination limit.
+                # Fall back to per-VM API queries for those VMs.
+                if not result.found and bulk_truncated:
+                    result = check_vm_monitoring(vm, zabbix_client)
             else:
                 result = check_vm_monitoring(vm, zabbix_client)
         except Exception as exc:
