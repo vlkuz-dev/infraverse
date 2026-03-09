@@ -38,7 +38,7 @@ def vm_list(
 
         selected_status = status if status in ("active", "offline") else None
 
-        vms = repo.get_all_vms(
+        vms = repo.list_vms(
             tenant_id=selected_tenant_id,
             account_id=selected_account_id,
             status=selected_status,

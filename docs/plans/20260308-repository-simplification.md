@@ -68,13 +68,13 @@
 - [x] run tests — must pass before next task
 
 ### Task 4: Standardize naming convention to `list_*`
-- [ ] rename `get_all_vms()` → `list_vms()` (4 callers: vms.py, comparison.py, dashboard.py, ingest.py)
-- [ ] rename `get_all_monitoring_hosts()` → `list_monitoring_hosts()` (1 caller: comparison.py)
-- [ ] rename `get_all_netbox_hosts()` → `list_netbox_hosts()` (1 caller: comparison.py)
-- [ ] update all callers across codebase
-- [ ] verify all tests pass
-- [ ] update tests that reference old method names
-- [ ] run tests — must pass before next task
+- [x] rename `get_all_vms()` → `list_vms()` (4 callers: vms.py, comparison.py, dashboard.py, ingest.py)
+- [x] rename `get_all_monitoring_hosts()` → `list_monitoring_hosts()` (1 caller: comparison.py)
+- [x] rename `get_all_netbox_hosts()` → `list_netbox_hosts()` (1 caller: comparison.py)
+- [x] update all callers across codebase
+- [x] verify all tests pass
+- [x] update tests that reference old method names
+- [x] run tests — must pass before next task
 
 ### Task 5: Remove unused `status` parameter from `list_vms()`
 - [ ] verify `status` parameter in `get_all_vms()` / `list_vms()` is never used by any caller

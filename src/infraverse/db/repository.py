@@ -179,7 +179,7 @@ class Repository:
             .first()
         )
 
-    def get_all_vms(
+    def list_vms(
         self,
         tenant_id: int | None = None,
         account_id: int | None = None,
@@ -293,7 +293,7 @@ class Repository:
         self.session.flush()
         return host, created
 
-    def get_all_monitoring_hosts(self) -> list[MonitoringHost]:
+    def list_monitoring_hosts(self) -> list[MonitoringHost]:
         return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()
 
     def get_monitoring_hosts_by_account(
@@ -420,7 +420,7 @@ class Repository:
         self.session.flush()
         return host, created
 
-    def get_all_netbox_hosts(self) -> list[NetBoxHost]:
+    def list_netbox_hosts(self) -> list[NetBoxHost]:
         return self.session.query(NetBoxHost).order_by(NetBoxHost.name).all()
 
     def get_netbox_hosts_by_tenant(self, tenant_id: int) -> list[NetBoxHost]:

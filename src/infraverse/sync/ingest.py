@@ -336,7 +336,7 @@ class DataIngestor:
             # Only check VMs from active accounts, excluding monitoring-exempt VMs
             active_account_ids = set(providers.keys())
             all_vms = [
-                vm for vm in self.repo.get_all_vms()
+                vm for vm in self.repo.list_vms()
                 if vm.cloud_account_id in active_account_ids
                 and not vm.monitoring_exempt
             ]

@@ -62,19 +62,19 @@ def _run_comparison(
     Returns:
         Tuple of (ComparisonResult, vm_name_to_id mapping, netbox_configured, monitoring_configured).
     """
-    db_vms = repo.get_all_vms(tenant_id=tenant_id)
+    db_vms = repo.list_vms(tenant_id=tenant_id)
 
     # Load monitoring hosts scoped by tenant or globally
     if tenant_id is not None:
         db_hosts = repo.get_monitoring_hosts_by_tenant(tenant_id)
     else:
-        db_hosts = repo.get_all_monitoring_hosts()
+        db_hosts = repo.list_monitoring_hosts()
 
     # Load NetBox hosts scoped by tenant or globally
     if tenant_id is not None:
         db_netbox_hosts = repo.get_netbox_hosts_by_tenant(tenant_id)
     else:
-        db_netbox_hosts = repo.get_all_netbox_hosts()
+        db_netbox_hosts = repo.list_netbox_hosts()
 
     # NOTE: keeps first ID per name; duplicate names across accounts link to the same detail page
     vm_name_to_id: dict[str, int] = {}
@@ -97,7 +97,7 @@ def _run_comparison(
         monitoring_configured = app_config.zabbix_configured
     else:
         # Check global monitoring hosts (not tenant-scoped) to detect if monitoring is set up
-        all_hosts = repo.get_all_monitoring_hosts() if tenant_id is not None else db_hosts
+        all_hosts = repo.list_monitoring_hosts() if tenant_id is not None else db_hosts
         monitoring_configured = len(all_hosts) > 0
 
     engine = ComparisonEngine()
@@ -223,7 +223,7 @@ def _build_context(request: Request, provider, status, search, tenant_id=None):
         }
 
         # Build per-VM sync error map from cloud VMs
-        db_vms = repo.get_all_vms(tenant_id=selected_tenant_id)
+        db_vms = repo.list_vms(tenant_id=selected_tenant_id)
         vm_sync_errors = {
             vm.name: vm.last_sync_error
             for vm in db_vms

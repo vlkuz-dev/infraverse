@@ -24,7 +24,7 @@ def dashboard(request: Request, tenant_id: int | None = Query(default=None)):
                 selected_tenant_id = tenant_id
 
         cloud_accounts = repo.list_cloud_accounts(tenant_id=selected_tenant_id)
-        vms = repo.get_all_vms(tenant_id=selected_tenant_id)
+        vms = repo.list_vms(tenant_id=selected_tenant_id)
         sync_runs = repo.get_latest_sync_runs(
             limit=10, tenant_id=selected_tenant_id,
         )
@@ -77,7 +77,7 @@ def dashboard_vm_table(
 
         selected_status = status if status in ("active", "offline") else None
 
-        vms = repo.get_all_vms(
+        vms = repo.list_vms(
             tenant_id=selected_tenant_id,
             status=selected_status,
         )

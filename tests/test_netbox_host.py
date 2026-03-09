@@ -77,19 +77,19 @@ class TestUpsertNetBoxHost:
         assert host.vcpus == 8
 
 
-# --- Repository: get_all_netbox_hosts ---
+# --- Repository: list_netbox_hosts ---
 
 
 class TestGetAllNetBoxHosts:
     def test_returns_empty_when_no_hosts(self, repo):
-        assert repo.get_all_netbox_hosts() == []
+        assert repo.list_netbox_hosts() == []
 
     def test_returns_all_hosts_sorted(self, repo, session):
         repo.upsert_netbox_host(external_id="2", name="zz-host")
         repo.upsert_netbox_host(external_id="1", name="aa-host")
         session.commit()
 
-        hosts = repo.get_all_netbox_hosts()
+        hosts = repo.list_netbox_hosts()
         assert len(hosts) == 2
         assert hosts[0].name == "aa-host"
         assert hosts[1].name == "zz-host"
@@ -109,7 +109,7 @@ class TestMarkNetBoxHostsStale:
         session.commit()
 
         assert count == 1
-        hosts = repo.get_all_netbox_hosts()
+        hosts = repo.list_netbox_hosts()
         assert hosts[0].status == "offline"
 
     def test_does_not_mark_recent_hosts(self, repo, session):
@@ -163,7 +163,7 @@ class TestIngestNetBoxHosts:
 
         assert count == 2
         repo = Repository(session)
-        hosts = repo.get_all_netbox_hosts()
+        hosts = repo.list_netbox_hosts()
         assert len(hosts) == 2
         names = {h.name for h in hosts}
         assert names == {"nb-vm-1", "nb-vm-2"}
@@ -201,7 +201,7 @@ class TestIngestNetBoxHosts:
         ingestor.ingest_netbox_hosts(mock_client)
 
         repo = Repository(session)
-        hosts = repo.get_all_netbox_hosts()
+        hosts = repo.list_netbox_hosts()
         assert len(hosts) == 1
         assert hosts[0].name == "vm-1-renamed"
         assert hosts[0].status == "offline"
@@ -221,7 +221,7 @@ class TestIngestNetBoxHosts:
         ]
         ingestor.ingest_netbox_hosts(mock_client)
 
-        hosts = {h.name: h for h in repo.get_all_netbox_hosts()}
+        hosts = {h.name: h for h in repo.list_netbox_hosts()}
         assert hosts["nb-vm-1"].tenant_id == tenant.id
         assert hosts["nb-vm-2"].tenant_id is None
         assert hosts["nb-vm-3"].tenant_id is None

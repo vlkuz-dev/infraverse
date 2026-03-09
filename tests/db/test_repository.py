@@ -273,30 +273,30 @@ class TestVMOperations:
         )
         assert vm.ip_addresses == []
 
-    def test_get_all_vms_by_account(self, repo, account):
+    def test_list_vms_by_account(self, repo, account):
         repo.upsert_vm(account.id, "fhm-z", "z-server")
         repo.upsert_vm(account.id, "fhm-a", "a-server")
-        vms = repo.get_all_vms(account_id=account.id)
+        vms = repo.list_vms(account_id=account.id)
         names = [v.name for v in vms]
         assert names == ["a-server", "z-server"]
 
-    def test_get_all_vms_by_account_empty(self, repo, account):
-        assert repo.get_all_vms(account_id=account.id) == []
+    def test_list_vms_by_account_empty(self, repo, account):
+        assert repo.list_vms(account_id=account.id) == []
 
-    def test_get_all_vms(self, repo):
+    def test_list_vms(self, repo):
         t = repo.create_tenant("All VMs Tenant")
         acc1 = repo.create_cloud_account(t.id, "yandex_cloud", "YC1")
         acc2 = repo.create_cloud_account(t.id, "vcloud", "VC1")
         repo.upsert_vm(acc1.id, "fhm-1", "yc-vm")
         repo.upsert_vm(acc2.id, "vc-1", "vc-vm")
-        vms = repo.get_all_vms()
+        vms = repo.list_vms()
         assert len(vms) == 2
         names = [v.name for v in vms]
         assert "yc-vm" in names
         assert "vc-vm" in names
 
-    def test_get_all_vms_empty(self, repo):
-        assert repo.get_all_vms() == []
+    def test_list_vms_empty(self, repo):
+        assert repo.list_vms() == []
 
     def test_mark_vms_stale(self, repo, account):
         # Create two VMs with different last_seen_at
@@ -313,7 +313,7 @@ class TestVMOperations:
         count = repo.mark_vms_stale(account.id, cutoff)
         assert count == 1
 
-        vms = repo.get_all_vms(account_id=account.id)
+        vms = repo.list_vms(account_id=account.id)
         statuses = {v.name: v.status for v in vms}
         assert statuses["old-vm"] == "offline"
         assert statuses["new-vm"] == "active"
@@ -528,15 +528,15 @@ class TestMonitoringHostOperations:
         h2, _ = repo.upsert_monitoring_host("prometheus", "same-id", "prom-host")
         assert h1.id != h2.id
 
-    def test_get_all_monitoring_hosts(self, repo):
+    def test_list_monitoring_hosts(self, repo):
         repo.upsert_monitoring_host("zabbix", "zbx-1", "z-host")
         repo.upsert_monitoring_host("zabbix", "zbx-2", "a-host")
-        hosts = repo.get_all_monitoring_hosts()
+        hosts = repo.list_monitoring_hosts()
         names = [h.name for h in hosts]
         assert names == ["a-host", "z-host"]
 
-    def test_get_all_monitoring_hosts_empty(self, repo):
-        assert repo.get_all_monitoring_hosts() == []
+    def test_list_monitoring_hosts_empty(self, repo):
+        assert repo.list_monitoring_hosts() == []
 
     def test_mark_monitoring_hosts_stale(self, repo):
         old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -551,7 +551,7 @@ class TestMonitoringHostOperations:
         count = repo.mark_monitoring_hosts_stale("zabbix", cutoff)
         assert count == 1
 
-        hosts = repo.get_all_monitoring_hosts()
+        hosts = repo.list_monitoring_hosts()
         statuses = {h.name: h.status for h in hosts}
         assert statuses["old-host"] == "offline"
         assert statuses["new-host"] == "active"
