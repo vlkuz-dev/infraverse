@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 import httpx
 
 from infraverse.providers.base import VMInfo
+from infraverse.providers.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,13 @@ class VCloudDirectorClient:
         if hasattr(self, "client"):
             self.client.close()
 
+    @retry_with_backoff
+    def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """HTTP request with retry on transient errors."""
+        resp = self.client.request(method, url, **kwargs)
+        resp.raise_for_status()
+        return resp
+
     def authenticate(self) -> None:
         """Authenticate to vCD API and store session token.
 
@@ -70,12 +78,12 @@ class VCloudDirectorClient:
         headers = {
             "Accept": "application/*+json;version=36.0",
         }
-        resp = self.client.post(
+        resp = self._request(
+            "POST",
             url,
             headers=headers,
             auth=(f"{self.username}@{self.org}", self.password),
         )
-        resp.raise_for_status()
         self.auth_token = resp.headers.get("x-vcloud-authorization")
         if not self.auth_token:
             raise ValueError("No x-vcloud-authorization token in response")
@@ -106,8 +114,7 @@ class VCloudDirectorClient:
             "pageSize": str(page_size),
             "page": str(page),
         }
-        resp = self.client.get(url, headers=self._auth_headers(), params=params)
-        resp.raise_for_status()
+        resp = self._request("GET", url, headers=self._auth_headers(), params=params)
         return resp.json()
 
     def fetch_all_vm_records(self) -> List[Dict[str, Any]]:

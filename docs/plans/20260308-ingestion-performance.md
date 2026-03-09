@@ -49,16 +49,16 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Add retry with backoff for provider API calls
-- [ ] create `src/infraverse/providers/retry.py` with `retry_with_backoff()` decorator/helper
-- [ ] implement exponential backoff: base=1s, max=30s, max_retries=3, jitter
-- [ ] retry on: connection errors, 429 (rate limit), 500-503 (server errors)
-- [ ] do NOT retry on: 400, 401, 403, 404 (client errors)
-- [ ] apply to `YandexCloudClient` API methods (`_request()` or individual fetchers)
-- [ ] apply to `ZabbixClient._jsonrpc_request()`
-- [ ] apply to `VCloudDirectorClient._authenticated_request()`
-- [ ] write tests for retry behavior: retries on 500, gives up after max_retries, no retry on 400
-- [ ] write tests for backoff timing (mock sleep)
-- [ ] run tests — must pass before next task
+- [x] create `src/infraverse/providers/retry.py` with `retry_with_backoff()` decorator/helper
+- [x] implement exponential backoff: base=1s, max=30s, max_retries=3, jitter
+- [x] retry on: connection errors, 429 (rate limit), 500-503 (server errors)
+- [x] do NOT retry on: 400, 401, 403, 404 (client errors)
+- [x] apply to `YandexCloudClient` API methods (`_get_json()` helper with retry)
+- [x] apply to `ZabbixClient._jsonrpc_request()`
+- [x] apply to `VCloudDirectorClient._request()` helper with retry
+- [x] write tests for retry behavior: retries on 500, gives up after max_retries, no retry on 400
+- [x] write tests for backoff timing (mock sleep)
+- [x] run tests — must pass before next task
 
 ### Task 4: Parallelize provider ingestion (optional, lower priority)
 - [ ] evaluate if `ThreadPoolExecutor` is safe with current session/DB usage

@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import httpx
 
 from infraverse.providers.base import VMInfo
+from infraverse.providers.retry import retry_with_backoff
 from infraverse.providers.yc_auth import StaticTokenProvider, TokenProvider
 
 logger = logging.getLogger(__name__)
@@ -60,12 +61,18 @@ class YandexCloudClient:
         if hasattr(self, 'client'):
             self.client.close()
 
+    @retry_with_backoff
+    def _get_json(self, url: str, **kwargs) -> Dict[str, Any]:
+        """HTTP GET with retry on transient errors, returns parsed JSON."""
+        resp = self.client.get(url, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
     def fetch_zones(self) -> List[Dict[str, Any]]:
         """Fetch availability zones."""
         url = "https://compute.api.cloud.yandex.net/compute/v1/zones"
-        resp = self.client.get(url)
-        resp.raise_for_status()
-        zones = resp.json().get("zones", [])
+        data = self._get_json(url)
+        zones = data.get("zones", [])
         logger.info(f"Fetched {len(zones)} availability zones")
         return zones
 
@@ -76,9 +83,7 @@ class YandexCloudClient:
         all_clouds: List[Dict[str, Any]] = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
             all_clouds.extend(data.get("clouds", []))
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
@@ -94,9 +99,7 @@ class YandexCloudClient:
         all_folders: List[Dict[str, Any]] = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
             all_folders.extend(data.get("folders", []))
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
@@ -112,9 +115,7 @@ class YandexCloudClient:
         all_networks: List[Dict[str, Any]] = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
             all_networks.extend(data.get("networks", []))
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
@@ -130,14 +131,11 @@ class YandexCloudClient:
         all_subnets = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
 
             subnets = data.get("subnets", [])
             all_subnets.extend(subnets)
 
-            # Check if there are more pages
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
                 break
@@ -153,9 +151,7 @@ class YandexCloudClient:
         all_instances = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
 
             instances = data.get("instances", [])
             all_instances.extend(instances)
@@ -191,9 +187,7 @@ class YandexCloudClient:
         all_disks: List[Dict[str, Any]] = []
 
         while True:
-            resp = self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_json(url, params=params)
             all_disks.extend(data.get("disks", []))
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
@@ -205,16 +199,12 @@ class YandexCloudClient:
     def fetch_disk(self, disk_id: str) -> Dict[str, Any]:
         """Fetch disk details."""
         url = f"https://compute.api.cloud.yandex.net/compute/v1/disks/{disk_id}"
-        resp = self.client.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get_json(url)
 
     def fetch_image(self, image_id: str) -> Dict[str, Any]:
         """Fetch image details."""
         url = f"https://compute.api.cloud.yandex.net/compute/v1/images/{image_id}"
-        resp = self.client.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        return self._get_json(url)
 
     def fetch_all_data(self) -> Dict[str, Any]:
         """

@@ -42,12 +42,13 @@ class TestAuthenticate:
         resp = _mock_response(
             headers={"x-vcloud-authorization": "new-token-abc"}
         )
-        mock_client.client.post.return_value = resp
+        mock_client.client.request.return_value = resp
 
         mock_client.authenticate()
 
         assert mock_client.auth_token == "new-token-abc"
-        mock_client.client.post.assert_called_once_with(
+        mock_client.client.request.assert_called_once_with(
+            "POST",
             "https://vcd.example.com/api/sessions",
             headers={"Accept": "application/*+json;version=36.0"},
             auth=("admin@System", "secret"),
@@ -59,7 +60,7 @@ class TestAuthenticate:
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Unauthorized", request=MagicMock(), response=MagicMock(status_code=401)
         )
-        mock_client.client.post.return_value = resp
+        mock_client.client.request.return_value = resp
 
         with pytest.raises(httpx.HTTPStatusError):
             mock_client.authenticate()
@@ -67,7 +68,7 @@ class TestAuthenticate:
     def test_auth_missing_token_header(self, mock_client):
         mock_client.auth_token = None
         resp = _mock_response(headers={})
-        mock_client.client.post.return_value = resp
+        mock_client.client.request.return_value = resp
 
         with pytest.raises(ValueError, match="No x-vcloud-authorization"):
             mock_client.authenticate()
@@ -83,11 +84,11 @@ class TestAuthenticate:
             client.client = MagicMock(spec=httpx.Client)
 
             resp = _mock_response(headers={"x-vcloud-authorization": "tok"})
-            client.client.post.return_value = resp
+            client.client.request.return_value = resp
 
             client.authenticate()
 
-            _, kwargs = client.client.post.call_args
+            _, kwargs = client.client.request.call_args
             assert kwargs["auth"] == ("user1@MyOrg", "pass1")
 
 
@@ -105,14 +106,14 @@ class TestFetchAllVmRecords:
             "total": 2,
             "pageSize": 128,
         })
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_vm_records()
 
         assert len(result) == 2
         assert result[0]["name"] == "vm-1"
         assert result[1]["name"] == "vm-2"
-        mock_client.client.get.assert_called_once()
+        mock_client.client.request.assert_called_once()
 
     def test_paginated_results(self, mock_client):
         page1 = _mock_response({
@@ -125,12 +126,12 @@ class TestFetchAllVmRecords:
             "total": 200,
             "pageSize": 128,
         })
-        mock_client.client.get.side_effect = [page1, page2]
+        mock_client.client.request.side_effect = [page1, page2]
 
         result = mock_client.fetch_all_vm_records()
 
         assert len(result) == 200
-        assert mock_client.client.get.call_count == 2
+        assert mock_client.client.request.call_count == 2
 
     def test_empty_result(self, mock_client):
         resp = _mock_response({
@@ -138,18 +139,19 @@ class TestFetchAllVmRecords:
             "total": 0,
             "pageSize": 128,
         })
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_vm_records()
 
         assert result == []
 
-    def test_http_error_on_fetch(self, mock_client):
+    @patch("time.sleep")
+    def test_http_error_on_fetch(self, _mock_sleep, mock_client):
         resp = MagicMock()
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Server Error", request=MagicMock(), response=MagicMock(status_code=500)
         )
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         with pytest.raises(httpx.HTTPStatusError):
             mock_client.fetch_all_vm_records()
@@ -288,7 +290,7 @@ class TestFetchVms:
             "total": 2,
             "pageSize": 128,
         })
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_vms()
 
@@ -301,7 +303,7 @@ class TestFetchVms:
 
     def test_empty_vms(self, mock_client):
         resp = _mock_response({"record": [], "total": 0, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_vms()
         assert result == []
@@ -335,7 +337,7 @@ class TestFetchAllData:
             },
         ]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -357,7 +359,7 @@ class TestFetchAllData:
             {"name": "str-off", "href": "4", "status": "POWERED_OFF", "vdc": "v", "org": "o"},
         ]
         resp = _mock_response({"record": records, "total": 4, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -372,7 +374,7 @@ class TestFetchAllData:
             {"name": "vm-1", "href": "1", "memoryMB": 2048, "vdc": "v", "org": "o"},
         ]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -385,7 +387,7 @@ class TestFetchAllData:
             {"name": "vm-1", "href": "1", "numberOfCpus": 4, "vdc": "v", "org": "o"},
         ]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -400,7 +402,7 @@ class TestFetchAllData:
             },
         ]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -417,7 +419,7 @@ class TestFetchAllData:
             {"name": "vm-3", "href": "3", "vdc": "VDC-B", "org": "Org2"},
         ]
         resp = _mock_response({"record": records, "total": 3, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -431,7 +433,7 @@ class TestFetchAllData:
             {"name": "vm-1", "href": "1", "vdc": "v", "org": "o", "guestOs": "Windows Server 2019"},
         ]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -439,7 +441,7 @@ class TestFetchAllData:
 
     def test_empty_records(self, mock_client):
         resp = _mock_response({"record": [], "total": 0, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 
@@ -449,7 +451,7 @@ class TestFetchAllData:
     def test_disks_are_empty(self, mock_client):
         records = [{"name": "vm-1", "href": "1", "vdc": "v", "org": "o"}]
         resp = _mock_response({"record": records, "total": 1, "pageSize": 128})
-        mock_client.client.get.return_value = resp
+        mock_client.client.request.return_value = resp
 
         result = mock_client.fetch_all_data()
 

@@ -6,6 +6,8 @@ from typing import Any
 
 import httpx
 
+from infraverse.providers.retry import retry_with_backoff
+
 logger = logging.getLogger(__name__)
 
 # Zabbix host status: 0 = enabled (monitored), 1 = disabled
@@ -62,6 +64,7 @@ class ZabbixClient:
         self._request_id += 1
         return self._request_id
 
+    @retry_with_backoff
     def _jsonrpc_request(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Send a JSON-RPC 2.0 request to Zabbix API.
 
