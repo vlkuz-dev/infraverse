@@ -68,11 +68,11 @@
 - [x] run tests — must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] verify YC sync with 10+ VMs makes significantly fewer API calls (cache hit rate)
-- [ ] verify monitoring check does single bulk fetch instead of per-VM calls
-- [ ] verify retry works on transient failures (mock 500 → 200 sequence)
-- [ ] run full test suite
-- [ ] run linter: `ruff check src/ tests/`
+- [x] verify YC sync with 10+ VMs makes significantly fewer API calls (cache hit rate)
+- [x] verify monitoring check does single bulk fetch instead of per-VM calls
+- [x] verify retry works on transient failures (mock 500 → 200 sequence)
+- [x] run full test suite
+- [x] run linter: `ruff check src/ tests/`
 
 ### Task 6: [Final] Update documentation
 - [ ] update MEMORY.md with new patterns (retry, caching)
