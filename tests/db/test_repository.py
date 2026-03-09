@@ -148,15 +148,34 @@ class TestCloudAccountCRUD:
         repo.create_cloud_account(t1.id, "yandex_cloud", "T1 YC")
         repo.create_cloud_account(t1.id, "vcloud", "T1 vCloud")
         repo.create_cloud_account(t2.id, "netbox", "T2 NetBox")
-        t1_accounts = repo.list_cloud_accounts_by_tenant(t1.id)
-        t2_accounts = repo.list_cloud_accounts_by_tenant(t2.id)
+        t1_accounts = repo.list_cloud_accounts(tenant_id=t1.id)
+        t2_accounts = repo.list_cloud_accounts(tenant_id=t2.id)
         assert len(t1_accounts) == 2
         assert len(t2_accounts) == 1
         assert t2_accounts[0].name == "T2 NetBox"
 
     def test_list_cloud_accounts_by_tenant_empty(self, repo):
         t = repo.create_tenant("Empty Tenant")
-        assert repo.list_cloud_accounts_by_tenant(t.id) == []
+        assert repo.list_cloud_accounts(tenant_id=t.id) == []
+
+    def test_list_cloud_accounts_with_relations(self, repo):
+        t = repo.create_tenant("Relations Tenant")
+        acc = repo.create_cloud_account(t.id, "yandex_cloud", "YC Rel")
+        repo.upsert_vm(acc.id, "fhm-1", "vm-1", status="active")
+        accounts = repo.list_cloud_accounts(with_relations=True)
+        assert len(accounts) == 1
+        assert accounts[0].tenant is not None
+        assert accounts[0].tenant.name == "Relations Tenant"
+        assert len(accounts[0].vms) == 1
+
+    def test_list_cloud_accounts_with_relations_and_tenant_id(self, repo):
+        t1 = repo.create_tenant("Rel Tenant A")
+        t2 = repo.create_tenant("Rel Tenant B")
+        repo.create_cloud_account(t1.id, "yandex_cloud", "T1 YC")
+        repo.create_cloud_account(t2.id, "vcloud", "T2 VC")
+        accounts = repo.list_cloud_accounts(tenant_id=t1.id, with_relations=True)
+        assert len(accounts) == 1
+        assert accounts[0].tenant.name == "Rel Tenant A"
 
     def test_create_account_missing_tenant(self, repo, session):
         with pytest.raises(IntegrityError):

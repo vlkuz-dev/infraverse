@@ -23,7 +23,7 @@ def dashboard(request: Request, tenant_id: int | None = Query(default=None)):
             if tenant is not None:
                 selected_tenant_id = tenant_id
 
-        cloud_accounts = repo.list_cloud_accounts_by_tenant(selected_tenant_id) if selected_tenant_id else repo.list_cloud_accounts()
+        cloud_accounts = repo.list_cloud_accounts(tenant_id=selected_tenant_id)
         vms = repo.get_all_vms(tenant_id=selected_tenant_id)
         sync_runs = repo.get_latest_sync_runs(
             limit=10, tenant_id=selected_tenant_id,

@@ -37,18 +37,18 @@
 ## Implementation Steps
 
 ### Task 1: Consolidate CloudAccount list methods (3 → 2)
-- [ ] refactor `list_cloud_accounts(tenant_id=None, with_relations=False)` to accept optional params:
+- [x] refactor `list_cloud_accounts(tenant_id=None, with_relations=False)` to accept optional params:
   - `tenant_id=None` — filter by tenant (replaces `list_cloud_accounts_by_tenant`)
   - `with_relations=False` — eager-load tenant + VMs (replaces `list_cloud_accounts_with_tenants`)
-- [ ] update callers:
+- [x] update callers:
   - `cli.py`: `list_cloud_accounts_by_tenant(tid)` → `list_cloud_accounts(tenant_id=tid)`
   - `dashboard.py`: conditional `list_cloud_accounts_by_tenant()` / `list_cloud_accounts()` → single `list_cloud_accounts(tenant_id=tid)`
   - `accounts.py`: `list_cloud_accounts_with_tenants(tid)` → `list_cloud_accounts(tenant_id=tid, with_relations=True)`
   - `comparison.py`: `list_cloud_accounts()` → unchanged (default params)
-- [ ] remove `list_cloud_accounts_by_tenant()` and `list_cloud_accounts_with_tenants()` methods
-- [ ] verify all tests pass
-- [ ] update tests that reference removed methods
-- [ ] run tests — must pass before next task
+- [x] remove `list_cloud_accounts_by_tenant()` and `list_cloud_accounts_with_tenants()` methods
+- [x] verify all tests pass
+- [x] update tests that reference removed methods
+- [x] run tests — must pass before next task
 
 ### Task 2: Consolidate CloudAccount get methods (2 → 1)
 - [ ] verify `get_cloud_account()` (line 68, no joins) is unused in production code

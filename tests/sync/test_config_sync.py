@@ -237,8 +237,8 @@ class TestSyncConfigToDb:
 
         acme = repo.get_tenant_by_name("acme")
         beta = repo.get_tenant_by_name("beta")
-        assert len(repo.list_cloud_accounts_by_tenant(acme.id)) == 2
-        assert len(repo.list_cloud_accounts_by_tenant(beta.id)) == 1
+        assert len(repo.list_cloud_accounts(tenant_id=acme.id)) == 2
+        assert len(repo.list_cloud_accounts(tenant_id=beta.id)) == 1
 
     def test_provider_type_stored_correctly(self, session, repo):
         config = _make_config({
@@ -264,7 +264,7 @@ class TestSyncConfigToDb:
         report = sync_config_to_db(config2, session)
 
         beta = repo.get_tenant_by_name("beta")
-        beta_accounts = repo.list_cloud_accounts_by_tenant(beta.id)
+        beta_accounts = repo.list_cloud_accounts(tenant_id=beta.id)
         assert all(not a.is_active for a in beta_accounts)
         assert report.accounts_deactivated == 1
 
@@ -282,8 +282,8 @@ class TestSyncConfigToDb:
         })
         sync_config_to_db(config2, session)
 
-        acme_accounts = repo.list_cloud_accounts_by_tenant(
-            repo.get_tenant_by_name("acme").id
+        acme_accounts = repo.list_cloud_accounts(
+            tenant_id=repo.get_tenant_by_name("acme").id
         )
         assert all(not a.is_active for a in acme_accounts)
 

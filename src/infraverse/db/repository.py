@@ -77,33 +77,28 @@ class Repository:
             .first()
         )
 
-    def list_cloud_accounts(self) -> list[CloudAccount]:
-        return self.session.query(CloudAccount).order_by(CloudAccount.name).all()
-
-    def list_cloud_accounts_with_tenants(
-        self, tenant_id: int | None = None
+    def list_cloud_accounts(
+        self,
+        tenant_id: int | None = None,
+        with_relations: bool = False,
     ) -> list[CloudAccount]:
-        """List cloud accounts with tenant and vms eagerly loaded.
+        """List cloud accounts with optional filtering and eager loading.
 
-        If tenant_id is provided, filters to that tenant's accounts only.
+        Args:
+            tenant_id: If provided, filter to this tenant's accounts only.
+            with_relations: If True, eagerly load tenant and VMs relations.
         """
-        from sqlalchemy.orm import subqueryload
+        query = self.session.query(CloudAccount)
+        if with_relations:
+            from sqlalchemy.orm import subqueryload
 
-        query = (
-            self.session.query(CloudAccount)
-            .options(joinedload(CloudAccount.tenant), subqueryload(CloudAccount.vms))
-        )
+            query = query.options(
+                joinedload(CloudAccount.tenant),
+                subqueryload(CloudAccount.vms),
+            )
         if tenant_id is not None:
             query = query.filter(CloudAccount.tenant_id == tenant_id)
         return query.order_by(CloudAccount.name).all()
-
-    def list_cloud_accounts_by_tenant(self, tenant_id: int) -> list[CloudAccount]:
-        return (
-            self.session.query(CloudAccount)
-            .filter(CloudAccount.tenant_id == tenant_id)
-            .order_by(CloudAccount.name)
-            .all()
-        )
 
     def get_cloud_account_by_name(
         self, tenant_id: int, name: str

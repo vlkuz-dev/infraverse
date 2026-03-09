@@ -23,8 +23,8 @@ def accounts_list(request: Request, tenant_id: int | None = Query(default=None))
             if tenant is not None:
                 selected_tenant_id = tenant_id
 
-        accounts = repo.list_cloud_accounts_with_tenants(
-            tenant_id=selected_tenant_id
+        accounts = repo.list_cloud_accounts(
+            tenant_id=selected_tenant_id, with_relations=True
         )
 
         # Group accounts by tenant and extract data while session is open

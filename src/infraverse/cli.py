@@ -122,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _ensure_cloud_account(repo, session, tenant_id, provider_type, name):
     """Get or create a CloudAccount for the given provider."""
-    accounts = repo.list_cloud_accounts_by_tenant(tenant_id)
+    accounts = repo.list_cloud_accounts(tenant_id=tenant_id)
     account = next(
         (a for a in accounts if a.provider_type == provider_type and a.name == name),
         None,

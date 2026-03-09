@@ -484,7 +484,7 @@ class TestIngestToDb:
             mock_tenant = MagicMock()
             mock_tenant.id = 1
             mock_repo.create_tenant.return_value = mock_tenant
-            mock_repo.list_cloud_accounts_by_tenant.return_value = []
+            mock_repo.list_cloud_accounts.return_value = []
             mock_account = MagicMock()
             mock_account.id = 10
             mock_repo.create_cloud_account.return_value = mock_account
@@ -536,7 +536,7 @@ class TestIngestToDb:
             mock_repo = MagicMock()
             mock_repo.list_tenants.return_value = [existing_tenant]  # only Default
             mock_repo.get_tenant_by_name.return_value = existing_tenant
-            mock_repo.list_cloud_accounts_by_tenant.return_value = []
+            mock_repo.list_cloud_accounts.return_value = []
             mock_account = MagicMock()
             mock_account.id = 20
             mock_repo.create_cloud_account.return_value = mock_account
@@ -622,7 +622,7 @@ class TestIngestToDb:
             yc_account.name = "Yandex Cloud"
             vcd_account = MagicMock()
             vcd_account.id = 11
-            mock_repo.list_cloud_accounts_by_tenant.side_effect = [
+            mock_repo.list_cloud_accounts.side_effect = [
                 [yc_account], [yc_account],
             ]
             mock_repo.create_cloud_account.return_value = vcd_account
@@ -677,7 +677,7 @@ class TestIngestToDb:
             mock_account.id = 10
             mock_account.provider_type = "yandex_cloud"
             mock_account.name = "Yandex Cloud"
-            mock_repo.list_cloud_accounts_by_tenant.return_value = [mock_account]
+            mock_repo.list_cloud_accounts.return_value = [mock_account]
             mock_repo_cls.return_value = mock_repo
 
             mock_ingestor = MagicMock()
@@ -698,7 +698,7 @@ class TestEnsureCloudAccount:
 
     def test_creates_new_account(self):
         mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts_by_tenant.return_value = []
+        mock_repo.list_cloud_accounts.return_value = []
         mock_account = MagicMock()
         mock_account.id = 1
         mock_repo.create_cloud_account.return_value = mock_account
@@ -713,7 +713,7 @@ class TestEnsureCloudAccount:
         existing.provider_type = "yandex_cloud"
         existing.name = "Yandex Cloud"
         mock_repo = MagicMock()
-        mock_repo.list_cloud_accounts_by_tenant.return_value = [existing]
+        mock_repo.list_cloud_accounts.return_value = [existing]
         mock_session = MagicMock()
 
         result = _ensure_cloud_account(
