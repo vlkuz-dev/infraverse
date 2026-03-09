@@ -897,6 +897,166 @@ class TestSyncRunOperations:
         assert result.id == r1.id
 
 
+# --- Pagination ---
+
+
+class TestListVmsPagination:
+    @pytest.fixture
+    def account(self, repo):
+        tenant = repo.create_tenant("Pagination Tenant")
+        return repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Pag")
+
+    @pytest.fixture
+    def five_vms(self, repo, account):
+        for i in range(5):
+            repo.upsert_vm(account.id, f"fhm-{i}", f"vm-{i:02d}", status="active")
+        return account
+
+    def test_limit(self, repo, five_vms):
+        vms = repo.list_vms(limit=3)
+        assert len(vms) == 3
+        assert [v.name for v in vms] == ["vm-00", "vm-01", "vm-02"]
+
+    def test_offset(self, repo, five_vms):
+        vms = repo.list_vms(offset=2)
+        assert len(vms) == 3
+        assert [v.name for v in vms] == ["vm-02", "vm-03", "vm-04"]
+
+    def test_limit_and_offset(self, repo, five_vms):
+        vms = repo.list_vms(limit=2, offset=1)
+        assert len(vms) == 2
+        assert [v.name for v in vms] == ["vm-01", "vm-02"]
+
+    def test_limit_none_returns_all(self, repo, five_vms):
+        vms = repo.list_vms()
+        assert len(vms) == 5
+
+    def test_offset_beyond_results(self, repo, five_vms):
+        vms = repo.list_vms(offset=100)
+        assert vms == []
+
+    def test_limit_larger_than_results(self, repo, five_vms):
+        vms = repo.list_vms(limit=100)
+        assert len(vms) == 5
+
+    def test_pagination_with_filters(self, repo, account):
+        for i in range(4):
+            repo.upsert_vm(account.id, f"fhm-a-{i}", f"active-{i:02d}", status="active")
+        repo.upsert_vm(account.id, "fhm-off", "offline-00", status="offline")
+        vms = repo.list_vms(status="active", limit=2, offset=1)
+        assert len(vms) == 2
+        assert [v.name for v in vms] == ["active-01", "active-02"]
+
+
+class TestCountVms:
+    @pytest.fixture
+    def account(self, repo):
+        tenant = repo.create_tenant("Count Tenant")
+        return repo.create_cloud_account(tenant.id, "yandex_cloud", "YC Count")
+
+    def test_count_all(self, repo, account):
+        for i in range(5):
+            repo.upsert_vm(account.id, f"fhm-{i}", f"vm-{i}", status="active")
+        assert repo.count_vms() == 5
+
+    def test_count_empty(self, repo):
+        assert repo.count_vms() == 0
+
+    def test_count_by_account(self, repo):
+        t = repo.create_tenant("Count Acc Tenant")
+        acc1 = repo.create_cloud_account(t.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(t.id, "vcloud", "VC1")
+        for i in range(3):
+            repo.upsert_vm(acc1.id, f"fhm-{i}", f"yc-vm-{i}", status="active")
+        repo.upsert_vm(acc2.id, "vc-1", "vc-vm-0", status="active")
+        assert repo.count_vms(account_id=acc1.id) == 3
+        assert repo.count_vms(account_id=acc2.id) == 1
+
+    def test_count_by_tenant(self, repo):
+        t1 = repo.create_tenant("Count T1")
+        t2 = repo.create_tenant("Count T2")
+        acc1 = repo.create_cloud_account(t1.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(t2.id, "vcloud", "VC1")
+        for i in range(3):
+            repo.upsert_vm(acc1.id, f"fhm-{i}", f"vm-{i}", status="active")
+        repo.upsert_vm(acc2.id, "vc-1", "vc-vm", status="active")
+        assert repo.count_vms(tenant_id=t1.id) == 3
+        assert repo.count_vms(tenant_id=t2.id) == 1
+
+    def test_count_by_status(self, repo, account):
+        repo.upsert_vm(account.id, "fhm-1", "vm-1", status="active")
+        repo.upsert_vm(account.id, "fhm-2", "vm-2", status="active")
+        repo.upsert_vm(account.id, "fhm-3", "vm-3", status="offline")
+        assert repo.count_vms(status="active") == 2
+        assert repo.count_vms(status="offline") == 1
+        assert repo.count_vms(status="unknown") == 0
+
+    def test_count_with_combined_filters(self, repo):
+        t = repo.create_tenant("Count Combo Tenant")
+        acc = repo.create_cloud_account(t.id, "yandex_cloud", "YC Combo")
+        repo.upsert_vm(acc.id, "fhm-1", "vm-1", status="active")
+        repo.upsert_vm(acc.id, "fhm-2", "vm-2", status="offline")
+        assert repo.count_vms(account_id=acc.id, status="active") == 1
+
+
+class TestListMonitoringHostsPagination:
+    def test_limit(self, repo):
+        for i in range(5):
+            repo.upsert_monitoring_host("zabbix", f"zbx-{i}", f"host-{i:02d}")
+        hosts = repo.list_monitoring_hosts(limit=3)
+        assert len(hosts) == 3
+        assert [h.name for h in hosts] == ["host-00", "host-01", "host-02"]
+
+    def test_offset(self, repo):
+        for i in range(5):
+            repo.upsert_monitoring_host("zabbix", f"zbx-{i}", f"host-{i:02d}")
+        hosts = repo.list_monitoring_hosts(offset=3)
+        assert len(hosts) == 2
+        assert [h.name for h in hosts] == ["host-03", "host-04"]
+
+    def test_limit_and_offset(self, repo):
+        for i in range(5):
+            repo.upsert_monitoring_host("zabbix", f"zbx-{i}", f"host-{i:02d}")
+        hosts = repo.list_monitoring_hosts(limit=2, offset=1)
+        assert len(hosts) == 2
+        assert [h.name for h in hosts] == ["host-01", "host-02"]
+
+    def test_no_pagination_returns_all(self, repo):
+        for i in range(5):
+            repo.upsert_monitoring_host("zabbix", f"zbx-{i}", f"host-{i:02d}")
+        hosts = repo.list_monitoring_hosts()
+        assert len(hosts) == 5
+
+
+class TestListNetboxHostsPagination:
+    def test_limit(self, repo):
+        for i in range(5):
+            repo.upsert_netbox_host(f"nb-{i}", f"host-{i:02d}")
+        hosts = repo.list_netbox_hosts(limit=3)
+        assert len(hosts) == 3
+        assert [h.name for h in hosts] == ["host-00", "host-01", "host-02"]
+
+    def test_offset(self, repo):
+        for i in range(5):
+            repo.upsert_netbox_host(f"nb-{i}", f"host-{i:02d}")
+        hosts = repo.list_netbox_hosts(offset=3)
+        assert len(hosts) == 2
+        assert [h.name for h in hosts] == ["host-03", "host-04"]
+
+    def test_limit_and_offset(self, repo):
+        for i in range(5):
+            repo.upsert_netbox_host(f"nb-{i}", f"host-{i:02d}")
+        hosts = repo.list_netbox_hosts(limit=2, offset=1)
+        assert len(hosts) == 2
+        assert [h.name for h in hosts] == ["host-01", "host-02"]
+
+    def test_no_pagination_returns_all(self, repo):
+        for i in range(5):
+            repo.upsert_netbox_host(f"nb-{i}", f"host-{i:02d}")
+        hosts = repo.list_netbox_hosts()
+        assert len(hosts) == 5
+
+
 # --- DB Indexes ---
 
 

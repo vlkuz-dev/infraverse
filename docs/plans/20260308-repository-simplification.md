@@ -98,12 +98,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 7: Add pagination to repository list methods
-- [ ] add `limit: int | None = None` and `offset: int = 0` params to `list_vms()` (renamed `get_all_vms`)
-- [ ] add `limit`/`offset` to `list_monitoring_hosts()` and `list_netbox_hosts()`
-- [ ] add `count_vms()` method — returns total count with same filters (for UI pagination info)
-- [ ] keep default `limit=None` for backward compat (existing callers get all results)
-- [ ] write tests for pagination: limit, offset, limit+offset, count
-- [ ] run tests — must pass before next task
+- [x] add `limit: int | None = None` and `offset: int = 0` params to `list_vms()` (renamed `get_all_vms`)
+- [x] add `limit`/`offset` to `list_monitoring_hosts()` and `list_netbox_hosts()`
+- [x] add `count_vms()` method — returns total count with same filters (for UI pagination info)
+- [x] keep default `limit=None` for backward compat (existing callers get all results)
+- [x] write tests for pagination: limit, offset, limit+offset, count
+- [x] run tests — must pass before next task
 
 ### Task 8: Add pagination to web routes
 - [ ] add `page` and `per_page` query params to `GET /vms` route (default per_page=50)

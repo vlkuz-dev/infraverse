@@ -184,6 +184,8 @@ class Repository:
         tenant_id: int | None = None,
         account_id: int | None = None,
         status: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[VM]:
         query = (
             self.session.query(VM)
@@ -197,7 +199,30 @@ class Repository:
             )
         if status:
             query = query.filter(VM.status == status)
-        return query.order_by(VM.name).all()
+        query = query.order_by(VM.name)
+        if offset:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
+
+    def count_vms(
+        self,
+        tenant_id: int | None = None,
+        account_id: int | None = None,
+        status: str | None = None,
+    ) -> int:
+        """Return the total count of VMs matching the given filters."""
+        query = self.session.query(func.count(VM.id))
+        if account_id is not None:
+            query = query.filter(VM.cloud_account_id == account_id)
+        elif tenant_id is not None:
+            query = query.join(CloudAccount).filter(
+                CloudAccount.tenant_id == tenant_id
+            )
+        if status:
+            query = query.filter(VM.status == status)
+        return query.scalar()
 
     def update_vm_sync_errors(
         self,
@@ -293,8 +318,17 @@ class Repository:
         self.session.flush()
         return host, created
 
-    def list_monitoring_hosts(self) -> list[MonitoringHost]:
-        return self.session.query(MonitoringHost).order_by(MonitoringHost.name).all()
+    def list_monitoring_hosts(
+        self,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[MonitoringHost]:
+        query = self.session.query(MonitoringHost).order_by(MonitoringHost.name)
+        if offset:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
 
     def get_monitoring_hosts_by_account(
         self, cloud_account_id: int
@@ -420,8 +454,17 @@ class Repository:
         self.session.flush()
         return host, created
 
-    def list_netbox_hosts(self) -> list[NetBoxHost]:
-        return self.session.query(NetBoxHost).order_by(NetBoxHost.name).all()
+    def list_netbox_hosts(
+        self,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[NetBoxHost]:
+        query = self.session.query(NetBoxHost).order_by(NetBoxHost.name)
+        if offset:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
 
     def get_netbox_hosts_by_tenant(self, tenant_id: int) -> list[NetBoxHost]:
         return (
