@@ -28,13 +28,13 @@
 ## Implementation Steps
 
 ### Task 1: Split netbox.py — extract tag management
-- [ ] create `src/infraverse/providers/netbox_tags.py` with tag-related methods:
+- [x] create `src/infraverse/providers/netbox_tags.py` with tag-related methods:
   - `ensure_sync_tag()` (lines 47-126)
   - `_add_tag_to_object()` (lines 127-162)
-- [ ] keep methods on NetBoxClient — use mixin or delegate pattern to avoid breaking callers
-- [ ] update imports in all callers (if class interface changes)
-- [ ] move corresponding tests to `tests/providers/test_netbox_tags.py`
-- [ ] run tests — must pass before next task
+- [x] keep methods on NetBoxClient — use mixin or delegate pattern to avoid breaking callers
+- [x] update imports in all callers (if class interface changes)
+- [x] move corresponding tests to `tests/providers/test_netbox_tags.py`
+- [x] run tests — must pass before next task
 
 ### Task 2: Split netbox.py — extract infrastructure (sites, clusters, platforms)
 - [ ] create `src/infraverse/providers/netbox_infrastructure.py` with:
