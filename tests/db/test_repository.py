@@ -298,6 +298,40 @@ class TestVMOperations:
     def test_list_vms_empty(self, repo):
         assert repo.list_vms() == []
 
+    def test_list_vms_filter_by_status(self, repo, account):
+        repo.upsert_vm(account.id, "fhm-1", "active-vm", status="active")
+        repo.upsert_vm(account.id, "fhm-2", "offline-vm", status="offline")
+        repo.upsert_vm(account.id, "fhm-3", "unknown-vm", status="unknown")
+
+        active = repo.list_vms(status="active")
+        assert len(active) == 1
+        assert active[0].name == "active-vm"
+
+        offline = repo.list_vms(status="offline")
+        assert len(offline) == 1
+        assert offline[0].name == "offline-vm"
+
+        # No filter returns all
+        all_vms = repo.list_vms()
+        assert len(all_vms) == 3
+
+    def test_list_vms_filter_by_status_and_account(self, repo):
+        t = repo.create_tenant("Status Filter Tenant")
+        acc1 = repo.create_cloud_account(t.id, "yandex_cloud", "YC1")
+        acc2 = repo.create_cloud_account(t.id, "vcloud", "VC1")
+        repo.upsert_vm(acc1.id, "fhm-1", "yc-active", status="active")
+        repo.upsert_vm(acc1.id, "fhm-2", "yc-offline", status="offline")
+        repo.upsert_vm(acc2.id, "vc-1", "vc-active", status="active")
+
+        # Filter by status and account
+        result = repo.list_vms(account_id=acc1.id, status="active")
+        assert len(result) == 1
+        assert result[0].name == "yc-active"
+
+        # Filter by status only
+        result = repo.list_vms(status="active")
+        assert len(result) == 2
+
     def test_mark_vms_stale(self, repo, account):
         # Create two VMs with different last_seen_at
         old_time = datetime(2024, 1, 1, tzinfo=timezone.utc)

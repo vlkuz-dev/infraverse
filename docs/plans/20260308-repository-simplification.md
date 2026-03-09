@@ -76,13 +76,13 @@
 - [x] update tests that reference old method names
 - [x] run tests — must pass before next task
 
-### Task 5: Remove unused `status` parameter from `list_vms()`
-- [ ] verify `status` parameter in `get_all_vms()` / `list_vms()` is never used by any caller
-- [ ] remove `status` parameter from method signature
-- [ ] remove status filter logic from method body
-- [ ] verify all tests pass
-- [ ] update any tests that used `status` param
-- [ ] run tests — must pass before next task
+### Task 5: Verify `status` parameter usage in `list_vms()`
+- [x] verify `status` parameter in `list_vms()` — ⚠️ DEVIATION: parameter IS used by `vms.py:44` and `dashboard.py:82` for web UI filtering; kept as-is
+- [x] ~~remove `status` parameter from method signature~~ — skipped (parameter is actively used)
+- [x] ~~remove status filter logic from method body~~ — skipped (parameter is actively used)
+- [x] verify all tests pass
+- [x] add tests for `status` filter (was untested) — `test_list_vms_filter_by_status`, `test_list_vms_filter_by_status_and_account`
+- [x] run tests — 1477 pass, linter clean
 
 ### Task 6: Add DB indexes for query performance
 - [ ] add index on `vms.cloud_account_id` — used in `get_vms_by_account()`, upsert filter
@@ -140,7 +140,7 @@ list_cloud_accounts_by_tenant(tid)         →     REMOVED (merged above)
 get_cloud_account(id)                      →     REMOVED (unused)
 get_cloud_account_with_tenant(id)          →     get_cloud_account(id)  [always eager-loads]
 get_vms_by_account(account_id)             →     REMOVED (use list_vms(account_id=...))
-get_all_vms(tid?, aid?, status?)           →     list_vms(tenant_id=None, account_id=None)
+get_all_vms(tid?, aid?, status?)           →     list_vms(tenant_id=None, account_id=None, status=None)  [status kept — used by web UI]
 get_all_monitoring_hosts()                 →     list_monitoring_hosts()
 get_all_netbox_hosts()                     →     list_netbox_hosts()
 ```
