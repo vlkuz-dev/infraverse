@@ -48,12 +48,12 @@
 - [x] run tests — must pass before next task
 
 ### Task 3: Split netbox.py — extract prefix management
-- [ ] create `src/infraverse/providers/netbox_prefixes.py` with:
+- [x] create `src/infraverse/providers/netbox_prefixes.py` with:
   - `ensure_prefix()` (lines 655-812)
   - `update_prefix()` (lines 813-928)
-- [ ] update imports in callers
-- [ ] move corresponding tests to `tests/providers/test_netbox_prefixes.py`
-- [ ] run tests — must pass before next task
+- [x] update imports in callers
+- [x] move corresponding tests to `tests/providers/test_netbox_prefixes.py`
+- [x] run tests — must pass before next task
 
 ### Task 4: Split netbox.py — extract VM and interface CRUD
 - [ ] create `src/infraverse/providers/netbox_vms.py` with:
