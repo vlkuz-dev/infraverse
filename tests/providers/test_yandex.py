@@ -533,6 +533,269 @@ class TestFetchAllData:
         assert result["_has_fetch_errors"] is False
 
 
+class TestFetchDisksInFolder:
+    """Tests for fetch_disks_in_folder() batch method."""
+
+    def test_fetch_disks_single_page(self, mock_client):
+        disks = [
+            {"id": "d1", "size": "10737418240", "name": "boot"},
+            {"id": "d2", "size": "21474836480", "name": "data"},
+        ]
+        mock_client.client.get.return_value = _mock_response({"disks": disks})
+
+        result = mock_client.fetch_disks_in_folder("folder1")
+
+        assert len(result) == 2
+        assert result[0]["id"] == "d1"
+        assert result[1]["id"] == "d2"
+        mock_client.client.get.assert_called_once_with(
+            "https://compute.api.cloud.yandex.net/compute/v1/disks",
+            params={"folderId": "folder1"}
+        )
+
+    def test_fetch_disks_pagination(self, mock_client):
+        page1 = {"disks": [{"id": "d1"}], "nextPageToken": "tok1"}
+        page2 = {"disks": [{"id": "d2"}]}
+        mock_client.client.get.side_effect = [
+            _mock_response(page1),
+            _mock_response(page2),
+        ]
+
+        result = mock_client.fetch_disks_in_folder("folder1")
+
+        assert len(result) == 2
+        assert result[0]["id"] == "d1"
+        assert result[1]["id"] == "d2"
+        assert mock_client.client.get.call_count == 2
+
+    def test_fetch_disks_empty(self, mock_client):
+        mock_client.client.get.return_value = _mock_response({"disks": []})
+        result = mock_client.fetch_disks_in_folder("folder1")
+        assert result == []
+
+
+class TestDiskImageCache:
+    """Tests for disk/image caching in fetch_all_data()."""
+
+    def test_cache_hit_no_individual_disk_calls(self, mock_client):
+        """When batch fetch returns all disks, no individual fetch_disk calls are made."""
+        vms = [{
+            "id": "vm1", "name": "web-1", "status": "RUNNING",
+            "zoneId": "ru-central1-a", "resources": {},
+            "bootDisk": {"diskId": "boot-disk-1"},
+            "secondaryDisks": [{"diskId": "data-disk-1"}],
+            "networkInterfaces": [], "platformId": "standard-v3",
+        }]
+        boot_disk = {"id": "boot-disk-1", "size": "10737418240", "name": "boot", "sourceImageId": "img1"}
+        data_disk = {"id": "data-disk-1", "size": "21474836480", "name": "data"}
+        image = {"id": "img1", "name": "ubuntu-22.04"}
+
+        get_calls = []
+
+        def mock_get(url, **kwargs):
+            get_calls.append(url)
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                return _mock_response({"folders": [{"id": "f1", "name": "f1"}]})
+            elif "networks" in url:
+                return _mock_response({"networks": []})
+            elif "subnets" in url:
+                return _mock_response({"subnets": []})
+            elif "instances" in url:
+                return _mock_response({"instances": vms})
+            elif url.endswith("/compute/v1/disks"):
+                # Batch disk list endpoint
+                return _mock_response({"disks": [boot_disk, data_disk]})
+            elif "images/" in url:
+                return _mock_response(image)
+            elif "disks/" in url:
+                # Individual disk fetch - should NOT be called when cache hits
+                raise AssertionError(f"Individual fetch_disk called unexpectedly: {url}")
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        vm = result["vms"][0]
+        assert len(vm["disks"]) == 2
+        assert vm["os"] == "ubuntu-22.04"
+
+        # Verify no individual disk URLs were called (only batch + image)
+        disk_urls = [u for u in get_calls if "disks" in u]
+        assert len(disk_urls) == 1  # Only the batch list call
+        assert disk_urls[0].endswith("/compute/v1/disks")
+
+    def test_cache_miss_falls_back_to_individual_fetch(self, mock_client):
+        """When a disk is not in the batch cache, individual fetch_disk is used."""
+        vms = [{
+            "id": "vm1", "name": "web-1", "status": "RUNNING",
+            "zoneId": "ru-central1-a", "resources": {},
+            "bootDisk": {"diskId": "boot-disk-1"},
+            "secondaryDisks": [{"diskId": "new-disk-2"}],
+            "networkInterfaces": [], "platformId": "standard-v3",
+        }]
+        boot_disk = {"id": "boot-disk-1", "size": "10737418240", "name": "boot"}
+        new_disk = {"id": "new-disk-2", "size": "5368709120", "name": "new-data"}
+
+        def mock_get(url, **kwargs):
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                return _mock_response({"folders": [{"id": "f1", "name": "f1"}]})
+            elif "networks" in url:
+                return _mock_response({"networks": []})
+            elif "subnets" in url:
+                return _mock_response({"subnets": []})
+            elif "instances" in url:
+                return _mock_response({"instances": vms})
+            elif url.endswith("/compute/v1/disks"):
+                # Batch returns only boot disk; new-disk-2 created mid-sync
+                return _mock_response({"disks": [boot_disk]})
+            elif "disks/new-disk-2" in url:
+                return _mock_response(new_disk)
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        vm = result["vms"][0]
+        assert len(vm["disks"]) == 2
+        disk_names = {d["name"] for d in vm["disks"]}
+        assert "boot" in disk_names
+        assert "new-data" in disk_names
+
+    def test_image_cache_deduplication(self, mock_client):
+        """Two VMs with the same OS image should only fetch the image once."""
+        vms = [
+            {
+                "id": "vm1", "name": "web-1", "status": "RUNNING",
+                "zoneId": "ru-central1-a", "resources": {},
+                "bootDisk": {"diskId": "boot-1"},
+                "networkInterfaces": [], "platformId": "standard-v3",
+            },
+            {
+                "id": "vm2", "name": "web-2", "status": "RUNNING",
+                "zoneId": "ru-central1-a", "resources": {},
+                "bootDisk": {"diskId": "boot-2"},
+                "networkInterfaces": [], "platformId": "standard-v3",
+            },
+        ]
+        boot1 = {"id": "boot-1", "size": "10737418240", "name": "boot1", "sourceImageId": "img1"}
+        boot2 = {"id": "boot-2", "size": "10737418240", "name": "boot2", "sourceImageId": "img1"}
+        image = {"id": "img1", "name": "ubuntu-22.04"}
+
+        image_call_count = 0
+
+        def mock_get(url, **kwargs):
+            nonlocal image_call_count
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                return _mock_response({"folders": [{"id": "f1", "name": "f1"}]})
+            elif "networks" in url:
+                return _mock_response({"networks": []})
+            elif "subnets" in url:
+                return _mock_response({"subnets": []})
+            elif "instances" in url:
+                return _mock_response({"instances": vms})
+            elif url.endswith("/compute/v1/disks"):
+                return _mock_response({"disks": [boot1, boot2]})
+            elif "images/" in url:
+                image_call_count += 1
+                return _mock_response(image)
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        assert len(result["vms"]) == 2
+        assert result["vms"][0]["os"] == "ubuntu-22.04"
+        assert result["vms"][1]["os"] == "ubuntu-22.04"
+        # Image should only be fetched once despite two VMs using it
+        assert image_call_count == 1
+
+    def test_batch_disk_fetch_failure_falls_back(self, mock_client):
+        """When batch disk fetch fails entirely, individual fetches still work."""
+        vms = [{
+            "id": "vm1", "name": "web-1", "status": "RUNNING",
+            "zoneId": "ru-central1-a", "resources": {},
+            "bootDisk": {"diskId": "boot-disk-1"},
+            "networkInterfaces": [], "platformId": "standard-v3",
+        }]
+        boot_disk = {"id": "boot-disk-1", "size": "10737418240", "name": "boot"}
+
+        def mock_get(url, **kwargs):
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                return _mock_response({"folders": [{"id": "f1", "name": "f1"}]})
+            elif "networks" in url:
+                return _mock_response({"networks": []})
+            elif "subnets" in url:
+                return _mock_response({"subnets": []})
+            elif "instances" in url:
+                return _mock_response({"instances": vms})
+            elif url.endswith("/compute/v1/disks"):
+                # Batch endpoint fails (e.g. permission denied)
+                resp = MagicMock()
+                resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                    "Forbidden", request=MagicMock(), response=MagicMock(status_code=403)
+                )
+                return resp
+            elif "disks/boot-disk-1" in url:
+                return _mock_response(boot_disk)
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        vm = result["vms"][0]
+        assert len(vm["disks"]) == 1
+        assert vm["disks"][0]["name"] == "boot"
+
+    def test_no_batch_disk_fetch_when_no_vms(self, mock_client):
+        """When folder has no VMs, batch disk fetch is skipped."""
+        get_calls = []
+
+        def mock_get(url, **kwargs):
+            get_calls.append(url)
+            if "zones" in url:
+                return _mock_response({"zones": []})
+            elif "clouds" in url:
+                return _mock_response({"clouds": [{"id": "c1", "name": "c1"}]})
+            elif "folders" in url:
+                return _mock_response({"folders": [{"id": "f1", "name": "f1"}]})
+            elif "networks" in url:
+                return _mock_response({"networks": []})
+            elif "subnets" in url:
+                return _mock_response({"subnets": []})
+            elif "instances" in url:
+                return _mock_response({"instances": []})
+            return _mock_response({})
+
+        mock_client.client.get.side_effect = mock_get
+
+        result = mock_client.fetch_all_data()
+
+        assert len(result["vms"]) == 0
+        # No disk-related URLs should have been called
+        disk_urls = [u for u in get_calls if "disks" in u]
+        assert len(disk_urls) == 0
+
+
 class TestInit:
     def test_init_with_token_string(self):
         with patch('infraverse.providers.yandex.httpx.Client') as mock_httpx:

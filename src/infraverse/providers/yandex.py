@@ -184,6 +184,24 @@ class YandexCloudClient:
 
         return all_instances
 
+    def fetch_disks_in_folder(self, folder_id: str) -> List[Dict[str, Any]]:
+        """Fetch all disks in a folder with pagination support."""
+        url = "https://compute.api.cloud.yandex.net/compute/v1/disks"
+        params: Dict[str, str] = {"folderId": folder_id}
+        all_disks: List[Dict[str, Any]] = []
+
+        while True:
+            resp = self.client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            all_disks.extend(data.get("disks", []))
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token:
+                break
+            params["pageToken"] = next_page_token
+
+        return all_disks
+
     def fetch_disk(self, disk_id: str) -> Dict[str, Any]:
         """Fetch disk details."""
         url = f"https://compute.api.cloud.yandex.net/compute/v1/disks/{disk_id}"
@@ -326,6 +344,20 @@ class YandexCloudClient:
                     result["_has_fetch_errors"] = True
                 logger.info(f"Fetched {len(folder_vms)} VMs from folder {folder_name} ({folder_id})")
 
+                # Batch-fetch all disks in this folder to avoid per-VM API calls
+                disk_cache: Dict[str, Dict[str, Any]] = {}
+                if folder_vms:
+                    try:
+                        folder_disks = self.fetch_disks_in_folder(folder_id)
+                        disk_cache = {d["id"]: d for d in folder_disks}
+                        logger.debug(f"Cached {len(disk_cache)} disks for folder {folder_name}")
+                    except Exception as e:
+                        logger.warning(f"Batch disk fetch failed for folder {folder_name}, "
+                                       f"will fall back to individual fetches: {e}")
+
+                # Image cache: lazily populated, shared across VMs in this folder
+                image_cache: Dict[str, Dict[str, Any]] = {}
+
                 for vm in folder_vms:
                     # Log memory for each VM
                     vm_resources = vm.get('resources', {})
@@ -345,13 +377,20 @@ class YandexCloudClient:
                     os_name = None
 
                     if "bootDisk" in vm and vm["bootDisk"].get("diskId"):
-                        disk_ids.append(vm["bootDisk"]["diskId"])
-                        # Try to get OS from source_image_id
+                        boot_disk_id = vm["bootDisk"]["diskId"]
+                        disk_ids.append(boot_disk_id)
+                        # Try to get OS from source_image_id using cache
                         try:
-                            full_disk_info = self.fetch_disk(vm["bootDisk"]["diskId"])
+                            full_disk_info = disk_cache.get(boot_disk_id)
+                            if full_disk_info is None:
+                                full_disk_info = self.fetch_disk(boot_disk_id)
+                                disk_cache[boot_disk_id] = full_disk_info
                             image_id = full_disk_info.get("sourceImageId")
                             if image_id:
-                                image = self.fetch_image(image_id)
+                                image = image_cache.get(image_id)
+                                if image is None:
+                                    image = self.fetch_image(image_id)
+                                    image_cache[image_id] = image
                                 os_name = image.get("name")
                         except Exception as e:
                             logger.debug(f"Could not determine OS for VM {vm.get('name')}: {e}")
@@ -366,7 +405,10 @@ class YandexCloudClient:
 
                     for disk_id in disk_ids:
                         try:
-                            disk = self.fetch_disk(disk_id)
+                            disk = disk_cache.get(disk_id)
+                            if disk is None:
+                                disk = self.fetch_disk(disk_id)
+                                disk_cache[disk_id] = disk
                             disks.append({
                                 "id": disk["id"],
                                 "size": int(disk["size"]),

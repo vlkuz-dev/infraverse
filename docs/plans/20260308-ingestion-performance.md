@@ -30,14 +30,14 @@
 ## Implementation Steps
 
 ### Task 1: Cache disk/image lookups in YC provider
-- [ ] in `YandexCloudClient.fetch_all_data()`, collect all disk IDs across all VMs before per-VM processing
-- [ ] batch-fetch all disks upfront (single list call with filter or paginated fetch), store in `dict[disk_id, disk]`
-- [ ] collect all image IDs from boot disks, batch-fetch images into `dict[image_id, image]`
-- [ ] replace per-VM `fetch_disk()`/`fetch_image()` calls with cache lookups
-- [ ] keep fallback to individual fetch if ID not found in cache (edge case: disk created mid-sync)
-- [ ] write tests for cache hit path (no individual API calls)
-- [ ] write tests for cache miss fallback
-- [ ] run tests — must pass before next task
+- [x] in `YandexCloudClient.fetch_all_data()`, collect all disk IDs across all VMs before per-VM processing
+- [x] batch-fetch all disks upfront (single list call with filter or paginated fetch), store in `dict[disk_id, disk]`
+- [x] collect all image IDs from boot disks, batch-fetch images into `dict[image_id, image]`
+- [x] replace per-VM `fetch_disk()`/`fetch_image()` calls with cache lookups
+- [x] keep fallback to individual fetch if ID not found in cache (edge case: disk created mid-sync)
+- [x] write tests for cache hit path (no individual API calls)
+- [x] write tests for cache miss fallback
+- [x] run tests — must pass before next task
 
 ### Task 2: Use Zabbix bulk fetch for monitoring checks
 - [ ] in `check_all_vms_monitoring()`, call `zabbix_client.fetch_hosts()` once to get all hosts
