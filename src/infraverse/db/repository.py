@@ -199,7 +199,7 @@ class Repository:
             )
         if status is not None:
             query = query.filter(VM.status == status)
-        query = query.order_by(VM.name)
+        query = query.order_by(VM.name, VM.id)
         if offset:
             query = query.offset(offset)
         if limit is not None:
@@ -323,7 +323,7 @@ class Repository:
         limit: int | None = None,
         offset: int = 0,
     ) -> list[MonitoringHost]:
-        query = self.session.query(MonitoringHost).order_by(MonitoringHost.name)
+        query = self.session.query(MonitoringHost).order_by(MonitoringHost.name, MonitoringHost.id)
         if offset:
             query = query.offset(offset)
         if limit is not None:
@@ -459,7 +459,7 @@ class Repository:
         limit: int | None = None,
         offset: int = 0,
     ) -> list[NetBoxHost]:
-        query = self.session.query(NetBoxHost).order_by(NetBoxHost.name)
+        query = self.session.query(NetBoxHost).order_by(NetBoxHost.name, NetBoxHost.id)
         if offset:
             query = query.offset(offset)
         if limit is not None:

@@ -50,5 +50,15 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_indexes: dict[str, set[str]] = {}
+    for table, idx_name, _ in _INDEXES:
+        if table not in existing_indexes:
+            existing_indexes[table] = {
+                idx["name"] for idx in inspector.get_indexes(table)
+            }
+
     for table, idx_name, _ in reversed(_INDEXES):
-        op.drop_index(idx_name, table_name=table)
+        if idx_name in existing_indexes.get(table, set()):
+            op.drop_index(idx_name, table_name=table)
