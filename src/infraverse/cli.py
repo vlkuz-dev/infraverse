@@ -258,8 +258,7 @@ def cmd_sync(args: argparse.Namespace) -> None:
                 accounts = Repository(session).list_cloud_accounts(
                     with_relations=True,
                 )
-
-            providers = build_providers_from_accounts(accounts)
+                providers = build_providers_from_accounts(accounts)
             engine = SyncEngine(netbox, providers, dry_run=args.dry_run)
             stats = engine.run(use_batch=not args.no_batch, cleanup=not args.no_cleanup)
             for provider, provider_stats in stats.items():

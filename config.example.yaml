@@ -12,6 +12,9 @@
 # =============================================================================
 # Each tenant represents a customer or organization.
 # Each tenant has one or more cloud accounts.
+# During NetBox sync, tenant names are auto-created as NetBox tenants
+# and assigned to synced VMs. Description (if set) syncs to NetBox tenant.
+# Tenant names should be slug-safe (lowercase, hyphens, no spaces).
 # Supported providers: yandex_cloud, vcloud
 
 tenants:

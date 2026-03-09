@@ -17,7 +17,7 @@
   - `src/infraverse/sync/engine.py` — accept and pass tenant_name in SyncEngine
   - `src/infraverse/sync/vms.py` — add tenant to `prepare_vm_data()`, `update_vm_parameters()`, `sync_vms()`
   - `src/infraverse/sync/batch.py` — add tenant to `_process_vm_parameters()`, `sync_vms_optimized()`
-  - `src/infraverse/cli.py` — adapt to new 3-tuple provider format
+  - `src/infraverse/cli.py` — adapt to new 4-tuple provider format
 - Patterns: `ensure_*` methods use per-slug caching, dry_run support, sync tag assignment, `_safe_update_object()` for updates
 - Dependencies: pynetbox `nb.tenancy.tenants` API, existing ensure_* method pattern
 
@@ -30,9 +30,10 @@
 - No extra config fields needed
 
 ### Tenant info threading
-- `build_providers_from_accounts()` returns `List[Tuple[CloudClient, ProviderProfile, str | None]]` (3-tuple with tenant_name)
-- `build_provider()` stays unchanged (returns 2-tuple); tenant_name is added in `build_providers_from_accounts()`
-- `SyncEngine.__init__` accepts the new 3-tuple format
+- `build_providers_from_accounts()` returns `List[Tuple[CloudClient, ProviderProfile, Optional[str], Optional[str]]]` (4-tuple with tenant_name, tenant_description)
+- `build_provider()` stays unchanged (returns 2-tuple); tenant_name/description are added in `build_providers_from_accounts()`
+- `SyncEngine.__init__` accepts the new 4-tuple format
+- tenant_description is pre-cached via `ensure_tenant(name, description, tag_slug)` in `_sync_provider()` before VM sync
 - tenant_name flows: SyncEngine → _sync_provider → sync_vms_optimized / sync_vms → prepare_vm_data / _process_vm_parameters
 
 ### Scope
@@ -90,12 +91,12 @@
 - [x] Run tests — must pass before next task
 
 ### Task 2: Thread tenant_name through providers and SyncEngine
-- [x] Update `build_providers_from_accounts()` in `sync/providers.py` to return `List[Tuple[CloudClient, ProviderProfile, str | None]]` — extract `account.tenant.name` (need eager-load tenant; use `list_cloud_accounts(with_relations=True)`)
-- [x] Update `SyncEngine.__init__()` in `sync/engine.py` — change providers type to accept 3-tuples
-- [x] Update `SyncEngine.run()` to unpack `(client, profile, tenant_name)` from `self._providers`
+- [x] Update `build_providers_from_accounts()` in `sync/providers.py` to return 4-tuples `(client, profile, tenant_name, tenant_description)` — extract from `account.tenant`
+- [x] Update `SyncEngine.__init__()` in `sync/engine.py` — change providers type to accept 4-tuples
+- [x] Update `SyncEngine.run()` to unpack `(client, profile, tenant_name, tenant_description)` from `self._providers`
 - [x] Update `SyncEngine._sync_provider()` to accept and pass `tenant_name` to both `sync_vms_optimized()` and `sync_vms()`
 - [x] Update `cli.py:cmd_sync()` — use `list_cloud_accounts(with_relations=True)` so tenant is loaded
-- [x] Write tests for build_providers_from_accounts() returning 3-tuple with tenant_name
+- [x] Write tests for build_providers_from_accounts() returning 4-tuple with tenant_name/description
 - [x] Write tests for SyncEngine accepting and threading tenant_name
 - [x] Run tests — must pass before next task
 
@@ -184,10 +185,7 @@ def ensure_tenant(self, name: str, slug: str | None = None, description: str | N
 - Tenant create fields: `name`, `slug`, `description`, `tags`
 
 ### Description threading
-- `prepare_vm_data()` only has `tenant_name` — no description available at this level
-- Option A: Pass description separately (adds another parameter everywhere)
-- Option B: Let `ensure_tenant()` create without description, update on next sync when called with description from higher level
-- **Chosen: pass tenant_description alongside tenant_name** or resolve from config where available. Implementation detail to be decided during Task 2-3.
+- **Chosen approach:** Description is pre-cached in `_sync_provider()` by calling `ensure_tenant(name, description, tag_slug)` before VM sync. Downstream calls in `prepare_vm_data()` and `_process_vm_parameters()` pass only `tenant_name` and get the cached tenant ID. This avoids threading `tenant_description` through all VM-level functions.
 
 ## Post-Completion
 

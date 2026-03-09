@@ -124,7 +124,7 @@ class SchedulerService:
             self._run_netbox_ingestion(ingestor, results)
 
             repo = Repository(session)
-            accounts = repo.list_cloud_accounts()
+            accounts = repo.list_cloud_accounts(with_relations=True)
 
             netbox_stats = self._run_netbox_sync(accounts=accounts)
             if netbox_stats is not None:

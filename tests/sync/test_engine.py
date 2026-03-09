@@ -30,7 +30,7 @@ class TestSyncEngineInit:
     def test_stores_netbox_and_providers(self):
         nb = _make_mock_netbox()
         yc = _make_mock_yc_client()
-        providers = [(yc, YC_PROFILE, None)]
+        providers = [(yc, YC_PROFILE, None, None)]
 
         engine = SyncEngine(nb, providers, dry_run=True)
 
@@ -49,7 +49,7 @@ class TestSyncEngineInit:
         nb = _make_mock_netbox()
         yc = _make_mock_yc_client()
         vcd = MagicMock()
-        providers = [(yc, YC_PROFILE, "acme"), (vcd, VCLOUD_PROFILE, None)]
+        providers = [(yc, YC_PROFILE, "acme", None), (vcd, VCLOUD_PROFILE, None, None)]
 
         engine = SyncEngine(nb, providers)
 
@@ -57,11 +57,11 @@ class TestSyncEngineInit:
         assert engine._providers[0][1] is YC_PROFILE
         assert engine._providers[1][1] is VCLOUD_PROFILE
 
-    def test_accepts_2_tuples_for_backward_compat(self):
-        """SyncEngine still works with legacy 2-tuple providers."""
+    def test_accepts_4_tuples_with_none_tenant(self):
+        """SyncEngine works with 4-tuple providers where tenant is None."""
         nb = _make_mock_netbox()
         yc = _make_mock_yc_client()
-        providers = [(yc, YC_PROFILE)]
+        providers = [(yc, YC_PROFILE, None, None)]
 
         engine = SyncEngine(nb, providers)
 
@@ -80,7 +80,7 @@ class TestSyncEngineRunBatch:
         mock_infra.return_value = id_mapping
         mock_batch.return_value = batch_stats
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         result = engine.run(use_batch=True, cleanup=True)
 
         yc.fetch_all_data.assert_called_once()
@@ -124,6 +124,7 @@ class TestSyncEngineRunBatch:
 
         nb.ensure_tenant.assert_called_once_with(
             name="acme-corp", description="ACME Corporation",
+            tag_slug=YC_PROFILE.tag_slug,
         )
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
@@ -136,7 +137,7 @@ class TestSyncEngineRunBatch:
         mock_infra.return_value = id_mapping
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=True, cleanup=False)
 
         mock_infra.assert_called_once_with(
@@ -161,7 +162,7 @@ class TestSyncEngineRunStandard:
         mock_infra.return_value = id_mapping
         mock_vms.return_value = vm_stats
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         result = engine.run(use_batch=False, cleanup=True)
 
         mock_vms.assert_called_once_with(
@@ -200,6 +201,7 @@ class TestSyncEngineRunStandard:
 
         nb.ensure_tenant.assert_called_once_with(
             name="beta-inc", description="Beta Inc",
+            tag_slug=YC_PROFILE.tag_slug,
         )
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
@@ -210,7 +212,7 @@ class TestSyncEngineRunStandard:
         yc = _make_mock_yc_client()
         mock_infra.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=False)
 
         mock_batch.assert_not_called()
@@ -230,7 +232,7 @@ class TestSyncEngineFetchErrors:
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=True, cleanup=True)
 
         mock_infra.assert_called_once_with(
@@ -245,7 +247,7 @@ class TestSyncEngineFetchErrors:
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=True, cleanup=True)
 
         mock_infra.assert_called_once_with(
@@ -263,7 +265,7 @@ class TestSyncEngineDefaults:
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run()
 
         mock_batch.assert_called_once()
@@ -280,7 +282,7 @@ class TestSyncEngineMultiProvider:
         mock_infra.return_value = {}
         mock_batch.return_value = batch_stats
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         result = engine.run()
 
         assert "yandex_cloud" in result
@@ -294,7 +296,7 @@ class TestSyncEngineMultiProvider:
         yc = MagicMock()
         yc.fetch_all_data.side_effect = RuntimeError("API down")
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE, None)])
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         result = engine.run()
 
         assert "yandex_cloud" in result
@@ -351,8 +353,8 @@ class TestSyncEngineMultiProvider:
 
         ensure_calls = nb.ensure_tenant.call_args_list
         assert len(ensure_calls) == 2
-        assert ensure_calls[0] == ((), {"name": "acme", "description": "ACME Corp"})
-        assert ensure_calls[1] == ((), {"name": "beta", "description": "Beta Inc"})
+        assert ensure_calls[0] == ((), {"name": "acme", "description": "ACME Corp", "tag_slug": YC_PROFILE.tag_slug})
+        assert ensure_calls[1] == ((), {"name": "beta", "description": "Beta Inc", "tag_slug": VCLOUD_PROFILE.tag_slug})
 
     def test_empty_providers_returns_empty_stats(self):
         nb = _make_mock_netbox()
@@ -362,18 +364,18 @@ class TestSyncEngineMultiProvider:
         assert result == {}
 
 
-class TestSyncEngine2TupleBackwardCompat:
-    """Verify SyncEngine handles legacy 2-tuple provider format."""
+class TestSyncEngineNoTenant:
+    """Verify SyncEngine handles providers without tenant (None, None)."""
 
     @patch("infraverse.sync.engine.sync_vms_optimized")
     @patch("infraverse.sync.engine.sync_infrastructure")
-    def test_2_tuple_defaults_tenant_name_to_none(self, mock_infra, mock_batch):
+    def test_none_tenant_batch_path(self, mock_infra, mock_batch):
         nb = _make_mock_netbox()
         yc = _make_mock_yc_client()
         mock_infra.return_value = {}
         mock_batch.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE)])  # 2-tuple
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=True)
 
         mock_batch.assert_called_once()
@@ -381,13 +383,13 @@ class TestSyncEngine2TupleBackwardCompat:
 
     @patch("infraverse.sync.engine.sync_vms")
     @patch("infraverse.sync.engine.sync_infrastructure")
-    def test_2_tuple_standard_path(self, mock_infra, mock_vms):
+    def test_none_tenant_standard_path(self, mock_infra, mock_vms):
         nb = _make_mock_netbox()
         yc = _make_mock_yc_client()
         mock_infra.return_value = {}
         mock_vms.return_value = {}
 
-        engine = SyncEngine(nb, [(yc, YC_PROFILE)])  # 2-tuple
+        engine = SyncEngine(nb, [(yc, YC_PROFILE, None, None)])
         engine.run(use_batch=False)
 
         mock_vms.assert_called_once()

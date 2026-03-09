@@ -420,7 +420,7 @@ class TestProcessVmParameters:
                                         tenant_name="acme-corp")
         assert result is True
         assert cache2.vms_to_update[1]["tenant"] == 10
-        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+        netbox.ensure_tenant.assert_called_once_with(name="acme-corp")
 
     def test_tenant_no_change_when_already_set(self):
         """Tenant should not queue update when already matching."""
@@ -2565,7 +2565,7 @@ class TestSyncVmsOptimized:
         call_args = netbox.create_vm.call_args
         vm_data = call_args[0][0]
         assert vm_data["tenant"] == 42
-        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+        netbox.ensure_tenant.assert_called_once_with(name="acme-corp")
 
     def test_tenant_name_passed_to_process_vm_updates_on_update(self):
         """When tenant_name is provided, existing VMs should have tenant checked."""
@@ -2593,7 +2593,7 @@ class TestSyncVmsOptimized:
                                    tenant_name="acme-corp")
         # VM should be updated because tenant changed (None -> 42)
         assert stats["updated"] == 1
-        netbox.ensure_tenant.assert_called_with(name="acme-corp")
+        netbox.ensure_tenant.assert_called_once_with(name="acme-corp")
 
     def test_no_tenant_when_tenant_name_is_none(self):
         """When tenant_name is None, no tenant operations should happen."""

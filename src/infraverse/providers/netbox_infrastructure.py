@@ -69,6 +69,7 @@ class NetBoxInfrastructureMixin:
         name: str,
         slug: str | None = None,
         description: str | None = None,
+        tag_slug: str | None = None,
     ) -> int:
         """
         Ensure a tenant exists in NetBox, creating it if necessary.
@@ -77,11 +78,17 @@ class NetBoxInfrastructureMixin:
             name: Tenant name (config key, e.g. "acme-corp")
             slug: Tenant slug; defaults to name (config keys are slug-safe)
             description: Optional tenant description
+            tag_slug: Optional tag slug for provider-specific sync tag
 
         Returns:
             Tenant ID
         """
         desired_slug = slug or name
+        # Sanitize slug: lowercase, alphanumeric + hyphens only
+        desired_slug = desired_slug.lower().replace(" ", "-").replace("_", "-")
+        desired_slug = re.sub(r'[^a-z0-9-]', '-', desired_slug)
+        desired_slug = re.sub(r'-+', '-', desired_slug)
+        desired_slug = desired_slug.strip('-')
 
         # Check cache
         if desired_slug in self._tenant_cache:
@@ -110,7 +117,8 @@ class NetBoxInfrastructureMixin:
             self._safe_update_object(tenant, updates)
 
             # Add sync tag
-            tag_id = self.ensure_sync_tag()
+            tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
+            tag_id = self.ensure_sync_tag(**tag_kwargs)
             if tag_id:
                 self._add_tag_to_object(tenant, tag_id)
 
@@ -125,7 +133,8 @@ class NetBoxInfrastructureMixin:
             return mock_id
 
         # Ensure tag exists
-        tag_id = self.ensure_sync_tag()
+        tag_kwargs = {"tag_slug": tag_slug} if tag_slug else {}
+        tag_id = self.ensure_sync_tag(**tag_kwargs)
 
         tenant_data = {
             "name": name,

@@ -1,7 +1,7 @@
 """Top-level sync engine that orchestrates the full sync cycle."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from infraverse.providers.netbox import NetBoxClient
 from infraverse.sync.infrastructure import sync_infrastructure
@@ -14,13 +14,8 @@ logger = logging.getLogger(__name__)
 # Type alias for a cloud provider client (YandexCloudClient, VCloudDirectorClient, etc.)
 CloudClient = Any
 
-# Provider tuple: (client, profile), (client, profile, tenant_name),
-# or (client, profile, tenant_name, tenant_description)
-ProviderTuple = Union[
-    Tuple[CloudClient, ProviderProfile],
-    Tuple[CloudClient, ProviderProfile, Optional[str]],
-    Tuple[CloudClient, ProviderProfile, Optional[str], Optional[str]],
-]
+# Provider tuple: (client, profile, tenant_name, tenant_description)
+ProviderTuple = Tuple[CloudClient, ProviderProfile, Optional[str], Optional[str]]
 
 
 class SyncEngine:
@@ -55,11 +50,7 @@ class SyncEngine:
 
         all_stats: Dict[str, Any] = {}
 
-        for provider_tuple in self._providers:
-            client = provider_tuple[0]
-            profile = provider_tuple[1]
-            tenant_name = provider_tuple[2] if len(provider_tuple) > 2 else None
-            tenant_description = provider_tuple[3] if len(provider_tuple) > 3 else None
+        for client, profile, tenant_name, tenant_description in self._providers:
             logger.info("Syncing provider: %s", profile.display_name)
             try:
                 provider_stats = self._sync_provider(
@@ -103,6 +94,7 @@ class SyncEngine:
         if tenant_name:
             self.nb.ensure_tenant(
                 name=tenant_name, description=tenant_description,
+                tag_slug=profile.tag_slug,
             )
 
         # Sync infrastructure and get ID mappings
