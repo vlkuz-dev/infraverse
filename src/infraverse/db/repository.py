@@ -479,11 +479,8 @@ class Repository:
             .all()
         )
 
-    def mark_netbox_hosts_stale(self, seen_before: datetime) -> int:
-        """Mark NetBox hosts as offline if they weren't seen in the latest sync.
-
-        Returns the number of hosts marked stale.
-        """
+    def delete_stale_netbox_hosts(self, seen_before: datetime) -> int:
+        """Delete NetBox hosts that weren't seen in the latest sync."""
         stale_hosts = (
             self.session.query(NetBoxHost)
             .filter(
@@ -493,7 +490,7 @@ class Repository:
             .all()
         )
         for host in stale_hosts:
-            host.status = "offline"
+            self.session.delete(host)
         self.session.flush()
         return len(stale_hosts)
 

@@ -95,34 +95,34 @@ class TestGetAllNetBoxHosts:
         assert hosts[1].name == "zz-host"
 
 
-# --- Repository: mark_netbox_hosts_stale ---
+# --- Repository: delete_stale_netbox_hosts ---
 
 
-class TestMarkNetBoxHostsStale:
-    def test_marks_old_hosts_offline(self, repo, session):
+class TestDeleteStaleNetBoxHosts:
+    def test_deletes_old_hosts(self, repo, session):
         repo.upsert_netbox_host(external_id="1", name="old-host", status="active")
         session.commit()
 
-        # Mark anything not seen after "now" as stale
+        # Delete anything not seen after "now"
         future = datetime.now(timezone.utc) + timedelta(seconds=10)
-        count = repo.mark_netbox_hosts_stale(future)
+        count = repo.delete_stale_netbox_hosts(future)
         session.commit()
 
         assert count == 1
-        hosts = repo.list_netbox_hosts()
-        assert hosts[0].status == "offline"
+        assert repo.list_netbox_hosts() == []
 
-    def test_does_not_mark_recent_hosts(self, repo, session):
+    def test_does_not_delete_recent_hosts(self, repo, session):
         repo.upsert_netbox_host(external_id="1", name="fresh-host", status="active")
         session.commit()
 
         # Use a cutoff in the past
         past = datetime.now(timezone.utc) - timedelta(hours=1)
-        count = repo.mark_netbox_hosts_stale(past)
+        count = repo.delete_stale_netbox_hosts(past)
 
         assert count == 0
+        assert len(repo.list_netbox_hosts()) == 1
 
-    def test_marks_hosts_with_null_last_seen(self, repo, session):
+    def test_deletes_hosts_with_null_last_seen(self, repo, session):
         host = NetBoxHost(
             external_id="99", name="null-seen", status="active",
         )
@@ -130,8 +130,36 @@ class TestMarkNetBoxHostsStale:
         session.commit()
 
         future = datetime.now(timezone.utc) + timedelta(seconds=10)
-        count = repo.mark_netbox_hosts_stale(future)
+        count = repo.delete_stale_netbox_hosts(future)
+        session.commit()
+
         assert count == 1
+        assert repo.list_netbox_hosts() == []
+
+    def test_deleted_vm_not_returned_after_resync(self, session):
+        """End-to-end: re-ingest with fewer VMs removes stale hosts."""
+        ingestor = DataIngestor(session)
+        mock_client = MagicMock()
+
+        # First ingestion: 2 VMs
+        mock_client.fetch_all_vms.return_value = [
+            VMInfo(name="vm-a", id="1", status="active"),
+            VMInfo(name="vm-b", id="2", status="active"),
+        ]
+        ingestor.ingest_netbox_hosts(mock_client)
+
+        repo = Repository(session)
+        assert len(repo.list_netbox_hosts()) == 2
+
+        # Second ingestion: only vm-a remains
+        mock_client.fetch_all_vms.return_value = [
+            VMInfo(name="vm-a", id="1", status="active"),
+        ]
+        ingestor.ingest_netbox_hosts(mock_client)
+
+        hosts = repo.list_netbox_hosts()
+        assert len(hosts) == 1
+        assert hosts[0].name == "vm-a"
 
 
 # --- DataIngestor: ingest_netbox_hosts ---

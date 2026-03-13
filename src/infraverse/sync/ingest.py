@@ -275,7 +275,7 @@ class DataIngestor:
                 else:
                     items_updated += 1
 
-            self.repo.mark_netbox_hosts_stale(sync_start)
+            self.repo.delete_stale_netbox_hosts(sync_start)
 
             self.repo.update_sync_run(
                 sync_run.id,
